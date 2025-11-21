@@ -1,0 +1,36 @@
+# Python
+litwise-backend/myenv/
+litwise-backend/__pycache__/
+*.pyc
+
+# Node.js
+litwise-frontend/node_modules/
+litwise-frontend/.next/
+litwise-frontend/.turbo/
+
+# Environment files
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Frontend build and debug
+litwise-frontend/.pnp
+litwise-frontend/.pnp.*
+litwise-frontend/.yarn/*
+!litwise-frontend/.yarn/patches
+!litwise-frontend/.yarn/plugins
+!litwise-frontend/.yarn/releases
+!litwise-frontend/.yarn/versions
+litwise-frontend/coverage
+litwise-frontend/out/
+litwise-frontend/build
+litwise-frontend/.vercel
+litwise-frontend/*.tsbuildinfo
+litwise-frontend/next-env.d.ts
+litwise-frontend/npm-debug.log*
+litwise-frontend/yarn-debug.log*
+litwise-frontend/yarn-error.log*
+litwise-frontend/.pnpm-debug.log*
+litwise-frontend/*.pem
