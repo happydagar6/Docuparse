@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from models import PaperUpload, PaperSummary, SearchQuery
 from pipeline import workflow as graph_app
@@ -6,6 +6,8 @@ from workflow.utils import extract_text_from_pdf, store_embedding
 from workflow.db import supabase
 import os
 import tempfile
+import uuid
+from datetime import datetime
 
 app = FastAPI()
 
@@ -19,25 +21,55 @@ app.add_middleware(
 
 @app.post("/upload", response_model=dict)
 async def upload_paper(file: UploadFile = File(...), title: str = "Untitled"):
+    """Upload and process a PDF research paper."""
+    # Generate unique ID for paper
+    paper_id = str(uuid.uuid4())
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name
 
-    text = extract_text_from_pdf(tmp_path)
-    os.unlink(tmp_path)  # Cleanup
+    try:
+        text = extract_text_from_pdf(tmp_path)
+    finally:
+        os.unlink(tmp_path)  # Cleanup
 
     # Run LangGraph pipeline
     result = graph_app.invoke({"text": text, "summary": {}})
 
-    # Store in Supabase (e.g., papers table)
-    data = {"title": title, "summary": result["summary"]}
-    supabase.table("papers").insert(data).execute()
+    # Store in Supabase papers table
+    paper_data = {
+        "id": paper_id,
+        "title": title or file.filename or "Untitled",
+        "filename": file.filename,
+        "extracted_text": text,
+        "summary": result.get("summary", {}),
+        "file_size": len(content),
+        "created_at": datetime.utcnow().isoformat(),
+        "metadata": {
+            "original_filename": file.filename,
+            "content_type": file.content_type
+        }
+    }
+    
+    # Insert into Supabase
+    supabase_result = supabase.table("papers").insert(paper_data).execute()
 
-    # Store embedding
-    store_embedding(text, {"title": title, "summary": result["summary"]})
+    # Store embedding for semantic search
+    store_embedding(text, {
+        "id": paper_id,
+        "title": title or file.filename,
+        "summary": result.get("summary", {}),
+        "created_at": paper_data["created_at"]
+    })
 
-    return {"id": "paper_id", "summary": result["summary"]}
+    return {
+        "id": paper_id,
+        "title": paper_data["title"],
+        "summary": result.get("summary", {}),
+        "message": "Paper uploaded and processed successfully"
+    }
 
 @app.post("/search")
 def search_papers(query: SearchQuery):
@@ -289,6 +321,63 @@ def qdrant_diagnostics():
         info["errors"].append(f"sample points failed: {e}")
 
     return info
+
+@app.get("/papers", response_model=list)
+def get_papers():
+    """Get list of all uploaded papers."""
+    try:
+        result = supabase.table("papers").select("*").order("created_at", desc=True).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch papers: {str(e)}")
+
+@app.get("/papers/{paper_id}", response_model=dict)
+def get_paper(paper_id: str):
+    """Get specific paper by ID."""
+    try:
+        result = supabase.table("papers").select("*").eq("id", paper_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch paper: {str(e)}")
+
+@app.delete("/papers/{paper_id}", response_model=dict)
+def delete_paper(paper_id: str):
+    """Delete paper and its embeddings."""
+    try:
+        # First check if paper exists
+        result = supabase.table("papers").select("id").eq("id", paper_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        
+        # Delete from Supabase
+        supabase.table("papers").delete().eq("id", paper_id).execute()
+        
+        # Delete embeddings from Qdrant
+        try:
+            from workflow.db import qdrant
+            # Try to delete by point ID (if using paper_id as point ID)
+            try:
+                qdrant.delete(
+                    collection_name="litwise_collection",
+                    points_selector={"ids": [paper_id]}
+                )
+            except Exception as e:
+                # If deletion fails, log but don't fail the whole operation
+                print(f"Warning: Failed to delete embeddings for {paper_id}: {e}")
+        except Exception as e:
+            print(f"Warning: Failed to delete embeddings: {e}")
+        
+        return {"message": "Paper deleted successfully", "id": paper_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete paper: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
