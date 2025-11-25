@@ -18,14 +18,16 @@ import {
 } from '@tanstack/react-query';
 import { 
   uploadPaper, 
+  processPaperAI,
   searchPapers, 
   getPapers, 
   getPaper, 
   deletePaper,
   getQdrantDiagnostics 
 } from './api';
-import { useUploadStore, useSearchStore, useUIStore } from './stores';
-
+import { chatApi } from './chat-api';
+import { useUploadStore, useSearchStore } from './stores';
+import { toast } from 'sonner';
 
 // Query Client configuration
 
@@ -83,12 +85,16 @@ export function useUploadPaper() {
         failUpload,
     } = useUploadStore();
 
-    const { addNotification } = useUIStore(); // For user notifications.
     return useMutation({
         mutationFn: uploadPaper,
         onMutate: async(file) => {
             // Start upload UI state
             startUpload(file);
+
+            // Show loading toast
+            toast.loading('Uploading PDF...', {
+                id: 'upload-progress'
+            });
 
             // Simulate progress for better UX
             const progressInterval = setInterval(() => {
@@ -107,12 +113,15 @@ export function useUploadPaper() {
             updateProgress(100);
             finishUpload(data);
 
-            // Show success notification
-            addNotification({
-                type: "success",
-                title: "Upload Successful",
-                message: `Paper "${data.title || 'Untitled'}" has been processed and is ready to view.`,
-            });
+            // Show success toast
+            toast.success(
+                `Paper "${data.title || 'Untitled'}" uploaded successfully!`,
+                {
+                    id: 'upload-progress',
+                    description: 'Click "Generate AI Summary" to process with AI.',
+                    duration: 5000
+                }
+            );
 
             // Invalidate and refetch papers list
             queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
@@ -127,19 +136,24 @@ export function useUploadPaper() {
             // Update error state
             failUpload(error);
 
-            // Show error notification
-            addNotification({
-                type: "error",
-                title: "Upload Failed",
-                message: error.message || "Failed to upload and process the PDF file.",
-            });
+            // Show error toast
+            toast.error(
+                'Upload failed',
+                {
+                    id: 'upload-progress',
+                    description: error.message || 'Failed to upload the PDF file.',
+                    duration: 7000
+                }
+            );
         },
     });
 }
 
-// Custom hook to search papers with debounced input
-// Handle semantic search and caching and state management
-
+/**
+ * Custom Hook: Search Papers
+ * 
+ * Handle semantic search and caching and state management
+ */
 export function useSearchPapers(){
     const {
         startSearch,
@@ -161,6 +175,66 @@ export function useSearchPapers(){
             failSearch(error);
         },
     });
+}
+
+/**
+ * Custom Hook: Process Paper with AI
+ * 
+ * Handles AI processing with state management
+ */
+export function useProcessPaper() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: processPaperAI,
+    
+    onMutate: async (paperId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.papers.lists() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.papers.detail(paperId) });
+      
+      // Optimistically update paper status
+      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
+        old?.map(paper => 
+          paper.id === paperId 
+            ? { ...paper, processing_status: 'processing' }
+            : paper
+        ) || []
+      );
+      
+      queryClient.setQueryData(queryKeys.papers.detail(paperId), (old) => 
+        old ? { ...old, processing_status: 'processing' } : old
+      );
+    },
+    
+    onSuccess: (data, paperId) => {
+      // Update with actual processed data
+      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
+        old?.map(paper => 
+          paper.id === paperId 
+            ? { ...paper, processing_status: 'completed', summary: data.summary }
+            : paper
+        ) || []
+      );
+    },
+    
+    onError: (error, paperId) => {
+      // Update status to failed
+      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
+        old?.map(paper => 
+          paper.id === paperId 
+            ? { ...paper, processing_status: 'failed' }
+            : paper
+        ) || []
+      );
+    },
+    
+    onSettled: (data, error, paperId) => {
+      // Refetch to ensure consistency
+      queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.papers.detail(paperId) });
+    },
+  });
 }
 
 /**
@@ -197,7 +271,6 @@ export function usePaper(paperId) {
  */
 export function useDeletePaper() {
   const queryClient = useQueryClient();
-  const { addNotification } = useUIStore();
 
   return useMutation({
     mutationFn: deletePaper,
@@ -223,19 +296,23 @@ export function useDeletePaper() {
         queryClient.setQueryData(queryKeys.papers.lists(), context.previousPapers);
       }
       
-      addNotification({
-        type: 'error',
-        title: 'Delete Failed',
-        message: error.message || 'Failed to delete the paper.',
-      });
+      toast.error(
+        'Failed to delete paper',
+        {
+          description: error.message || 'An error occurred while deleting the paper.',
+          duration: 5000
+        }
+      );
     },
     
     onSuccess: () => {
-      addNotification({
-        type: 'success',
-        title: 'Paper Deleted',
-        message: 'The paper has been successfully deleted.',
-      });
+      toast.success(
+        'Paper deleted successfully',
+        {
+          description: 'The paper has been permanently removed.',
+          duration: 4000
+        }
+      );
     },
     
     onSettled: () => {
@@ -244,6 +321,48 @@ export function useDeletePaper() {
     },
   });
 }
+
+
+export const useChatSessions = (paperId) => {
+  return useQuery({
+    queryKey: ["chatsessions", paperId],
+    queryFn: () => chatApi.getPaperSessions(paperId),
+    enabled: !!paperId,
+  });
+};
+
+
+export const useChatMessages = (sessionId) => {
+  return useQuery({
+    queryKey: ["chatmessages", sessionId],
+    queryFn: () => chatApi.getSessionMessages(sessionId),
+    enabled: !!sessionId,
+  });
+};
+
+
+export const useCreateChatSession = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ paperId, title }) => chatApi.createSession(paperId, title),
+    onSuccess: (data, { paperId }) => {
+      queryClient.invalidateQueries(['chatsessions', paperId]);
+    },
+  });
+}
+
+
+export const useDeleteChatSession = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: chatApi.deleteSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['chatsessions']);
+    },
+  });
+};
 
 /**
  * Custom Hook: Qdrant Diagnostics

@@ -34,6 +34,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormattedSummary } from '@/components/ui/formatted-content';
 import { useSearchPapers } from '@/lib/react-query';
 import { useSearchStore } from '@/lib/stores';
 
@@ -300,9 +301,9 @@ export function SearchForm({ onResultClick }) {
                           </div>
                           
                           {result.summary && (
-                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                              {result.summary}
-                            </p>
+                            <div className="text-sm text-gray-600 mb-2 line-clamp-3">
+                              <FormattedSummary summary={result.summary} />
+                            </div>
                           )}
                           
                           {result.metadata && (

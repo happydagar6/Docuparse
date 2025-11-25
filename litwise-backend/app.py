@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from models import PaperUpload, PaperSummary, SearchQuery
+from models import PaperUpload, PaperSummary, SearchQuery, ProcessingRequest, ProcessingResponse
 from pipeline import workflow as graph_app
 from workflow.utils import extract_text_from_pdf, store_embedding
 from workflow.db import supabase
@@ -9,67 +9,251 @@ import tempfile
 import uuid
 from datetime import datetime
 
-app = FastAPI()
+# Import chat routes
+from routes.chat import router as chat_router
 
+
+app = FastAPI(title="Litwise API", version="1.0.0")
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint to verify the server is running."""
+    return {"status": "healthy", "message": "Litwise API is running"}
+
+#Include chat router
+app.include_router(chat_router)
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Litwise API"}
+
+# Handle CORS preflight requests explicitly
+@app.options("/{full_path:path}")
+def options_handler():
+    """Handle CORS preflight requests."""
+    return {"message": "OK"}
+
+# CORS configuration - more permissive for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",  # Next.js dev server
+        "http://127.0.0.1:3000",  # Alternative localhost
+        "https://localhost:3000", # HTTPS variant
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 @app.post("/upload", response_model=dict)
 async def upload_paper(file: UploadFile = File(...), title: str = "Untitled"):
-    """Upload and process a PDF research paper."""
-    # Generate unique ID for paper
-    paper_id = str(uuid.uuid4())
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
-
+    """Upload and extract text from PDF (without AI processing)."""
     try:
-        text = extract_text_from_pdf(tmp_path)
-    finally:
-        os.unlink(tmp_path)  # Cleanup
+        # Generate unique ID for paper
+        paper_id = str(uuid.uuid4())
+        
+        # Validate file type
+        if not file.content_type or file.content_type != "application/pdf":
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
 
-    # Run LangGraph pipeline
-    result = graph_app.invoke({"text": text, "summary": {}})
+        try:
+            text = extract_text_from_pdf(tmp_path)
+            if not text or len(text.strip()) < 10:
+                raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
+        finally:
+            os.unlink(tmp_path)  # Cleanup
 
-    # Store in Supabase papers table
-    paper_data = {
-        "id": paper_id,
-        "title": title or file.filename or "Untitled",
-        "filename": file.filename,
-        "extracted_text": text,
-        "summary": result.get("summary", {}),
-        "file_size": len(content),
-        "created_at": datetime.utcnow().isoformat(),
-        "metadata": {
-            "original_filename": file.filename,
-            "content_type": file.content_type
+        # Store in Supabase papers table (without AI summary)
+        paper_data = {
+            "id": paper_id,
+            "title": title or file.filename or "Untitled",
+            "content_text": text,
+            "embedding_id": paper_id,
+            "user_id": None,
+            "processing_status": "uploaded",
+            "created_at": datetime.utcnow().isoformat()
         }
-    }
-    
-    # Insert into Supabase
-    supabase_result = supabase.table("papers").insert(paper_data).execute()
+        
+        # Insert into Supabase
+        try:
+            supabase_result = supabase.table("papers").insert(paper_data).execute()
+            print(f"Successfully uploaded paper: {paper_id}")
+        except Exception as e:
+            print(f"Database insertion error: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    # Store embedding for semantic search
-    store_embedding(text, {
-        "id": paper_id,
-        "title": title or file.filename,
-        "summary": result.get("summary", {}),
-        "created_at": paper_data["created_at"]
-    })
+        # Note: Embeddings will be generated during processing stage only
+        # This eliminates duplicate embedding generation
+        
+        return {
+            "id": paper_id,
+            "title": paper_data["title"],
+            "status": "uploaded",
+            "message": "Paper uploaded successfully. Click 'Generate AI Summary' to process with embeddings."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-    return {
-        "id": paper_id,
-        "title": paper_data["title"],
-        "summary": result.get("summary", {}),
-        "message": "Paper uploaded and processed successfully"
-    }
+@app.post("/papers/{paper_id}/process", response_model=ProcessingResponse)
+async def process_paper_ai(paper_id: str):
+    """Generate AI summary for an uploaded paper."""
+    try:
+        # Get paper from database
+        result = supabase.table("papers").select(
+            "id, title, content_text, processing_status"
+        ).eq("id", paper_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        
+        paper = result.data[0]
+        
+        # Check if paper is already processed
+        if paper["processing_status"] == "completed":
+            return ProcessingResponse(
+                id=paper_id,
+                status="completed", 
+                message="Paper already processed"
+            )
+        
+        if paper["processing_status"] == "processing":
+            raise HTTPException(status_code=409, detail="Paper is currently being processed")
+        
+        # Update status to processing
+        supabase.table("papers").update({
+            "processing_status": "processing",
+            "processing_error": None
+        }).eq("id", paper_id).execute()
+        
+        try:
+            # Run LangGraph pipeline
+            text = paper["content_text"]
+            result = graph_app.invoke({"text": text, "summary": {}})
+            
+            # Clean and structure the summary (reuse existing logic)
+            summary_data = result.get("summary", {})
+            
+            if isinstance(summary_data, dict):
+                if "summary" in summary_data and isinstance(summary_data["summary"], dict):
+                    summary_data = summary_data["summary"]
+                    
+                if not any(key in summary_data for key in ["key_points", "citations", "related_works"]):
+                    for value in summary_data.values():
+                        if isinstance(value, dict) and any(key in value for key in ["key_points", "citations", "related_works"]):
+                            summary_data = value
+                            break
+            
+            clean_summary = {
+                "key_points": [],
+                "citations": [], 
+                "related_works": []
+            }
+            
+            if isinstance(summary_data, dict):
+                # Extract and clean key_points
+                if "key_points" in summary_data:
+                    kp = summary_data["key_points"]
+                    if isinstance(kp, list):
+                        clean_summary["key_points"] = [str(item) for item in kp if item]
+                    elif isinstance(kp, str):
+                        clean_summary["key_points"] = [kp] if kp.strip() else []
+                        
+                # Extract and clean citations
+                if "citations" in summary_data:
+                    cit = summary_data["citations"] 
+                    if isinstance(cit, list):
+                        clean_summary["citations"] = [str(item) for item in cit if item]
+                    elif isinstance(cit, str):
+                        clean_summary["citations"] = [cit] if cit.strip() else []
+                        
+                # Extract and clean related_works
+                if "related_works" in summary_data:
+                    rw = summary_data["related_works"]
+                    if isinstance(rw, list):
+                        clean_summary["related_works"] = [str(item) for item in rw if item]
+                    elif isinstance(rw, str):
+                        clean_summary["related_works"] = [rw] if rw.strip() else []
+            
+            # Validate JSON serialization
+            import json
+            try:
+                json.dumps(clean_summary)
+                final_summary = clean_summary
+            except (TypeError, ValueError):
+                final_summary = {
+                    "key_points": ["Processing completed with errors"],
+                    "citations": [],
+                    "related_works": [],
+                    "error": "JSON serialization failed"
+                }
+            
+            # Update paper with AI summary
+            supabase.table("papers").update({
+                "summary": final_summary,
+                "processing_status": "completed",
+                "ai_generated_at": datetime.utcnow().isoformat()
+            }).eq("id", paper_id).execute()
+            
+            # Generate comprehensive embeddings with AI-enhanced content
+            try:
+                # Create enhanced content with AI insights for better retrieval
+                enhanced_text = f"{text}\n\n=== AI SUMMARY ===\n"
+                enhanced_text += f"Key Points: {'. '.join(final_summary.get('key_points', []))}\n"
+                enhanced_text += f"Citations: {'. '.join(final_summary.get('citations', []))}\n"
+                enhanced_text += f"Related Works: {'. '.join(final_summary.get('related_works', []))}"
+                
+                # Comprehensive metadata for better search and filtering
+                comprehensive_metadata = {
+                    "id": paper_id,
+                    "title": paper["title"],
+                    "summary": final_summary,
+                    "status": "completed",
+                    "has_ai_summary": True,
+                    "processing_date": datetime.utcnow().isoformat(),
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                
+                # Store enhanced embeddings (this is now the single source of embeddings)
+                store_embedding(enhanced_text, comprehensive_metadata, paper_id=paper_id)
+                print(f"Generated comprehensive embeddings with AI enhancement for paper: {paper_id}")
+            except Exception as e:
+                print(f"Embedding generation error: {e}")
+                # Fail the processing if embeddings fail since they're essential for chat
+                raise HTTPException(status_code=500, detail=f"Failed to generate embeddings: {str(e)}")
+            
+            return ProcessingResponse(
+                id=paper_id,
+                status="completed",
+                message="AI processing completed successfully",
+                summary=final_summary
+            )
+            
+        except Exception as e:
+            # Update status to failed
+            supabase.table("papers").update({
+                "processing_status": "failed",
+                "processing_error": str(e)
+            }).eq("id", paper_id).execute()
+            
+            print(f"AI processing failed for {paper_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Processing error: {e}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 @app.post("/search")
 def search_papers(query: SearchQuery):
@@ -324,23 +508,30 @@ def qdrant_diagnostics():
 
 @app.get("/papers", response_model=list)
 def get_papers():
-    """Get list of all uploaded papers."""
+    """Get list of all uploaded papers with processing status."""
     try:
-        result = supabase.table("papers").select("*").order("created_at", desc=True).execute()
+        result = supabase.table("papers").select(
+            "id, title, summary, processing_status, ai_generated_at, created_at, updated_at, embedding_id"
+        ).order("created_at", desc=True).execute()
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch papers: {str(e)}")
 
 @app.get("/papers/{paper_id}", response_model=dict)
 def get_paper(paper_id: str):
-    """Get specific paper by ID."""
+    """Get specific paper by ID with processing status."""
     try:
-        result = supabase.table("papers").select("*").eq("id", paper_id).execute()
+        result = supabase.table("papers").select(
+            "id, title, summary, content_text, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id"
+        ).eq("id", paper_id).execute()
         
         if not result.data:
             raise HTTPException(status_code=404, detail="Paper not found")
         
-        return result.data[0]
+        paper = result.data[0]
+        # Add content field for backward compatibility with frontend
+        paper["content"] = paper.get("content_text")
+        return paper
     except HTTPException:
         raise
     except Exception as e:

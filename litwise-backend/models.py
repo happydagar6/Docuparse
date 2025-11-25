@@ -16,4 +16,13 @@ class SearchQuery(BaseModel):
     query: str
     limit: int = 5
     debug: Optional[bool] = False
+
+class ProcessingRequest(BaseModel):
+    paper_id: str = Field(..., description="ID of the paper to process")
+
+class ProcessingResponse(BaseModel):
+    id: str
+    status: str
+    message: str
+    summary: Optional[dict] = None
     

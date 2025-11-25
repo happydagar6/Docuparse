@@ -48,13 +48,13 @@ async function apiRequest(endpoint, options = {}) {
 
 
 /**
- * Upload PDF file to backend
+ * Upload PDF file to backend (without AI processing)
  * 
  * Flow:
  * 1. Create FormData with PDF file
  * 2. POST to /upload endpoint
- * 3. Backend extracts text → runs LangGraph pipeline → stores in Supabase/Qdrant
- * 4. Returns paper metadata and summary
+ * 3. Backend extracts text → stores in Supabase/Qdrant
+ * 4. Returns paper metadata (without AI summary)
  * 
  * @param {File} file - PDF file to upload
  * @param {function} onProgress - Progress callback (optional)
@@ -85,6 +85,18 @@ export async function uploadPaper(file, onProgress){
         throw error;
     }
 };
+
+/**
+ * Generate AI summary for an uploaded paper
+ * 
+ * @param {string} paperId - Paper UUID
+ * @returns {Promise<object>} - Processing result with AI summary
+ */
+export async function processPaperAI(paperId) {
+    return apiRequest(`/papers/${paperId}/process`, {
+        method: 'POST',
+    });
+}
 
 /**
  * Search papers using semantic search

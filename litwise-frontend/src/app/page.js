@@ -6,6 +6,7 @@
 
 'use client';
 
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
@@ -24,7 +25,13 @@ import { usePapers } from '@/lib/react-query';
 
 export default function Home() {
   const router = useRouter();
-  const { data: papers = [], isLoading } = usePapers();
+  const { data: papers, isLoading } = usePapers();
+  
+  // Ensure papers is always an array with proper error handling
+  const safePapers = React.useMemo(() => {
+    if (isLoading) return [];
+    return Array.isArray(papers) ? papers : [];
+  }, [papers, isLoading]);
 
   const features = [
     {
@@ -56,12 +63,12 @@ export default function Home() {
   const stats = [
     {
       label: 'Papers Uploaded',
-      value: papers.length || 0,
+      value: safePapers.length || 0,
       icon: FileText
     },
     {
       label: 'AI Insights Generated',
-      value: papers.length * 3 || 0, // Approximate
+      value: safePapers.length * 3 || 0, // Approximate
       icon: Brain
     },
     {
@@ -177,7 +184,7 @@ export default function Home() {
       </div>
 
       {/* Recent Papers */}
-      {papers.length > 0 && (
+      {safePapers.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -192,7 +199,7 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {papers.slice(0, 3).map((paper, index) => (
+                {safePapers.slice(0, 3).map((paper, index) => (
                   <div
                     key={paper.id}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary transition-colors cursor-pointer"
@@ -213,13 +220,13 @@ export default function Home() {
                   </div>
                 ))}
                 
-                {papers.length > 3 && (
+                {safePapers.length > 3 && (
                   <Button
                     variant="ghost"
                     onClick={() => router.push('/papers')}
                     className="w-full"
                   >
-                    View All Papers ({papers.length})
+                    View All Papers ({safePapers.length})
                   </Button>
                 )}
               </div>

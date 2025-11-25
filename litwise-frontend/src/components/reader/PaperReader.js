@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormattedContent, FormattedSummary } from '@/components/ui/formatted-content';
 import { usePaperStore } from '@/lib/stores';
 
 export function PaperReader({ paper, onBack }) {
@@ -131,7 +132,32 @@ export function PaperReader({ paper, onBack }) {
     }));
   };
 
-  const paperSections = parsePaperSections(paper?.extracted_text || paper?.content);
+  const paperSections = parsePaperSections(
+    paper?.content || paper?.content_text || paper?.extracted_text
+  );
+
+  /**
+   * Helper function to extract readable text from JSONB summary
+   */
+  const extractSummaryText = (summary) => {
+    if (!summary) return 'Summary not available';
+    if (typeof summary === 'string') return summary;
+    
+    // Handle JSONB structure from your database
+    if (typeof summary === 'object') {
+      if (summary.abstract) return summary.abstract;
+      if (summary.key_points && Array.isArray(summary.key_points)) {
+        return summary.key_points.join('\n• ');
+      }
+      if (summary.conclusions) return summary.conclusions;
+      // Return first available field
+      const firstValue = Object.values(summary)[0];
+      if (Array.isArray(firstValue)) return firstValue.join('\n• ');
+      return firstValue || 'Summary processing in progress...';
+    }
+    
+    return 'Summary not available';
+  };
 
   /**
    * Sidebar content sections
@@ -141,19 +167,27 @@ export function PaperReader({ paper, onBack }) {
       id: 'summary',
       title: 'AI Summary',
       icon: Brain,
-      content: paper?.summary || 'Summary not available'
+      content: extractSummaryText(paper?.summary)
+    },
+    {
+      id: 'key_points',
+      title: 'Key Points',
+      icon: BookOpen,
+      content: paper?.summary?.key_points 
+        ? (Array.isArray(paper.summary.key_points) 
+           ? paper.summary.key_points.map(point => `• ${point}`).join('\n')
+           : paper.summary.key_points)
+        : 'Key points will be generated based on the paper content.'
     },
     {
       id: 'related',
       title: 'Related Works',
       icon: Link2,
-      content: paper?.related_works || 'Related works analysis in progress...'
-    },
-    {
-      id: 'insights',
-      title: 'Key Insights',
-      icon: BookOpen,
-      content: paper?.insights || 'Key insights will be generated based on the paper content.'
+      content: paper?.summary?.related_works 
+        ? (Array.isArray(paper.summary.related_works) 
+           ? paper.summary.related_works.map(work => `• ${work}`).join('\n')
+           : paper.summary.related_works)
+        : 'Related works analysis in progress...'
     }
   ];
 
@@ -281,7 +315,7 @@ export function PaperReader({ paper, onBack }) {
                   )}
                   
                   <div className="whitespace-pre-wrap leading-relaxed">
-                    {section.content}
+                    <FormattedContent content={section.content} />
                   </div>
                   
                   {/* Section actions */}
@@ -347,9 +381,11 @@ export function PaperReader({ paper, onBack }) {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="text-sm text-gray-700 leading-relaxed">
-                          <div className="whitespace-pre-wrap">
-                            {section.content}
-                          </div>
+                          {section.id === 'summary' ? (
+                            <FormattedSummary summary={paper?.summary} />
+                          ) : (
+                            <FormattedContent content={section.content} />
+                          )}
                         </CardContent>
                       </Card>
                     </motion.div>

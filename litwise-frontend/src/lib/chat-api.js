@@ -1,0 +1,104 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export const chatApi = {
+  // Create a new chat session
+  createSession: async (paperId, title) => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions?paper_id=${paperId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  // Get chat sessions for a paper
+  getPaperSessions: async (paperId) => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${paperId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  // Get messages for a session
+  getSessionMessages: async (sessionId) => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: {response.status}`);
+    }
+
+    return response.json();
+  },
+
+  // Stream chat response
+  streamChat: async (sessionId, message, onChunk) => {
+    console.log('Starting chat stream for session:', sessionId, 'message:', message);
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        message: message,
+      }),
+    });
+
+    console.log('Stream response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              console.log('Received chunk:', data);
+              onChunk(data);
+            } catch (e) {
+              console.error('Error parsing chunk:', e, 'Line:', line);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  // Delete a chat session
+  deleteSession: async (sessionId) => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  },
+};
