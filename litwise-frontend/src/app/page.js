@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/Layout';
+import EnhancedFooter from '@/components/layout/EnhancedFooter';
 import { usePapers } from '@/lib/react-query';
 
 export default function Home() {
@@ -211,9 +212,17 @@ export default function Home() {
                         <h4 className="font-medium">
                           {paper.title || paper.filename || 'Untitled'}
                         </h4>
-                        <p className="text-sm text-gray-500">
-                          {paper.created_at && new Date(paper.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <span>
+                            {paper.created_at && new Date(paper.created_at).toLocaleDateString()}
+                          </span>
+                          {paper.file_size && (
+                            <>
+                              <span>•</span>
+                              <span>{(paper.file_size / (1024 * 1024)).toFixed(1)} MB</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400" />
@@ -235,39 +244,8 @@ export default function Home() {
         </motion.div>
       )}
 
-      {/* How it Works */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.0 }}
-        className="mt-16 text-center"
-      >
-        <h2 className="text-3xl font-bold text-gray-900 mb-8">
-          How Litwise Works
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {[
-            { step: '1', title: 'Upload', desc: 'Upload your PDF research papers' },
-            { step: '2', title: 'Extract', desc: 'AI extracts text and key information' },
-            { step: '3', title: 'Analyze', desc: 'Generate summaries and insights' },
-            { step: '4', title: 'Discover', desc: 'Search and explore connections' },
-          ].map((item, index) => (
-            <div key={item.step} className="relative">
-              {index < 3 && (
-                <div className="hidden md:block absolute top-12 right-0 w-full h-px bg-gray-300 z-0" />
-              )}
-              <div className="relative z-10 bg-white">
-                <div className="w-24 h-24 bg-primary text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                <p className="text-gray-600">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+      {/* Enhanced Footer */}
+      <EnhancedFooter />
     </PageLayout>
   );
 }

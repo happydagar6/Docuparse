@@ -145,8 +145,6 @@ async def stream_chat(request: ChatRequest):
                     session_id=session_id,
                     paper_id=paper_id
                 ):
-                    print(f"Received chunk from pipeline: {chunk}")
-                    
                     # Chunk is already a dict from the updated pipeline
                     # Send chunk to client
                     yield f"data: {json.dumps(chunk)}\n\n"

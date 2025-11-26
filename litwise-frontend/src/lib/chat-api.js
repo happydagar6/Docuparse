@@ -76,7 +76,6 @@ export const chatApi = {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              console.log('Received chunk:', data);
               onChunk(data);
             } catch (e) {
               console.error('Error parsing chunk:', e, 'Line:', line);

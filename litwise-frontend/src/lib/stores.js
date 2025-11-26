@@ -72,7 +72,7 @@ export const useUploadStore = create(
 /**
  * Paper Reader State Store
  * 
- * Manages paper reading interface state
+ * Manages paper reading interface state with pagination
  */
 export const usePaperStore = create(
   devtools(
@@ -84,6 +84,13 @@ export const usePaperStore = create(
       showSidebar: true,
       highlightedSections: new Set(),
       activeSection: null,
+      
+      // Pagination state
+      currentPage: 1,
+      totalPages: 0,
+      pagesPerView: 1, // pages to show at once
+      pageContent: [], // array of page content
+      pageError: null,
       
       // Reader settings
       fontSize: 'medium', // 'small', 'medium', 'large'
@@ -119,6 +126,89 @@ export const usePaperStore = create(
 
       clearHighlights: () => 
         set({ highlightedSections: new Set() }),
+
+      // Pagination actions
+      setCurrentPage: (pageNumber) => {
+        const state = get();
+        const validPage = Math.max(1, Math.min(pageNumber, state.totalPages));
+        set({ currentPage: validPage });
+      },
+
+      goToNextPage: () => {
+        const state = get();
+        if (state.currentPage < state.totalPages) {
+          set({ currentPage: state.currentPage + 1 });
+        }
+      },
+
+      goToPreviousPage: () => {
+        const state = get();
+        if (state.currentPage > 1) {
+          set({ currentPage: state.currentPage - 1 });
+        }
+      },
+
+      initializePagination: (content, pageInfo = null) => {
+        try {
+          let pageContent = [];
+          let totalPages = 1;
+
+          if (pageInfo && Array.isArray(pageInfo) && pageInfo.length > 0) {
+            // Use page info from PDF extraction
+            pageContent = pageInfo.map((page, index) => ({
+              pageNumber: index + 1,
+              content: page.text || '',
+              startPos: page.start_pos || 0,
+              endPos: page.end_pos || 0
+            }));
+            totalPages = pageContent.length;
+          } else if (content) {
+            // Fallback: split content into estimated pages (every 2000 characters)
+            const charsPerPage = 2000;
+            const totalChars = content.length;
+            totalPages = Math.ceil(totalChars / charsPerPage);
+            
+            for (let i = 0; i < totalPages; i++) {
+              const start = i * charsPerPage;
+              const end = Math.min((i + 1) * charsPerPage, totalChars);
+              pageContent.push({
+                pageNumber: i + 1,
+                content: content.slice(start, end),
+                startPos: start,
+                endPos: end
+              });
+            }
+          }
+
+          set({ 
+            pageContent, 
+            totalPages, 
+            currentPage: 1, 
+            pageError: null 
+          });
+        } catch (error) {
+          console.error('Error initializing pagination:', error);
+          set({ 
+            pageError: error.message,
+            pageContent: [{ 
+              pageNumber: 1, 
+              content: content || '', 
+              startPos: 0, 
+              endPos: content?.length || 0 
+            }],
+            totalPages: 1,
+            currentPage: 1
+          });
+        }
+      },
+
+      resetPagination: () => 
+        set({
+          currentPage: 1,
+          totalPages: 0,
+          pageContent: [],
+          pageError: null
+        }),
     }),
     {
       name: 'paper-store',

@@ -42,6 +42,7 @@ import {
 import { PageLayout } from '@/components/layout/Layout';
 import { usePapers, useDeletePaper } from '@/lib/react-query';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 
 
@@ -278,6 +279,21 @@ export default function PapersPage() {
                           <CardTitle className="text-lg line-clamp-2">
                             {paper.title || paper.filename || 'Untitled Paper'}
                           </CardTitle>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                            {paper.filename && (
+                              <span className="truncate max-w-[200px]" title={paper.filename}>
+                                📄 {paper.filename}
+                              </span>
+                            )}
+                            {paper.file_size && (
+                              <span>
+                                💾 {(paper.file_size / (1024 * 1024)).toFixed(2)} MB
+                              </span>
+                            )}
+                            <span>
+                              📅 {format(new Date(paper.created_at), 'MMM d, yyyy')}
+                            </span>
+                          </div>
                           <div className="mt-2">
                             <ProcessingBadge paper={paper} />
                           </div>
@@ -316,7 +332,7 @@ export default function PapersPage() {
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => handleDeletePaper(paper.id, paper.title)}
+                                onClick={(e) => handleDeletePaper(paper.id, paper.title, e)}
                                 className="bg-red-600 hover:bg-red-700"
                               >
                                 Delete Paper

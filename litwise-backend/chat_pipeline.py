@@ -72,6 +72,58 @@ class RAGChatPipeline:
             
             print(f"Retrieving context for paper: {paper_id}, question: {question}")
             
+            # Import enhanced search system
+            from workflow.enhanced_search import enhanced_search
+            
+            # Use hybrid search for better results
+            try:
+                enhanced_documents = await enhanced_search.hybrid_search(
+                    qdrant_client=self.qdrant_client,
+                    embeddings_model=self.embeddings,
+                    paper_id=paper_id,
+                    query=question,
+                    top_k=15  # Get top 15 most relevant results
+                )
+                
+                if enhanced_documents:
+                    print(f"✅ Enhanced hybrid search found {len(enhanced_documents)} relevant results")
+                    
+                    # Filter out low-relevance results
+                    high_relevance_docs = [doc for doc in enhanced_documents if doc['relevance_score'] > 0.3]
+                    
+                    if not high_relevance_docs:
+                        print("⚠️ No high-relevance results found, using best available")
+                        high_relevance_docs = enhanced_documents[:3]  # Use top 3 as fallback
+                    
+                    # Convert to expected format
+                    context = []
+                    sources = []
+                    
+                    for doc in high_relevance_docs:
+                        context.append({
+                            "content": doc['content'],
+                            "metadata": doc.get('metadata', {}),
+                            "relevance_score": doc['relevance_score']
+                        })
+                        
+                        # Prepare sources for frontend (top 5)
+                        if len(sources) < 5:
+                            content = doc['content']
+                            page = doc.get('page', 1)
+                            
+                            sources.append({
+                                "content": content[:200] + "..." if len(content) > 200 else content,
+                                "page": page,
+                                "relevance_score": doc['relevance_score']
+                            })
+                    
+                    state["context"] = context
+                    state["sources"] = sources
+                    return state
+                    
+            except Exception as e:
+                print(f"Enhanced search failed, falling back to basic vector search: {e}")
+            
             # Generate embedding for the question
             query_embedding = await asyncio.to_thread(
                 self.embeddings.embed_query, 
@@ -101,22 +153,35 @@ class RAGChatPipeline:
             
             print(f"Found {len(search_result.points)} initial search results")
             
-            # Intelligent context selection with relevance filtering
+            # Check if no embeddings exist for this paper
+            if len(search_result.points) == 0:
+                print(f"No embeddings found for paper {paper_id} - paper may not be processed yet")
+                state["context"] = []
+                state["sources"] = []
+                state["no_embeddings"] = True
+                return state
+            
+            # Intelligent context selection with higher relevance filtering
             all_results = []
             for result in search_result.points:
                 content = result.payload.get('content', '')
                 relevance_score = float(result.score)
                 
-                # Only include results with reasonable relevance (>0.1)
-                if relevance_score > 0.1 and content.strip():
+                # Only include results with reasonable relevance (increased threshold to 0.3)
+                if relevance_score > 0.3 and content.strip():
                     all_results.append({
                         "content": content,
                         "metadata": result.payload,
                         "relevance_score": relevance_score
                     })
             
-            # Dynamic context window management
+            # Dynamic context window management with confidence check
             context = self._select_optimal_context(all_results, max_tokens=4000)
+            
+            # Check if we have high-quality context
+            if not context or (context and max(item["relevance_score"] for item in context) < 0.5):
+                print(f"Warning: Low confidence context (best score: {max([item['relevance_score'] for item in context], default=0):.2f})")
+                # Still proceed but the prompt will handle low-confidence gracefully
             
             # Prepare sources for frontend display (top 5 most relevant)
             sources = []
@@ -212,11 +277,27 @@ class RAGChatPipeline:
     async def _generate_response(self, state: Dict) -> Dict:
         """Generate AI response with streaming"""
         try:
-            # Prepare context
-            context_text = "\n\n".join([
-                f"Content: {item['content']}\nRelevance: {item['relevance_score']:.2f}"
-                for item in state.get("context", [])
-            ])
+            # Handle case where paper hasn't been processed yet
+            if state.get("no_embeddings", False):
+                state["response"] = """I notice this paper hasn't been processed yet, so I don't have access to its content for detailed analysis. 
+
+To chat about this paper, you'll need to:
+1. Go to the processing section 
+2. Click "Process with AI" to generate the enhanced content
+3. Return here once processing is complete
+
+The processing adds AI-powered summaries and enables detailed Q&A about the paper's content."""
+                return state
+            
+            # Prepare context with explicit page information
+            context_text = ""
+            if state.get("context", []):
+                context_text = "\n\n".join([
+                    f"[Page {item['metadata'].get('page', 'unknown')}] {item['content']}\n(Relevance Score: {item['relevance_score']:.2f})"
+                    for item in state.get("context", [])
+                ])
+            else:
+                context_text = "No relevant context found in this document."
             
             # Prepare chat history
             history_text = ""
@@ -229,25 +310,31 @@ class RAGChatPipeline:
                 role = "Human" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role}: {msg['content']}\n"
 
-            # Create prompt
+            # Create prompt with strict document grounding
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an AI research assistant helping users understand and analyze research papers. 
+                ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
 
-Use the provided document context to answer questions accurately and comprehensively. 
+STRICT RULES:
+1. ONLY answer questions using information explicitly found in the provided document context below
+2. If the information is not in the provided context, you MUST respond with: "I don't have enough information in this document to answer that question."
+3. Never make up page numbers - only reference pages mentioned in the context metadata
+4. When citing information, use phrases like "According to the document" or "The paper states"
+5. Include relevant direct quotes from the context when possible
+6. If a question requires information from outside this document, clearly state that limitation
 
-Guidelines:
-1. Base your answers primarily on the provided context
-2. If information isn't in the context, clearly state this
-3. Provide specific quotes when relevant
-4. Maintain conversation context from previous messages
-5. Be concise but thorough
-6. Use academic tone appropriate for research discussions
+FORBIDDEN ACTIONS:
+- Do NOT answer questions about topics not covered in the provided context
+- Do NOT provide page references unless they are explicitly mentioned in the context metadata
+- Do NOT make assumptions or inferences beyond what is directly stated in the document
+- Do NOT use external knowledge not found in this specific document
 
-Document Context:
+Document Context (THIS IS YOUR ONLY SOURCE OF INFORMATION):
 {context}
 
 Conversation History:
-{history}"""),
+{history}
+
+Remember: You can ONLY use the information provided in the Document Context above. If the user's question cannot be answered from that context, be honest and direct about the limitation."""),
                 ("human", "{question}")
             ])
             
@@ -410,11 +497,15 @@ Conversation History:
         try:
             print("Starting LLM streaming response")
             
-            # Prepare context (same as in generate_response)
-            context_text = "\n\n".join([
-                f"Content: {item['content']}\nRelevance: {item['relevance_score']:.2f}"
-                for item in state.get("context", [])
-            ])
+            # Prepare context (same as in generate_response) with explicit page information
+            context_text = ""
+            if state.get("context", []):
+                context_text = "\n\n".join([
+                    f"[Page {item['metadata'].get('page', 'unknown')}] {item['content']}\n(Relevance Score: {item['relevance_score']:.2f})"
+                    for item in state.get("context", [])
+                ])
+            else:
+                context_text = "No relevant context found in this document."
             
             history_text = ""
             if state.get("memory_summary"):
@@ -426,23 +517,29 @@ Conversation History:
                 history_text += f"{role}: {msg['content']}\n"
 
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an AI research assistant helping users understand and analyze research papers. 
+                ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
 
-Use the provided document context to answer questions accurately and comprehensively. 
+STRICT RULES:
+1. ONLY answer questions using information explicitly found in the provided document context below
+2. If the information is not in the provided context, you MUST respond with: "I don't have enough information in this document to answer that question."
+3. Never make up page numbers - only reference pages mentioned in the context metadata
+4. When citing information, use phrases like "According to the document" or "The paper states"
+5. Include relevant direct quotes from the context when possible
+6. If a question requires information from outside this document, clearly state that limitation
 
-Guidelines:
-1. Base your answers primarily on the provided context
-2. If information isn't in the context, clearly state this
-3. Provide specific quotes when relevant
-4. Maintain conversation context from previous messages
-5. Be concise but thorough
-6. Use academic tone appropriate for research discussions
+FORBIDDEN ACTIONS:
+- Do NOT answer questions about topics not covered in the provided context
+- Do NOT provide page references unless they are explicitly mentioned in the context metadata
+- Do NOT make assumptions or inferences beyond what is directly stated in the document
+- Do NOT use external knowledge not found in this specific document
 
-Document Context:
+Document Context (THIS IS YOUR ONLY SOURCE OF INFORMATION):
 {context}
 
 Conversation History:
-{history}"""),
+{history}
+
+Remember: You can ONLY use the information provided in the Document Context above. If the user's question cannot be answered from that context, be honest and direct about the limitation."""),
                 ("human", "{question}")
             ])
             

@@ -64,6 +64,24 @@ async function apiRequest(endpoint, options = {}) {
 export async function uploadPaper(file, onProgress){
     const formData = new FormData(); // Create FormData
     formData.append('file', file); // Append PDF file
+    
+    // Extract clean title from filename (remove extension and clean up)
+    let title = '';
+    if (file.name) {
+        // Remove .pdf extension
+        title = file.name.replace(/\.pdf$/i, '');
+        // Replace underscores and hyphens with spaces
+        title = title.replace(/[_-]/g, ' ');
+        // Clean up extra spaces
+        title = title.replace(/\s+/g, ' ').trim();
+        // Capitalize first letter of each word
+        title = title.replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    // Only append title if we have one
+    if (title) {
+        formData.append('title', title);
+    }
 
     try {
         const response = await fetch(`${API_BASE_URL}/upload`, {

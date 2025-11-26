@@ -1,31 +1,21 @@
 /**
- * Paper Reader Component
+ * Enhanced Paper Reader Component with Pagination
  * 
- * Displays processed research papers with AI-generated insights and interactive features.
- * 
- * COMPONENT LOGIC FLOW:
- * 1. Receives paper data (text, summary, links) from upload or search
- * 2. Displays paper content with highlighted sections
- * 3. Shows AI-generated summary and related works in sidebar
- * 4. Provides interactive navigation and highlighting
- * 5. Smooth animations for section transitions
- * 
- * FEATURES:
- * - Split-pane layout (content + sidebar)
- * - Section-based navigation
- * - Interactive highlighting
- * - AI insights display
- * - Related works suggestions
- * - Responsive design with mobile support
+ * Features:
+ * - PDF-style pagination with page navigation
+ * - Collapsible sidebar with close button
+ * - Robust error handling and loading states
+ * - Responsive design with keyboard shortcuts
+ * - Page-based content display
  */
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
-  Sidebar, 
+  X,
   ArrowLeft, 
   BookOpen, 
   Brain, 
@@ -34,17 +24,24 @@ import {
   Share2,
   Settings,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { FormattedContent, FormattedSummary } from '@/components/ui/formatted-content';
 import { usePaperStore } from '@/lib/stores';
 
 export function PaperReader({ paper, onBack }) {
   // Local state
-  const [selectedText, setSelectedText] = useState('');
-  const [contentHeight, setContentHeight] = useState('auto');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pageInputValue, setPageInputValue] = useState('');
   
   // Refs
   const contentRef = useRef(null);
@@ -53,56 +50,148 @@ export function PaperReader({ paper, onBack }) {
   // Zustand store for paper reader state
   const {
     showSidebar,
-    highlightedSections,
-    activeSection,
+    currentPage,
+    totalPages,
+    pageContent,
+    pageError,
     fontSize,
     theme,
+    highlightedSections,
     toggleSidebar,
-    highlightSection,
-    setActiveSection,
+    setCurrentPage,
+    goToNextPage,
+    goToPreviousPage,
+    initializePagination,
+    resetPagination,
     setFontSize,
     clearHighlights
   } = usePaperStore();
 
   /**
-   * Handle text selection for highlighting
+   * Initialize pagination when paper data loads
    */
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
-    
-    if (text) {
-      setSelectedText(text);
-      // Could add annotation functionality here
-    }
+  useEffect(() => {
+    const initializePaper = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        if (!paper) {
+          throw new Error('Paper data not found');
+        }
+
+        const content = paper?.content || paper?.content_text || paper?.extracted_text;
+        if (!content) {
+          throw new Error('No content available for this paper');
+        }
+
+        // Try to parse page_info if available
+        let pageInfo = null;
+        if (paper.page_info) {
+          try {
+            pageInfo = typeof paper.page_info === 'string' 
+              ? JSON.parse(paper.page_info) 
+              : paper.page_info;
+          } catch (parseError) {
+            console.warn('Could not parse page_info:', parseError);
+            pageInfo = null;
+          }
+        }
+
+        // Initialize pagination with content and page info
+        initializePagination(content, pageInfo);
+        setPageInputValue('1');
+
+      } catch (err) {
+        console.error('Error initializing paper:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializePaper();
+
+    // Cleanup on unmount
+    return () => {
+      resetPagination();
+    };
+  }, [paper, initializePagination, resetPagination]);
+
+  /**
+   * Update page input when current page changes
+   */
+  useEffect(() => {
+    setPageInputValue(currentPage.toString());
+  }, [currentPage]);
+
+  /**
+   * Keyboard shortcuts
+   */
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+        case 'h':
+          e.preventDefault();
+          goToPreviousPage();
+          break;
+        case 'ArrowRight':
+        case 'l':
+          e.preventDefault();
+          goToNextPage();
+          break;
+        case 's':
+          e.preventDefault();
+          toggleSidebar();
+          break;
+        case 'Escape':
+          if (showSidebar) {
+            toggleSidebar();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar]);
+
+  /**
+   * Handle page input change
+   */
+  const handlePageInputChange = (e) => {
+    const value = e.target.value;
+    setPageInputValue(value);
   };
 
   /**
-   * Navigate to specific section
+   * Handle page input submit
    */
-  const navigateToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
-      });
-      setActiveSection(sectionId);
+  const handlePageInputSubmit = (e) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInputValue);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+    } else {
+      setPageInputValue(currentPage.toString());
     }
   };
 
   /**
    * Font size controls
    */
-  const increaseFontSize = () => {
+  const increaseFontSize = useCallback(() => {
     const sizes = { small: 'medium', medium: 'large', large: 'large' };
     setFontSize(sizes[fontSize]);
-  };
+  }, [fontSize, setFontSize]);
 
-  const decreaseFontSize = () => {
+  const decreaseFontSize = useCallback(() => {
     const sizes = { small: 'small', medium: 'small', large: 'medium' };
     setFontSize(sizes[fontSize]);
-  };
+  }, [fontSize, setFontSize]);
 
   /**
    * Get font size classes
@@ -116,48 +205,28 @@ export function PaperReader({ paper, onBack }) {
   };
 
   /**
-   * Parse paper content into sections
+   * Get current page content
    */
-  const parsePaperSections = (content) => {
-    if (!content) return [];
-    
-    // Simple section parsing - could be enhanced with more sophisticated logic
-    const sections = content.split(/\n\n+/).filter(section => section.trim());
-    
-    return sections.map((section, index) => ({
-      id: `section-${index}`,
-      title: section.substring(0, 50) + (section.length > 50 ? '...' : ''),
-      content: section,
-      type: index === 0 ? 'abstract' : 'content'
-    }));
-  };
-
-  const paperSections = parsePaperSections(
-    paper?.content || paper?.content_text || paper?.extracted_text
-  );
-
-  /**
-   * Helper function to extract readable text from JSONB summary
-   */
-  const extractSummaryText = (summary) => {
-    if (!summary) return 'Summary not available';
-    if (typeof summary === 'string') return summary;
-    
-    // Handle JSONB structure from your database
-    if (typeof summary === 'object') {
-      if (summary.abstract) return summary.abstract;
-      if (summary.key_points && Array.isArray(summary.key_points)) {
-        return summary.key_points.join('\n• ');
-      }
-      if (summary.conclusions) return summary.conclusions;
-      // Return first available field
-      const firstValue = Object.values(summary)[0];
-      if (Array.isArray(firstValue)) return firstValue.join('\n• ');
-      return firstValue || 'Summary processing in progress...';
+  const getCurrentPageContent = () => {
+    if (pageError) {
+      return {
+        content: `Error loading page: ${pageError}`,
+        pageNumber: currentPage
+      };
     }
-    
-    return 'Summary not available';
+
+    if (!pageContent || pageContent.length === 0) {
+      return {
+        content: 'No content available',
+        pageNumber: 1
+      };
+    }
+
+    const page = pageContent.find(p => p.pageNumber === currentPage) || pageContent[0];
+    return page;
   };
+
+  const currentPageData = getCurrentPageContent();
 
   /**
    * Sidebar content sections
@@ -167,29 +236,61 @@ export function PaperReader({ paper, onBack }) {
       id: 'summary',
       title: 'AI Summary',
       icon: Brain,
-      content: extractSummaryText(paper?.summary)
+      content: paper?.summary
     },
     {
       id: 'key_points',
       title: 'Key Points',
       icon: BookOpen,
       content: paper?.summary?.key_points 
-        ? (Array.isArray(paper.summary.key_points) 
-           ? paper.summary.key_points.map(point => `• ${point}`).join('\n')
-           : paper.summary.key_points)
-        : 'Key points will be generated based on the paper content.'
     },
     {
       id: 'related',
       title: 'Related Works',
       icon: Link2,
-      content: paper?.summary?.related_works 
-        ? (Array.isArray(paper.summary.related_works) 
-           ? paper.summary.related_works.map(work => `• ${work}`).join('\n')
-           : paper.summary.related_works)
-        : 'Related works analysis in progress...'
+      content: paper?.summary?.related_works
     }
   ];
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading paper...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <Card className="p-6 max-w-md">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Error Loading Paper</h3>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <div className="space-x-2">
+              <Button onClick={onBack} variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Go Back
+              </Button>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -214,6 +315,41 @@ export function PaperReader({ paper, onBack }) {
                 {paper?.title || paper?.filename || 'Research Paper'}
               </h1>
             </div>
+          </div>
+          
+          {/* Center - Page Navigation */}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToPreviousPage}
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Page</span>
+              <form onSubmit={handlePageInputSubmit}>
+                <Input
+                  type="text"
+                  value={pageInputValue}
+                  onChange={handlePageInputChange}
+                  className="w-16 h-8 text-center text-sm"
+                  onBlur={handlePageInputSubmit}
+                />
+              </form>
+              <span className="text-sm text-muted-foreground">of {totalPages}</span>
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={goToNextPage}
+              disabled={currentPage >= totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
           
           {/* Right side - Controls */}
@@ -243,18 +379,16 @@ export function PaperReader({ paper, onBack }) {
             <Button variant="ghost" size="sm">
               <Share2 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
-              <Settings className="h-4 w-4" />
-            </Button>
             
-            {/* Sidebar toggle */}
+            {/* Sidebar toggle with label */}
             <Button
-              variant="ghost"
+              variant={showSidebar ? "default" : "ghost"}
               size="sm"
               onClick={toggleSidebar}
-              className={showSidebar ? 'bg-primary/10' : ''}
+              className="gap-2"
             >
-              <Sidebar className="h-4 w-4" />
+              <BookOpen className="h-4 w-4" />
+              {showSidebar ? 'Hide' : 'Show'} AI Insights
             </Button>
           </div>
         </div>
@@ -271,86 +405,57 @@ export function PaperReader({ paper, onBack }) {
           <div 
             ref={contentRef}
             className="max-w-4xl mx-auto p-8"
-            onMouseUp={handleTextSelection}
           >
-            {/* Paper metadata */}
-            {paper?.metadata && (
-              <div className="mb-8 p-6 bg-gray-50 rounded-lg">
-                <h2 className="text-xl font-bold mb-2">
-                  {paper.metadata.title || paper.title}
-                </h2>
-                {paper.metadata.authors && (
-                  <p className="text-gray-600 mb-2">
-                    Authors: {paper.metadata.authors}
-                  </p>
-                )}
-                {paper.metadata.created_at && (
-                  <p className="text-sm text-gray-500">
-                    Uploaded: {new Date(paper.metadata.created_at).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            )}
-            
-            {/* Paper sections */}
-            <div className={`prose max-w-none ${getFontSizeClass()}`}>
-              {paperSections.map((section, index) => (
-                <motion.div
-                  key={section.id}
-                  id={section.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className={`mb-8 p-4 rounded-lg transition-all duration-200 ${
-                    activeSection === section.id ? 'bg-primary/5 border-l-4 border-primary' : ''
-                  } ${
-                    highlightedSections.has(section.id) ? 'bg-yellow-50 border border-yellow-200' : ''
-                  }`}
-                  onClick={() => setActiveSection(section.id)}
-                >
-                  {section.type === 'abstract' && (
-                    <h3 className="text-lg font-semibold mb-3 text-primary">
-                      Abstract
-                    </h3>
-                  )}
-                  
-                  <div className="whitespace-pre-wrap leading-relaxed">
-                    <FormattedContent content={section.content} />
-                  </div>
-                  
-                  {/* Section actions */}
-                  <div className="mt-4 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        highlightSection(section.id);
-                      }}
-                    >
-                      Highlight
-                    </Button>
-                  </div>
-                </motion.div>
-              ))}
+            {/* Page indicator */}
+            <div className="mb-4 text-center">
+              <span className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
+                Page {currentPageData.pageNumber} of {totalPages}
+              </span>
             </div>
-            
-            {/* No content fallback */}
-            {paperSections.length === 0 && (
-              <div className="text-center py-12">
-                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Content not available
-                </h3>
-                <p className="text-gray-600">
-                  The paper content is still being processed or could not be extracted.
-                </p>
+
+            {/* Page content */}
+            <motion.div
+              key={currentPage}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`prose max-w-none ${getFontSizeClass()}`}
+            >
+              <div className="min-h-[600px] p-6 bg-white rounded-lg shadow-sm border">
+                <FormattedContent content={currentPageData.content} />
               </div>
-            )}
+            </motion.div>
+
+            {/* Page navigation footer */}
+            <div className="mt-8 flex justify-between items-center">
+              <Button
+                variant="outline"
+                onClick={goToPreviousPage}
+                disabled={currentPage <= 1}
+                className="flex items-center gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous Page
+              </Button>
+              
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <Button
+                variant="outline"
+                onClick={goToNextPage}
+                disabled={currentPage >= totalPages}
+                className="flex items-center gap-2"
+              >
+                Next Page
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
         
-        {/* Sidebar */}
+        {/* Enhanced Sidebar */}
         <AnimatePresence>
           {showSidebar && (
             <motion.div
@@ -361,6 +466,19 @@ export function PaperReader({ paper, onBack }) {
               transition={{ type: 'spring', damping: 20 }}
               className="fixed right-0 top-[73px] bottom-0 w-96 bg-white border-l shadow-lg z-20 overflow-auto"
             >
+              {/* Sidebar Header */}
+              <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="font-semibold text-lg">AI Insights</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSidebar}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
               <div className="p-6 space-y-6">
                 {/* Sidebar sections */}
                 {sidebarSections.map((section, index) => {
@@ -382,9 +500,16 @@ export function PaperReader({ paper, onBack }) {
                         </CardHeader>
                         <CardContent className="text-sm text-gray-700 leading-relaxed">
                           {section.id === 'summary' ? (
-                            <FormattedSummary summary={paper?.summary} />
+                            <FormattedSummary summary={section.content} />
                           ) : (
-                            <FormattedContent content={section.content} />
+                            <FormattedContent 
+                              content={section.content 
+                                ? (Array.isArray(section.content) 
+                                   ? section.content.map(item => `• ${item}`).join('\n')
+                                   : section.content)
+                                : `${section.title} will be generated based on the paper content.`
+                              } 
+                            />
                           )}
                         </CardContent>
                       </Card>
@@ -392,37 +517,8 @@ export function PaperReader({ paper, onBack }) {
                   );
                 })}
                 
-                {/* Section navigation */}
-                {paperSections.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <BookOpen className="h-4 w-4" />
-                        Sections
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {paperSections.map((section, index) => (
-                          <button
-                            key={section.id}
-                            onClick={() => navigateToSection(section.id)}
-                            className={`w-full text-left p-2 rounded text-sm transition-colors ${
-                              activeSection === section.id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'hover:bg-gray-100'
-                            }`}
-                          >
-                            {section.title}
-                          </button>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-                
                 {/* Actions */}
-                <div className="space-y-2">
+                <div className="space-y-2 pt-4 border-t">
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -431,11 +527,26 @@ export function PaperReader({ paper, onBack }) {
                   >
                     Clear Highlights
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setCurrentPage(1)}
+                    className="w-full"
+                  >
+                    Go to First Page
+                  </Button>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+      
+      {/* Keyboard shortcuts help */}
+      <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-white/80 backdrop-blur-sm px-2 py-1 rounded">
+        <span className="hidden lg:inline">
+          ← → Navigate • S Toggle sidebar • ESC Close sidebar
+        </span>
       </div>
     </div>
   );

@@ -1,19 +1,29 @@
--- Database schema update to support separate AI processing
--- Run this SQL in your Supabase SQL editor
+-- Add page_info column to papers table to store page mapping information
+-- This supports accurate page references in search results
 
--- Add new columns to track processing status
 ALTER TABLE papers 
-ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'uploaded' CHECK (processing_status IN ('uploaded', 'processing', 'completed', 'failed')),
-ADD COLUMN IF NOT EXISTS ai_generated_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS page_info JSONB;
+
+-- Add index for page_info searches if needed
+CREATE INDEX IF NOT EXISTS idx_papers_page_info ON papers USING GIN(page_info);
+
+-- Add processing_status column for tracking paper processing state
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS processing_status TEXT DEFAULT 'uploaded' 
+CHECK (processing_status IN ('uploaded', 'processing', 'completed', 'failed'));
+
+-- Add processing_error column for error tracking
+ALTER TABLE papers 
 ADD COLUMN IF NOT EXISTS processing_error TEXT;
 
--- Update existing records to have default status
+-- Add file metadata columns for better file tracking
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0;
+
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS filename TEXT;
+
+-- Update existing papers to have default processing status
 UPDATE papers 
-SET processing_status = 'completed', ai_generated_at = updated_at 
-WHERE summary IS NOT NULL AND processing_status = 'uploaded';
-
--- Add index for processing status queries
-CREATE INDEX IF NOT EXISTS idx_papers_processing_status ON papers(processing_status);
-
--- Update the summary column to allow NULL (for uploaded but not processed papers)
-ALTER TABLE papers ALTER COLUMN summary DROP NOT NULL;
+SET processing_status = 'completed' 
+WHERE processing_status IS NULL;

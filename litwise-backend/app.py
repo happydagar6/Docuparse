@@ -4,9 +4,12 @@ from models import PaperUpload, PaperSummary, SearchQuery, ProcessingRequest, Pr
 from pipeline import workflow as graph_app
 from workflow.utils import extract_text_from_pdf, store_embedding
 from workflow.db import supabase
+from async_pipeline import get_async_pipeline
 import os
 import tempfile
 import uuid
+import asyncio
+import json
 from datetime import datetime
 
 # Import chat routes
@@ -48,7 +51,7 @@ app.add_middleware(
 )
 
 @app.post("/upload", response_model=dict)
-async def upload_paper(file: UploadFile = File(...), title: str = "Untitled"):
+async def upload_paper(file: UploadFile = File(...), title: str = None):
     """Upload and extract text from PDF (without AI processing)."""
     try:
         # Generate unique ID for paper
@@ -58,25 +61,36 @@ async def upload_paper(file: UploadFile = File(...), title: str = "Untitled"):
         if not file.content_type or file.content_type != "application/pdf":
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
         
+        # Read file content first
+        content = await file.read()
+        file_size = len(content)
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
 
         try:
-            text = extract_text_from_pdf(tmp_path)
+            text, page_info = extract_text_from_pdf(tmp_path)
             if not text or len(text.strip()) < 10:
                 raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
         finally:
             os.unlink(tmp_path)  # Cleanup
 
+        # Extract clean filename without extension
+        clean_filename = None
+        if file.filename:
+            clean_filename = os.path.splitext(file.filename)[0]
+        
         # Store in Supabase papers table (without AI summary)
         paper_data = {
             "id": paper_id,
-            "title": title or file.filename or "Untitled",
+            "title": title or clean_filename or "Untitled Document",
             "content_text": text,
+            "page_info": json.dumps(page_info),  # Store page info as JSON
             "embedding_id": paper_id,
             "user_id": None,
+            "file_size": file_size,
+            "filename": file.filename,
             "processing_status": "uploaded",
             "created_at": datetime.utcnow().isoformat()
         }
@@ -89,14 +103,13 @@ async def upload_paper(file: UploadFile = File(...), title: str = "Untitled"):
             print(f"Database insertion error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-        # Note: Embeddings will be generated during processing stage only
-        # This eliminates duplicate embedding generation
+        # Note: Embeddings will be generated during processing stage for efficiency
         
         return {
             "id": paper_id,
             "title": paper_data["title"],
             "status": "uploaded",
-            "message": "Paper uploaded successfully. Click 'Generate AI Summary' to process with embeddings."
+            "message": "Paper uploaded successfully! You can start chatting now. AI summary generation is optional for enhanced features."
         }
         
     except HTTPException:
@@ -111,7 +124,7 @@ async def process_paper_ai(paper_id: str):
     try:
         # Get paper from database
         result = supabase.table("papers").select(
-            "id, title, content_text, processing_status"
+            "id, title, content_text, page_info, processing_status"
         ).eq("id", paper_id).execute()
         
         if not result.data:
@@ -137,9 +150,34 @@ async def process_paper_ai(paper_id: str):
         }).eq("id", paper_id).execute()
         
         try:
-            # Run LangGraph pipeline
+            # Start AI processing and embedding enhancement in parallel
             text = paper["content_text"]
-            result = graph_app.invoke({"text": text, "summary": {}})
+            
+            # Parse page_info from stored JSON
+            stored_page_info = paper.get("page_info")
+            page_info = None
+            if stored_page_info:
+                try:
+                    page_info = json.loads(stored_page_info)
+                    print(f"Loaded page_info for {paper_id}: {len(page_info)} pages")
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse page_info for paper {paper_id}")
+                    page_info = None
+            else:
+                print(f"No page_info found for paper {paper_id}")
+            
+            # Use async pipeline for non-blocking AI processing
+            async_pipeline = get_async_pipeline(graph_app)
+            
+            # Process with timeout to prevent hanging
+            pipeline_result = await async_pipeline.process_with_timeout(text, timeout_seconds=300)
+            
+            if pipeline_result["status"] != "completed":
+                # Handle timeout or error
+                error_msg = pipeline_result.get("error", "Processing failed")
+                raise HTTPException(status_code=500, detail=f"AI processing failed: {error_msg}")
+            
+            result = pipeline_result["result"]
             
             # Clean and structure the summary (reuse existing logic)
             summary_data = result.get("summary", {})
@@ -186,7 +224,6 @@ async def process_paper_ai(paper_id: str):
                         clean_summary["related_works"] = [rw] if rw.strip() else []
             
             # Validate JSON serialization
-            import json
             try:
                 json.dumps(clean_summary)
                 final_summary = clean_summary
@@ -205,16 +242,18 @@ async def process_paper_ai(paper_id: str):
                 "ai_generated_at": datetime.utcnow().isoformat()
             }).eq("id", paper_id).execute()
             
-            # Generate comprehensive embeddings with AI-enhanced content
+            # Generate enhanced embeddings with AI insights
             try:
-                # Create enhanced content with AI insights for better retrieval
+                print(f"Enhancing embeddings with AI insights for paper: {paper_id}")
+                
+                # Create AI-enhanced content for superior retrieval
                 enhanced_text = f"{text}\n\n=== AI SUMMARY ===\n"
                 enhanced_text += f"Key Points: {'. '.join(final_summary.get('key_points', []))}\n"
                 enhanced_text += f"Citations: {'. '.join(final_summary.get('citations', []))}\n"
                 enhanced_text += f"Related Works: {'. '.join(final_summary.get('related_works', []))}"
                 
-                # Comprehensive metadata for better search and filtering
-                comprehensive_metadata = {
+                # Enhanced metadata with AI insights
+                enhanced_metadata = {
                     "id": paper_id,
                     "title": paper["title"],
                     "summary": final_summary,
@@ -224,13 +263,14 @@ async def process_paper_ai(paper_id: str):
                     "created_at": datetime.utcnow().isoformat()
                 }
                 
-                # Store enhanced embeddings (this is now the single source of embeddings)
-                store_embedding(enhanced_text, comprehensive_metadata, paper_id=paper_id)
-                print(f"Generated comprehensive embeddings with AI enhancement for paper: {paper_id}")
+                # Store enhanced embeddings for optimal chat functionality
+                store_embedding(enhanced_text, enhanced_metadata, paper_id=paper_id, embedding_type="enhanced", page_info=page_info)
+                print(f"Successfully enhanced embeddings with AI insights for paper: {paper_id}")
+                
             except Exception as e:
-                print(f"Embedding generation error: {e}")
-                # Fail the processing if embeddings fail since they're essential for chat
-                raise HTTPException(status_code=500, detail=f"Failed to generate embeddings: {str(e)}")
+                print(f"Embedding enhancement error: {e}")
+                # Don't fail processing if embedding generation fails
+                print(f"WARNING: AI processing completed but embedding enhancement failed for {paper_id}")
             
             return ProcessingResponse(
                 id=paper_id,
@@ -511,7 +551,7 @@ def get_papers():
     """Get list of all uploaded papers with processing status."""
     try:
         result = supabase.table("papers").select(
-            "id, title, summary, processing_status, ai_generated_at, created_at, updated_at, embedding_id"
+            "id, title, summary, processing_status, ai_generated_at, created_at, updated_at, embedding_id, file_size, filename"
         ).order("created_at", desc=True).execute()
         return result.data
     except Exception as e:
@@ -522,7 +562,7 @@ def get_paper(paper_id: str):
     """Get specific paper by ID with processing status."""
     try:
         result = supabase.table("papers").select(
-            "id, title, summary, content_text, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id"
+            "id, title, summary, content_text, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename"
         ).eq("id", paper_id).execute()
         
         if not result.data:

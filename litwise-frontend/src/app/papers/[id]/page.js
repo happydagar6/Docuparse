@@ -139,7 +139,7 @@ export default function PaperPage() {
               <CardTitle>Document Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
                     Processing Status
@@ -152,7 +152,20 @@ export default function PaperPage() {
                   <label className="text-sm font-medium text-muted-foreground">
                     File Size
                   </label>
-                  <p className="mt-1">{paper.file_size ? `${(paper.file_size / 1024).toFixed(1)} KB` : 'Unknown'}</p>
+                  <p className="mt-1">
+                    {paper.file_size 
+                      ? `${(paper.file_size / (1024 * 1024)).toFixed(2)} MB` 
+                      : 'Unknown'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Original Filename
+                  </label>
+                  <p className="mt-1 text-sm truncate" title={paper.filename}>
+                    {paper.filename || 'Unknown'}
+                  </p>
                 </div>
               </div>
               
