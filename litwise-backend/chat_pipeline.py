@@ -46,8 +46,7 @@ class RAGChatPipeline:
     def __init__(self):
         # Initialize clients
         self.openai_llm = ChatOpenAI(
-            model="gpt-4o-mini-2024-07-18",
-            temperature=0.1,
+            model="gpt-5-mini-2025-08-07",
             streaming=True
         )
         
@@ -132,8 +131,8 @@ class RAGChatPipeline:
             
             print(f"Generated embedding for question, dimension: {len(query_embedding)}")
             
-            # Use larger search scope for better context coverage
-            initial_limit = 15  # Increased from 5 to capture more relevant context
+            # Use smaller search scope for faster retrieval
+            initial_limit = 8  # Reduced from 15 to 8 for faster processing
             
             # Retrieve more context initially
             search_result = await asyncio.to_thread(
@@ -167,8 +166,8 @@ class RAGChatPipeline:
                 content = result.payload.get('content', '')
                 relevance_score = float(result.score)
                 
-                # Only include results with reasonable relevance (increased threshold to 0.3)
-                if relevance_score > 0.3 and content.strip():
+                # Only include results with reasonable relevance (reduced threshold for speed)
+                if relevance_score > 0.2 and content.strip():  # Reduced from 0.3 to 0.2
                     all_results.append({
                         "content": content,
                         "metadata": result.payload,
@@ -176,7 +175,7 @@ class RAGChatPipeline:
                     })
             
             # Dynamic context window management with confidence check
-            context = self._select_optimal_context(all_results, max_tokens=4000)
+            context = self._select_optimal_context(all_results, max_tokens=2500)  # Reduced from 4000
             
             # Check if we have high-quality context
             if not context or (context and max(item["relevance_score"] for item in context) < 0.5):
@@ -208,41 +207,32 @@ class RAGChatPipeline:
             
         return state
     
-    def _select_optimal_context(self, results: List[Dict], max_tokens: int = 4000) -> List[Dict]:
-        """Select optimal context based on relevance and token budget"""
+    def _select_optimal_context(self, results: List[Dict], max_tokens: int = 2500) -> List[Dict]:
+        """Select optimal context based on relevance and token budget - optimized for speed"""
         if not results:
             return []
         
-        # Sort by relevance score (descending)
-        sorted_results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)
+        # Sort by relevance score (descending) - limit to top 8 for speed
+        sorted_results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)[:8]
         
         selected_context = []
         total_tokens = 0
         
-        # Rough token estimation (4 chars ≈ 1 token)
+        # Simplified token estimation (6 chars ≈ 1 token for faster calculation)
         for result in sorted_results:
             content = result["content"]
-            estimated_tokens = len(content) // 4
+            estimated_tokens = len(content) // 6  # Faster estimation
             
-            # Include if we have budget and it's relevant
+            # Include if we have budget
             if total_tokens + estimated_tokens < max_tokens:
                 selected_context.append(result)
                 total_tokens += estimated_tokens
             else:
-                # Check if this chunk is significantly more relevant than the last included
-                if (selected_context and 
-                    result["relevance_score"] > selected_context[-1]["relevance_score"] * 1.5 and
-                    total_tokens + estimated_tokens < max_tokens * 1.2):  # Allow 20% overflow for high relevance
-                    
-                    # Replace least relevant item if this one is much better
-                    selected_context[-1] = result
-                    total_tokens = total_tokens - len(selected_context[-1]["content"]) // 4 + estimated_tokens
-                else:
-                    break
+                break  # Stop when we hit the limit for speed
         
-        # Ensure we have at least some context even if relevance is low
+        # Ensure we have at least one context item
         if not selected_context and sorted_results:
-            selected_context = [sorted_results[0]]  # At least include the top result
+            selected_context = [sorted_results[0]]
         
         print(f"Context selection: {len(selected_context)} chunks, ~{total_tokens} tokens")
         return selected_context
@@ -342,33 +332,24 @@ Conversation History:
             else:
                 # Strict document-grounded responses for actual questions
                 prompt = ChatPromptTemplate.from_messages([
-                    ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
+                    ("system", """You are an AI research assistant. Answer questions using ONLY the provided document context.
 
-STRICT RULES:
-1. ONLY answer questions using information explicitly found in the provided document context below
-2. If the information is not in the provided context, you MUST respond with: "I don't have enough information in this document to answer that question."
-3. Never make up page numbers - only reference pages mentioned in the context metadata
-4. When citing information, use phrases like "According to the document" or "The paper states"
-5. Include relevant direct quotes from the context when possible
-6. If a question requires information from outside this document, clearly state that limitation
+RULES:
+1. Use only information from the context below
+2. If information isn't in context, say "I don't have enough information in this document to answer that."
+3. Use phrases like "According to the document" when citing
+4. Keep formatting simple: use **bold** sparingly, # for headers, - for lists
+5. Use proper line breaks between paragraphs
 
-FORBIDDEN ACTIONS:
-- Do NOT answer questions about topics not covered in the provided context
-- Do NOT provide page references unless they are explicitly mentioned in the context metadata
-- Do NOT make assumptions or inferences beyond what is directly stated in the document
-- Do NOT use external knowledge not found in this specific document
-
-Document Context (THIS IS YOUR ONLY SOURCE OF INFORMATION):
+Document Context:
 {context}
 
 Conversation History:
 {history}
 
-Remember: You can ONLY use the information provided in the Document Context above. If the user's question cannot be answered from that context, be honest and direct about the limitation."""),
-                    ("human", "{question}")
-                ])
-            
-            # Format the prompt based on type
+Answer based only on the context above."""),
+                ("human", "{question}")
+            ])            # Format the prompt based on type
             if is_greeting or is_short_query:
                 # For greetings, don't include document context
                 formatted_prompt = prompt.format_messages(
@@ -495,16 +476,20 @@ Remember: You can ONLY use the information provided in the Document Context abov
             }
             
             # Send loading message
-            yield {"type": "token", "content": "🔍 Loading conversation history..."}
+            yield {"type": "token", "content": "🔍 Searching..."}
             
-            # Load memory
-            state = await self._load_memory(state)
+            # Load memory and retrieve context in parallel for speed
+            import asyncio
+            memory_task = self._load_memory(state)
+            context_task = self._retrieve_context(state)
             
-            # Send context retrieval message
-            yield {"type": "token", "content": "\n📚 Searching relevant content..."}
+            # Wait for both to complete
+            state_memory = await memory_task
+            state_context = await context_task
             
-            # Retrieve context
-            state = await self._retrieve_context(state)
+            # Merge states
+            state.update(state_memory)
+            state.update(state_context)
             if state.get("error"):
                 yield {"type": "error", "error": state["error"]}
                 return
@@ -513,14 +498,14 @@ Remember: You can ONLY use the information provided in the Document Context abov
             if state.get("sources"):
                 yield {"type": "sources", "sources": state["sources"]}
                 
-            yield {"type": "token", "content": "\n🤖 Generating response...\n\n"}
+            yield {"type": "token", "content": "\n\n"}
             
-            # Generate streaming response
+            # Generate streaming response immediately
             async for chunk in self._stream_response(state):
                 yield chunk
                 
             # Save memory asynchronously (non-blocking)
-            await self._save_memory_async(state)
+            asyncio.create_task(self._save_memory_async(state))
             
             yield {"type": "complete", "content": ""}
             
@@ -555,29 +540,22 @@ Remember: You can ONLY use the information provided in the Document Context abov
                 history_text += f"{role}: {msg['content']}\n"
 
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
+                ("system", """You are an AI research assistant. Answer questions using ONLY the provided document context.
 
-STRICT RULES:
-1. ONLY answer questions using information explicitly found in the provided document context below
-2. If the information is not in the provided context, you MUST respond with: "I don't have enough information in this document to answer that question."
-3. Never make up page numbers - only reference pages mentioned in the context metadata
-4. When citing information, use phrases like "According to the document" or "The paper states"
-5. Include relevant direct quotes from the context when possible
-6. If a question requires information from outside this document, clearly state that limitation
+RULES:
+1. Use only information from the context below
+2. If information isn't in context, say "I don't have enough information in this document to answer that."
+3. Use phrases like "According to the document" when citing
+4. Keep formatting simple: use **bold** sparingly, # for headers, - for lists
+5. Use proper line breaks between paragraphs
 
-FORBIDDEN ACTIONS:
-- Do NOT answer questions about topics not covered in the provided context
-- Do NOT provide page references unless they are explicitly mentioned in the context metadata
-- Do NOT make assumptions or inferences beyond what is directly stated in the document
-- Do NOT use external knowledge not found in this specific document
-
-Document Context (THIS IS YOUR ONLY SOURCE OF INFORMATION):
+Document Context:
 {context}
 
 Conversation History:
 {history}
 
-Remember: You can ONLY use the information provided in the Document Context above. If the user's question cannot be answered from that context, be honest and direct about the limitation."""),
+Answer based only on the context above."""),
                 ("human", "{question}")
             ])
             

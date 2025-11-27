@@ -20,6 +20,7 @@ import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSe
 import { chatApi } from '@/lib/chat-api';
 import ChatMessage from './ChatMessage';
 import ChatSessions from './ChatSessions';
+import { FormattedContent } from '@/components/ui/formatted-content';
 
 const ChatInterface = ({ paper }) => {
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -297,8 +298,8 @@ const ChatInterface = ({ paper }) => {
                         </div>
                         <div className="flex-1">
                           <div className="bg-muted rounded-lg p-3">
-                            <div className="whitespace-pre-wrap">
-                              {streamingMessage}
+                            <div className="streaming-content">
+                              <FormattedContent content={streamingMessage} />
                               <span className="animate-pulse">|</span>
                             </div>
                             {sources.length > 0 && (

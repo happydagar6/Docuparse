@@ -9,7 +9,7 @@ import json
 
 load_dotenv()
 
-llm = ChatOpenAI(model="gpt-4o-mini-2024-07-18", temperature=0.4)
+llm = ChatOpenAI(model="gpt-5-mini-2025-08-07")
 
 
 def merge_dicts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,7 +53,16 @@ def extract_agent(state: AgentState) -> AgentState:
     try:
         # Safely chunk the text
         text_chunk = state.get('text', '')[:2000] if state.get('text') else ''
-        prompt = f"Extract key points and citations from this paper text: {text_chunk}"
+        prompt = f"""Extract key points and citations from this paper text: {text_chunk}
+
+Please format your response using clear markdown:
+- Use **bold** SPARINGLY - only for the most important terms and key concepts
+- Use bullet points (-) for lists
+- Use proper paragraph breaks
+- Organize information clearly
+- Keep most text at regular weight for readability
+
+Extract the most important points from this text."""
         
         response = llm.invoke([HumanMessage(content=prompt)])
         
@@ -85,7 +94,16 @@ def summarize_agent(state: AgentState) -> AgentState:
             
         # Create summary prompt
         points_text = ' '.join(key_points) if isinstance(key_points, list) else str(key_points)
-        prompt = f"Provide a concise summary of these key points: {points_text[:1500]}"
+        prompt = f"""Provide a concise summary of these key points: {points_text[:1500]}
+
+Please format your summary using clear markdown:
+- Use **bold** SPARINGLY - only for the most important terms and key findings
+- Use ## for section headings when appropriate
+- Use bullet points (-) for key findings
+- Write in clear, readable paragraphs
+- Keep most text at regular weight for better readability
+
+Create a well-structured summary that's easy to read and understand."""
         
         response = llm.invoke([HumanMessage(content=prompt)])
         summary_content = response.content if hasattr(response, 'content') else str(response)
@@ -111,7 +129,17 @@ def link_agent(state: AgentState) -> AgentState:
         text_chunk = state.get('text', '')[:1000] if state.get('text') else ''
         current_summary = state.get('summary', {})
         
-        prompt = f"Suggest related research topics and works based on: {text_chunk}"
+        prompt = f"""Suggest related research topics and works based on: {text_chunk}
+
+Please format your suggestions using clear markdown:
+- Use **bold** SPARINGLY - only for the most important research areas
+- Use bullet points (-) for each suggested topic or work
+- Organize by relevance or theme
+- Keep suggestions concise but informative
+- Most text should be regular weight
+
+Provide 3-5 most relevant research topics or works."""
+        
         response = llm.invoke([HumanMessage(content=prompt)])
         
         # Process related works

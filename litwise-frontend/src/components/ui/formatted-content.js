@@ -19,8 +19,21 @@ export function FormattedContent({ content, className = '' }) {
    * Format text with basic markdown-like parsing
    */
   const formatText = (text) => {
+    // Pre-process text to ensure proper line breaks for headers and lists
+    let processedText = text
+      // Add line breaks before headers if they don't exist
+      .replace(/([.!?])\s*(#+\s)/g, '$1\n\n$2')
+      // Add line breaks before list items if they don't exist
+      .replace(/([.!?])\s*(-\s)/g, '$1\n\n$2')
+      // Add line breaks after headers if they don't exist
+      .replace(/(#+\s[^\n]+)([A-Z])/g, '$1\n\n$2')
+      // Ensure double line breaks for proper paragraph separation
+      .replace(/\n\n+/g, '\n\n')
+      // Clean up any trailing spaces
+      .trim();
+
     // Split into lines for processing
-    const lines = text.split('\n');
+    const lines = processedText.split('\n');
     const formattedElements = [];
 
     let currentParagraph = [];
@@ -175,7 +188,7 @@ export function FormattedContent({ content, className = '' }) {
   };
 
   return (
-    <div className={cn('prose prose-gray max-w-none', className)}>
+    <div className={cn('formatted-content prose prose-gray max-w-none', className)}>
       {formatText(content)}
     </div>
   );

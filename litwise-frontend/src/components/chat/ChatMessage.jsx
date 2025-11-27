@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Bot, FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import { FormattedContent } from '@/components/ui/formatted-content';
 
 const ChatMessage = ({ message }) => {
   const isUser = message.role === 'user';
@@ -43,8 +44,12 @@ const ChatMessage = ({ message }) => {
             ? 'bg-primary text-primary-foreground ml-auto' 
             : 'bg-muted'
         }`}>
-          <div className="whitespace-pre-wrap wrap-break-word">
-            {message.content}
+          <div className="wrap-break-word">
+            {isUser ? (
+              <div className="whitespace-pre-wrap">{message.content}</div>
+            ) : (
+              <FormattedContent content={message.content} />
+            )}
           </div>
           
           {/* Sources (only for assistant messages) */}
