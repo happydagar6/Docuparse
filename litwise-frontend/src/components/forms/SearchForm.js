@@ -20,7 +20,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useActionState, useOptimistic, useCallback, startTransition, useMemo, useEffectEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -54,49 +54,109 @@ export function SearchForm({ onResultClick }) {
     clearSearch,
     toggleAdvancedSearch
   } = useSearchStore();
+
+  // React 19.2: useOptimistic for immediate UI feedback
+  const [optimisticResults, addOptimisticResult] = useOptimistic(
+    searchResults,
+    (state, newResult) => [...state, newResult]
+  );
   
   // React Query mutation for search
   const searchMutation = useSearchPapers();
 
+  // React 19.2: useActionState for form handling
+  const [searchState, searchAction, isPending] = useActionState(
+    async (prevState, formData) => {
+      const searchQuery = formData.get('query') || searchInput;
+      if (!searchQuery.trim()) {
+        return { error: 'Please enter a search query' };
+      }
+
+      try {
+        // Update query in store with transition
+        startTransition(() => {
+          setQuery(searchQuery);
+        });
+        
+        // Execute search mutation
+        const result = await searchMutation.mutateAsync({ 
+          query: searchQuery,
+          debug: process.env.NODE_ENV === 'development' 
+        });
+
+        return { 
+          success: true, 
+          query: searchQuery,
+          resultCount: result?.length || 0
+        };
+      } catch (error) {
+        console.error('Search failed:', error);
+        return { 
+          error: error.message || 'Search failed. Please try again.' 
+        };
+      }
+    },
+    { success: false }
+  );
+
   /**
-   * Handle search execution
+   * Handle search execution with optimistic updates
    */
   const handleSearch = useCallback(async (searchQuery = searchInput) => {
     if (!searchQuery.trim()) return;
     
-    // Update query in store
-    setQuery(searchQuery);
-    
-    try {
-      // Execute search mutation
-      await searchMutation.mutateAsync({ 
-        query: searchQuery,
-        debug: process.env.NODE_ENV === 'development' 
+    // React 19.2: Optimistic update for immediate feedback
+    const optimisticResult = {
+      id: `searching-${Date.now()}`,
+      title: 'Searching...',
+      summary: 'Please wait while we search through your papers.',
+      score: 0,
+      isOptimistic: true
+    };
+
+    startTransition(() => {
+      addOptimisticResult(optimisticResult);
+    });
+
+    // Use form action for consistent handling
+    const formData = new FormData();
+    formData.set('query', searchQuery);
+    await searchAction(formData);
+  }, [searchInput, searchAction, addOptimisticResult]);
+
+  // React 19.2: useEffectEvent for debounced search without dependency issues
+  const performSearch = useEffectEvent((query) => {
+    if (query.trim() && query !== searchInput) {
+      startTransition(() => {
+        handleSearch(query);
       });
-    } catch (error) {
-      console.error('Search failed:', error);
     }
-  }, [searchInput, setQuery, searchMutation]);
+  });
+
+  const debouncedSearch = useMemo(() => {
+    let timeoutId;
+    return (query) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => performSearch(query), 500);
+    };
+  }, [performSearch]);
 
   /**
-   * Handle search input changes with debounce
+   * Handle search input changes with modern debouncing
    */
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if (searchInput.trim() && searchInput !== query) {
-        handleSearch(searchInput);
-      }
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchInput, query, handleSearch]);
+  const handleInputChange = useCallback((e) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    debouncedSearch(value);
+  }, [debouncedSearch]);
 
   /**
    * Handle search form submission
    */
   const handleSubmit = (e) => {
     e.preventDefault();
-    handleSearch();
+    const formData = new FormData(e.target);
+    searchAction(formData);
   };
 
   /**
@@ -143,9 +203,10 @@ export function SearchForm({ onResultClick }) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="text"
+                name="query"
                 placeholder="Search for research topics, methodologies, findings..."
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={handleInputChange}
                 className="pl-10 pr-20"
               />
               
@@ -220,10 +281,10 @@ export function SearchForm({ onResultClick }) {
             {/* Submit Button */}
             <Button 
               type="submit" 
-              disabled={!searchInput.trim() || isSearching}
+              disabled={!searchInput.trim() || isPending}
               className="w-full"
             >
-              {isSearching ? (
+              {isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Searching...
@@ -235,6 +296,18 @@ export function SearchForm({ onResultClick }) {
                 </>
               )}
             </Button>
+
+            {/* Search state feedback */}
+            {searchState?.error && (
+              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                {searchState.error}
+              </div>
+            )}
+            {searchState?.success && (
+              <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                Found {searchState.resultCount} result(s) for "{searchState.query}"
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -264,7 +337,7 @@ export function SearchForm({ onResultClick }) {
       
       {/* Search Results */}
       <AnimatePresence>
-        {searchResults.length > 0 && (
+        {optimisticResults.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -273,7 +346,7 @@ export function SearchForm({ onResultClick }) {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Search Results ({searchResults.length})</span>
+                  <span>Search Results ({optimisticResults.length})</span>
                   <Button variant="ghost" size="sm" onClick={handleClear}>
                     Clear Results
                   </Button>
@@ -282,14 +355,18 @@ export function SearchForm({ onResultClick }) {
               
               <CardContent>
                 <div className="space-y-4">
-                  {searchResults.map((result, index) => (
+                  {optimisticResults.map((result, index) => (
                     <motion.div
                       key={result.id || index}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-primary transition-colors cursor-pointer"
-                      onClick={() => onResultClick?.(result)}
+                      className={`p-4 border rounded-lg transition-colors cursor-pointer ${
+                        result.isOptimistic 
+                          ? 'border-blue-200 bg-blue-50' 
+                          : 'border-gray-200 hover:border-primary'
+                      }`}
+                      onClick={() => !result.isOptimistic && onResultClick?.(result)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -367,7 +444,7 @@ export function SearchForm({ onResultClick }) {
       )}
       
       {/* No Results */}
-      {searchResults.length === 0 && !isSearching && query && !searchError && (
+      {optimisticResults.length === 0 && !isPending && query && !searchError && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

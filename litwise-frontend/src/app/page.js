@@ -21,7 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/Layout';
-import EnhancedFooter from '@/components/layout/EnhancedFooter';
+import MinimalFooter from '@/components/layout/MinimalFooter';
 import { usePapers } from '@/lib/react-query';
 
 export default function Home() {
@@ -244,8 +244,7 @@ export default function Home() {
         </motion.div>
       )}
 
-      {/* Enhanced Footer */}
-      <EnhancedFooter />
+
     </PageLayout>
   );
 }

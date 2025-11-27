@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useLayoutEffect, useOptimistic, useCallback, useMemo, startTransition, useEffectEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
@@ -43,6 +43,12 @@ export function PaperReader({ paper, onBack }) {
   const [error, setError] = useState(null);
   const [pageInputValue, setPageInputValue] = useState('');
   
+  // React 19.2: useOptimistic for page transitions
+  const [optimisticPage, setOptimisticPage] = useOptimistic(
+    1,
+    (state, newPage) => newPage
+  );
+  
   // Refs
   const contentRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -68,18 +74,16 @@ export function PaperReader({ paper, onBack }) {
   } = usePaperStore();
 
   /**
-   * Initialize pagination when paper data loads
+   * Initialize pagination when paper data loads - using React 19.2 patterns
    */
-  useEffect(() => {
-    const initializePaper = async () => {
+  const paperInitialization = useMemo(() => {
+    if (!paper) return null;
+    
+    return async () => {
       setIsLoading(true);
       setError(null);
 
       try {
-        if (!paper) {
-          throw new Error('Paper data not found');
-        }
-
         const content = paper?.content || paper?.content_text || paper?.extracted_text;
         if (!content) {
           throw new Error('No content available for this paper');
@@ -109,55 +113,69 @@ export function PaperReader({ paper, onBack }) {
         setIsLoading(false);
       }
     };
+  }, [paper, initializePagination]);
 
-    initializePaper();
+  // React 19.2: Initialize with useLayoutEffect for synchronous updates
+  useLayoutEffect(() => {
+    if (paperInitialization) {
+      paperInitialization();
+    }
 
     // Cleanup on unmount
     return () => {
       resetPagination();
     };
-  }, [paper, initializePagination, resetPagination]);
+  }, [paperInitialization, resetPagination]);
 
   /**
-   * Update page input when current page changes
+   * Update page input when current page changes - React 19.2 optimized
    */
-  useEffect(() => {
-    setPageInputValue(currentPage.toString());
-  }, [currentPage]);
+  useLayoutEffect(() => {
+    startTransition(() => {
+      setPageInputValue(currentPage.toString());
+      setOptimisticPage(currentPage);
+    });
+  }, [currentPage, setOptimisticPage]);
 
   /**
-   * Keyboard shortcuts
+   * Keyboard shortcuts with React 19.2 optimizations
    */
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (e.target.tagName === 'INPUT') return;
-      
-      switch (e.key) {
-        case 'ArrowLeft':
-        case 'h':
-          e.preventDefault();
+  const handleKeyboardNavigation = useCallback((e) => {
+    if (e.target.tagName === 'INPUT') return;
+    
+    switch (e.key) {
+      case 'ArrowLeft':
+      case 'h':
+        e.preventDefault();
+        startTransition(() => {
+          setOptimisticPage(Math.max(1, optimisticPage - 1));
           goToPreviousPage();
-          break;
-        case 'ArrowRight':
-        case 'l':
-          e.preventDefault();
+        });
+        break;
+      case 'ArrowRight':
+      case 'l':
+        e.preventDefault();
+        startTransition(() => {
+          setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
           goToNextPage();
-          break;
-        case 's':
-          e.preventDefault();
+        });
+        break;
+      case 's':
+        e.preventDefault();
+        toggleSidebar();
+        break;
+      case 'Escape':
+        if (showSidebar) {
           toggleSidebar();
-          break;
-        case 'Escape':
-          if (showSidebar) {
-            toggleSidebar();
-          }
-          break;
-      }
-    };
+        }
+        break;
+    }
+  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar, optimisticPage, totalPages, setOptimisticPage]);
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar]);
+  useLayoutEffect(() => {
+    window.addEventListener('keydown', handleKeyboardNavigation);
+    return () => window.removeEventListener('keydown', handleKeyboardNavigation);
+  }, [handleKeyboardNavigation]);
 
   /**
    * Handle page input change
@@ -168,17 +186,20 @@ export function PaperReader({ paper, onBack }) {
   };
 
   /**
-   * Handle page input submit
+   * Handle page input submit with optimistic updates
    */
-  const handlePageInputSubmit = (e) => {
+  const handlePageInputSubmit = useCallback((e) => {
     e.preventDefault();
     const pageNum = parseInt(pageInputValue);
     if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-      setCurrentPage(pageNum);
+      startTransition(() => {
+        setOptimisticPage(pageNum);
+        setCurrentPage(pageNum);
+      });
     } else {
-      setPageInputValue(currentPage.toString());
+      setPageInputValue(optimisticPage.toString());
     }
-  };
+  }, [pageInputValue, totalPages, optimisticPage, setCurrentPage, setOptimisticPage]);
 
   /**
    * Font size controls
@@ -205,13 +226,13 @@ export function PaperReader({ paper, onBack }) {
   };
 
   /**
-   * Get current page content
+   * Get current page content with optimistic updates
    */
-  const getCurrentPageContent = () => {
+  const getCurrentPageContent = useCallback(() => {
     if (pageError) {
       return {
         content: `Error loading page: ${pageError}`,
-        pageNumber: currentPage
+        pageNumber: optimisticPage
       };
     }
 
@@ -222,11 +243,11 @@ export function PaperReader({ paper, onBack }) {
       };
     }
 
-    const page = pageContent.find(p => p.pageNumber === currentPage) || pageContent[0];
+    const page = pageContent.find(p => p.pageNumber === optimisticPage) || pageContent[0];
     return page;
-  };
+  }, [pageError, pageContent, optimisticPage]);
 
-  const currentPageData = getCurrentPageContent();
+  const currentPageData = useMemo(() => getCurrentPageContent(), [getCurrentPageContent]);
 
   /**
    * Sidebar content sections
@@ -322,8 +343,13 @@ export function PaperReader({ paper, onBack }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={goToPreviousPage}
-              disabled={currentPage <= 1}
+              onClick={() => {
+                startTransition(() => {
+                  setOptimisticPage(Math.max(1, optimisticPage - 1));
+                  goToPreviousPage();
+                });
+              }}
+              disabled={optimisticPage <= 1}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -345,8 +371,13 @@ export function PaperReader({ paper, onBack }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={goToNextPage}
-              disabled={currentPage >= totalPages}
+              onClick={() => {
+                startTransition(() => {
+                  setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
+                  goToNextPage();
+                });
+              }}
+              disabled={optimisticPage >= totalPages}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -409,13 +440,13 @@ export function PaperReader({ paper, onBack }) {
             {/* Page indicator */}
             <div className="mb-4 text-center">
               <span className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
-                Page {currentPageData.pageNumber} of {totalPages}
+                Page {optimisticPage} of {totalPages}
               </span>
             </div>
 
             {/* Page content */}
             <motion.div
-              key={currentPage}
+              key={optimisticPage}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
@@ -430,8 +461,13 @@ export function PaperReader({ paper, onBack }) {
             <div className="mt-8 flex justify-between items-center">
               <Button
                 variant="outline"
-                onClick={goToPreviousPage}
-                disabled={currentPage <= 1}
+                onClick={() => {
+                  startTransition(() => {
+                    setOptimisticPage(Math.max(1, optimisticPage - 1));
+                    goToPreviousPage();
+                  });
+                }}
+                disabled={optimisticPage <= 1}
                 className="flex items-center gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -439,13 +475,18 @@ export function PaperReader({ paper, onBack }) {
               </Button>
               
               <span className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
+                Page {optimisticPage} of {totalPages}
               </span>
               
               <Button
                 variant="outline"
-                onClick={goToNextPage}
-                disabled={currentPage >= totalPages}
+                onClick={() => {
+                  startTransition(() => {
+                    setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
+                    goToNextPage();
+                  });
+                }}
+                disabled={optimisticPage >= totalPages}
                 className="flex items-center gap-2"
               >
                 Next Page

@@ -310,9 +310,39 @@ The processing adds AI-powered summaries and enables detailed Q&A about the pape
                 role = "Human" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role}: {msg['content']}\n"
 
-            # Create prompt with strict document grounding
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
+            # Check if this is a greeting or casual interaction
+            question_lower = state.get("question", "").lower().strip()
+            greeting_patterns = [
+                'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+                'how are you', 'what\'s up', 'how do you do', 'greetings',
+                'thanks', 'thank you', 'bye', 'goodbye', 'see you'
+            ]
+            
+            is_greeting = any(pattern in question_lower for pattern in greeting_patterns)
+            is_short_query = len(state.get("question", "").strip()) < 10
+            
+            # Create different prompts for greetings vs actual questions
+            if is_greeting or is_short_query:
+                # Friendly greeting response
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", """You are a helpful AI research assistant for analyzing documents. 
+
+Respond to the user's greeting in a friendly, professional way and offer to help with questions about the uploaded document. 
+Keep your response conversational and welcoming. Mention that you can help analyze, summarize, or answer questions about the document content.
+
+Example responses:
+- "Hello! I'm here to help you analyze and understand your research document. What would you like to know about it?"
+- "Hi there! I can help you explore the content of your uploaded document. Feel free to ask me any questions about it!"
+- "Thank you! Is there anything specific you'd like to know about your document? I can summarize sections, explain concepts, or find specific information."
+
+Conversation History:
+{history}"""),
+                    ("human", "{question}")
+                ])
+            else:
+                # Strict document-grounded responses for actual questions
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", """You are an AI research assistant that ONLY answers questions based on the provided document context from this specific research paper.
 
 STRICT RULES:
 1. ONLY answer questions using information explicitly found in the provided document context below
@@ -335,15 +365,23 @@ Conversation History:
 {history}
 
 Remember: You can ONLY use the information provided in the Document Context above. If the user's question cannot be answered from that context, be honest and direct about the limitation."""),
-                ("human", "{question}")
-            ])
+                    ("human", "{question}")
+                ])
             
-            # Format the prompt
-            formatted_prompt = prompt.format_messages(
-                context=context_text,
-                history=history_text,
-                question=state.get("question", "")
-            )
+            # Format the prompt based on type
+            if is_greeting or is_short_query:
+                # For greetings, don't include document context
+                formatted_prompt = prompt.format_messages(
+                    history=history_text,
+                    question=state.get("question", "")
+                )
+            else:
+                # For actual questions, include full context
+                formatted_prompt = prompt.format_messages(
+                    context=context_text,
+                    history=history_text,
+                    question=state.get("question", "")
+                )
             
             # Generate response (non-streaming for now, we'll handle streaming in the API)
             response = await self.openai_llm.ainvoke(formatted_prompt)

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect, useOptimistic, startTransition, useMemo, useEffectEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +10,9 @@ import { Separator } from '@/components/ui/separator';
 import {
   Send,
   Bot,
-  User,
   FileText,
   Loader2,
   MessageCircle,
-  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -29,6 +27,12 @@ const ChatInterface = ({ paper }) => {
   const [streamingMessage, setStreamingMessage] = useState('');
   const [sources, setSources] = useState([]);
   
+  // React 19.2: useOptimistic for optimistic UI updates
+  const [optimisticMessages, addOptimisticMessage] = useOptimistic(
+    [],
+    (state, newMessage) => [...state, newMessage]
+  );
+  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -38,21 +42,32 @@ const ChatInterface = ({ paper }) => {
   const createSessionMutation = useCreateChatSession();
   const deleteSessionMutation = useDeleteChatSession();
 
-  // Auto-scroll to bottom
+  // Combine actual messages with optimistic messages using useMemo
+  const displayMessages = useMemo(() => {
+    return [...messages, ...optimisticMessages];
+  }, [messages, optimisticMessages]);
+
+  // Auto-scroll to bottom using useLayoutEffect for better performance
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     scrollToBottom();
-  }, [messages, streamingMessage]);
+  }, [displayMessages, streamingMessage]);
 
-  // Auto-focus input
-  useEffect(() => {
-    if (!isStreaming) {
-      inputRef.current?.focus();
+  // React 19.2: useEffectEvent for focus handling without dependencies
+  const handleAutoFocus = useEffectEvent(() => {
+    if (!isStreaming && activeSessionId) {
+      startTransition(() => {
+        inputRef.current?.focus();
+      });
     }
-  }, [isStreaming, activeSessionId]);
+  });
+
+  useLayoutEffect(() => {
+    handleAutoFocus();
+  }, []);
 
   const handleCreateSession = async () => {
     try {
@@ -83,10 +98,22 @@ const ChatInterface = ({ paper }) => {
     if (!message.trim() || isStreaming || !activeSessionId) return;
 
     const userMessage = message;
-    setMessage('');
-    setIsStreaming(true);
-    setStreamingMessage('');
-    setSources([]);
+    const optimisticMessage = {
+      id: `optimistic-${Date.now()}`,
+      content: userMessage,
+      role: 'user',
+      timestamp: new Date().toISOString(),
+      session_id: activeSessionId
+    };
+
+    // React 19.2: Add optimistic message immediately
+    startTransition(() => {
+      addOptimisticMessage(optimisticMessage);
+      setMessage('');
+      setIsStreaming(true);
+      setStreamingMessage('');
+      setSources([]);
+    });
 
     try {
       await chatApi.streamChat(activeSessionId, userMessage, (chunk) => {
@@ -194,13 +221,13 @@ const ChatInterface = ({ paper }) => {
               {/* Messages Area */}
               <ScrollArea className="flex-1 px-4">
                 <div className="space-y-4 py-4">
-                  {messages.map((msg) => (
+                  {displayMessages.map((msg) => (
                     <ChatMessage key={msg.id} message={msg} />
                   ))}
                   
                   {isStreaming && (
                     <div className="flex gap-3">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Bot className="h-4 w-4 text-primary" />
                         </div>

@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useLayoutEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle, 
@@ -20,16 +20,31 @@ import { useUIStore } from '@/lib/stores';
 export function NotificationSystem() {
   const { notifications, removeNotification } = useUIStore();
 
-  // Auto-remove notifications after 5 seconds
-  useEffect(() => {
+  // React 19.2: Auto-remove notifications with useLayoutEffect for better timing
+  const setupAutoRemoval = useCallback((notification) => {
+    if (notification.autoRemove !== false) {
+      const timeoutId = setTimeout(() => {
+        removeNotification(notification.id);
+      }, 5000);
+      return timeoutId;
+    }
+    return null;
+  }, [removeNotification]);
+
+  useLayoutEffect(() => {
+    const timeouts = [];
+    
     notifications.forEach((notification) => {
-      if (notification.autoRemove !== false) {
-        setTimeout(() => {
-          removeNotification(notification.id);
-        }, 5000);
+      const timeoutId = setupAutoRemoval(notification);
+      if (timeoutId) {
+        timeouts.push(timeoutId);
       }
     });
-  }, [notifications, removeNotification]);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [notifications, setupAutoRemoval]);
 
   const getIcon = (type) => {
     switch (type) {
