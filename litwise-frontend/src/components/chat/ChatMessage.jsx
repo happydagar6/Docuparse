@@ -8,7 +8,24 @@ import { format } from 'date-fns';
 
 const ChatMessage = ({ message }) => {
   const isUser = message.role === 'user';
-  const timestamp = new Date(message.created_at);
+  
+  // Handle both timestamp and created_at fields with error handling
+  let timestamp;
+  try {
+    const dateValue = message.created_at || message.timestamp;
+    if (!dateValue) {
+      timestamp = new Date(); // Fallback to current time
+    } else {
+      timestamp = new Date(dateValue);
+      // Check if the date is valid
+      if (isNaN(timestamp.getTime())) {
+        timestamp = new Date(); // Fallback to current time
+      }
+    }
+  } catch (error) {
+    console.warn('Invalid date in message:', error);
+    timestamp = new Date(); // Fallback to current time
+  }
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>

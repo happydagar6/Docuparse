@@ -13,6 +13,7 @@ import {
   FileText,
   Loader2,
   MessageCircle,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -26,6 +27,7 @@ const ChatInterface = ({ paper }) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
   const [sources, setSources] = useState([]);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   
   // React 19.2: useOptimistic for optimistic UI updates
   const [optimisticMessages, addOptimisticMessage] = useOptimistic(
@@ -35,6 +37,7 @@ const ChatInterface = ({ paper }) => {
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   // Query hooks
   const { data: sessions = [], refetch: refetchSessions } = useChatSessions(paper.id);
@@ -52,9 +55,62 @@ const ChatInterface = ({ paper }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Manual scroll to bottom
+  const forceScrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowScrollButton(false);
+  };
+
+  // Check if user is near bottom without causing re-renders
+  const isUserNearBottom = () => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        return scrollHeight - scrollTop - clientHeight < 100;
+      }
+    }
+    return true; // Default to true if we can't detect
+  };
+
+  // Handle new messages (not during streaming)
   useLayoutEffect(() => {
-    scrollToBottom();
-  }, [displayMessages, streamingMessage]);
+    if (!isStreaming && displayMessages.length > 0) {
+      scrollToBottom();
+      setShowScrollButton(false);
+    }
+  }, [displayMessages.length, isStreaming]);
+
+  // Handle streaming start/end
+  useLayoutEffect(() => {
+    if (!isStreaming) {
+      setShowScrollButton(false);
+    }
+  }, [isStreaming]);
+
+  // Handle streaming message updates with throttling
+  useLayoutEffect(() => {
+    if (isStreaming && streamingMessage) {
+      // Check user position and update button state only occasionally
+      if (streamingMessage.length % 50 === 0) { // Check every 50 characters
+        const nearBottom = isUserNearBottom();
+        
+        if (nearBottom) {
+          setShowScrollButton(false);
+          // Scroll to bottom
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        } else {
+          setShowScrollButton(true);
+        }
+      } else if (streamingMessage.length < 50) {
+        // For the first few characters, ensure we're scrolled to bottom
+        const nearBottom = isUserNearBottom();
+        if (nearBottom) {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        }
+      }
+    }
+  }, [streamingMessage, isStreaming]);
 
   // React 19.2: useEffectEvent for focus handling without dependencies
   const handleAutoFocus = useEffectEvent(() => {
@@ -124,17 +180,20 @@ const ChatInterface = ({ paper }) => {
         } else if (chunk.type === 'complete') {
           setIsStreaming(false);
           setStreamingMessage('');
+          setShowScrollButton(false); // Hide scroll button when streaming ends
           refetchMessages();
         } else if (chunk.type === 'error') {
           toast.error(chunk.error);
           setIsStreaming(false);
           setStreamingMessage('');
+          setShowScrollButton(false); // Hide scroll button on error
         }
       });
     } catch (error) {
       toast.error('Failed to send message');
       setIsStreaming(false);
       setStreamingMessage('');
+      setShowScrollButton(false); // Hide scroll button on error
     }
   };
 
@@ -157,10 +216,10 @@ const ChatInterface = ({ paper }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[600px]">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-280px)] min-h-[600px]">
       {/* Sessions Sidebar */}
-      <Card className="md:col-span-1">
-        <CardHeader className="pb-3">
+      <Card className="md:col-span-1 flex flex-col">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Chat Sessions</CardTitle>
             <Button
@@ -176,7 +235,7 @@ const ChatInterface = ({ paper }) => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 flex-1 overflow-hidden">
           <ChatSessions
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -188,8 +247,8 @@ const ChatInterface = ({ paper }) => {
       </Card>
 
       {/* Chat Area */}
-      <Card className="md:col-span-3 flex flex-col">
-        <CardHeader className="pb-3">
+      <Card className="md:col-span-3 flex flex-col overflow-hidden">
+        <CardHeader className="pb-3 shrink-0">
           <CardTitle className="text-sm flex items-center gap-2">
             <Bot className="h-4 w-4" />
             Chat with `{paper.title}`
@@ -201,7 +260,7 @@ const ChatInterface = ({ paper }) => {
           </CardTitle>
         </CardHeader>
         
-        <CardContent className="flex-1 flex flex-col p-0">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
           {!activeSessionId ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center text-muted-foreground">
@@ -218,55 +277,76 @@ const ChatInterface = ({ paper }) => {
             </div>
           ) : (
             <>
-              {/* Messages Area */}
-              <ScrollArea className="flex-1 px-4">
-                <div className="space-y-4 py-4">
-                  {displayMessages.map((msg) => (
-                    <ChatMessage key={msg.id} message={msg} />
-                  ))}
-                  
-                  {isStreaming && (
-                    <div className="flex gap-3">
-                      <div className="shrink-0">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Bot className="h-4 w-4 text-primary" />
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="bg-muted rounded-lg p-3">
-                          <div className="whitespace-pre-wrap">
-                            {streamingMessage}
-                            <span className="animate-pulse">|</span>
+              {/* Messages Area with proper flex and overflow */}
+              <div className="flex-1 overflow-hidden relative">
+                <ScrollArea 
+                  className="h-full px-4" 
+                  ref={scrollContainerRef}
+                >
+                  <div className="space-y-4 py-4">
+                    {displayMessages.map((msg) => (
+                      <ChatMessage key={msg.id} message={msg} />
+                    ))}
+                    
+                    {isStreaming && (
+                      <div className="flex gap-3">
+                        <div className="shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary" />
                           </div>
-                          {sources.length > 0 && (
-                            <div className="mt-3 pt-3 border-t">
-                              <p className="text-xs text-muted-foreground mb-2">Sources:</p>
-                              <div className="space-y-1">
-                                {sources.map((source, idx) => (
-                                  <div key={idx} className="text-xs bg-background rounded p-2">
-                                    <p className="font-medium">Page {source.page}</p>
-                                    <p className="text-muted-foreground">{source.content}</p>
-                                    <p className="text-xs text-blue-600">
-                                      Relevance: {(source.relevance_score * 100).toFixed(1)}%
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-muted rounded-lg p-3">
+                            <div className="whitespace-pre-wrap">
+                              {streamingMessage}
+                              <span className="animate-pulse">|</span>
                             </div>
-                          )}
+                            {sources.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <p className="text-xs text-muted-foreground mb-2">Sources:</p>
+                                <div className="space-y-1">
+                                  {sources.map((source, idx) => (
+                                    <div key={idx} className="text-xs bg-background rounded p-2">
+                                      <p className="font-medium">Page {source.page}</p>
+                                      <p className="text-muted-foreground">{source.content}</p>
+                                      <p className="text-xs text-blue-600">
+                                        Relevance: {(source.relevance_score * 100).toFixed(1)}%
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
+                    )}
+                    
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+                
+                {/* Scroll to bottom button - appears when user scrolls up during streaming */}
+                {showScrollButton && (
+                  <div className="absolute bottom-4 right-4 z-10">
+                    <Button
+                      size="sm"
+                      onClick={forceScrollToBottom}
+                      className="rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs">AI is typing</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </Button>
+                  </div>
+                )}
+              </div>
 
-              <Separator />
+              <Separator className="shrink-0" />
               
               {/* Input Area */}
-              <div className="p-4">
+              <div className="p-4 shrink-0">
                 <div className="flex gap-2">
                   <Input
                     ref={inputRef}

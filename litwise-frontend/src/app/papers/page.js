@@ -106,9 +106,21 @@ export default function PapersPage() {
     const handleDeletePaper = async (paperId, paperTitle, e) => {
         e.stopPropagation(); // Prevent triggering paper click
         try {
+            // Show immediate feedback
+            toast.loading('Deleting paper...', { 
+                id: `delete-${paperId}`,
+                description: 'Please wait while we remove your paper.'
+            });
+            
             await deletePaperMutation.mutateAsync(paperId);
+            
+            // Success is handled by the mutation hook
+            toast.dismiss(`delete-${paperId}`);
+            
         } catch (error) {
             console.error("Delete failed:", error);
+            toast.dismiss(`delete-${paperId}`);
+            // Error is handled by the mutation hook
         }
     };
 
@@ -121,18 +133,18 @@ export default function PapersPage() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100 mb-8"
+            className="bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100 mb-8"
           >
             <div className="flex items-center gap-4 mb-4">
               <motion.div
-                className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-3"
+                className="bg-linear-to-r from-blue-500 to-purple-500 rounded-xl p-3"
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <BookOpen className="h-8 w-8 text-white" />
               </motion.div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   Research Papers
                 </h1>
                 <p className="text-gray-600 mt-1">
@@ -211,11 +223,11 @@ export default function PapersPage() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100 mb-8 relative overflow-hidden"
+        className="bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100 mb-8 relative overflow-hidden"
       >
         {/* Animated Background Elements */}
         <motion.div
-          className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200/30 to-purple-200/30 rounded-full blur-xl"
+          className="absolute top-0 right-0 w-32 h-32 bg-linear-to-br from-blue-200/30 to-purple-200/30 rounded-full blur-xl"
           animate={{ 
             x: [0, 20, 0],
             y: [0, -10, 0],
@@ -224,7 +236,7 @@ export default function PapersPage() {
           transition={{ duration: 6, repeat: Infinity }}
         />
         <motion.div
-          className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-indigo-200/30 to-blue-200/30 rounded-full blur-lg"
+          className="absolute bottom-0 left-0 w-24 h-24 bg-linear-to-tr from-indigo-200/30 to-blue-200/30 rounded-full blur-lg"
           animate={{ 
             x: [0, -15, 0],
             y: [0, 15, 0],
@@ -236,7 +248,7 @@ export default function PapersPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-6">
             <motion.div
-              className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-3"
+              className="bg-linear-to-r from-blue-500 to-purple-500 rounded-xl p-3"
               whileHover={{ 
                 scale: 1.1, 
                 rotate: 5,
@@ -249,7 +261,7 @@ export default function PapersPage() {
             </motion.div>
             <div>
               <motion.h1 
-                className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+                className="text-4xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
@@ -389,7 +401,7 @@ export default function PapersPage() {
         >
           <Button 
             onClick={() => router.push('/upload')}
-            className="h-12 px-6 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all"
+            className="h-12 px-6 rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all"
           >
             <Upload className="h-5 w-5 mr-2" />
             Upload Paper
@@ -408,7 +420,7 @@ export default function PapersPage() {
           {safePages.length === 0 ? (
             <div className="max-w-md mx-auto">
               <motion.div
-                className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-full p-6 w-24 h-24 mx-auto mb-6"
+                className="bg-linear-to-br from-blue-100 to-purple-100 rounded-full p-6 w-24 h-24 mx-auto mb-6"
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
@@ -426,7 +438,7 @@ export default function PapersPage() {
               >
                 <Button 
                   onClick={() => router.push('/upload')}
-                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
+                  className="px-8 py-4 rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
                 >
                   <Upload className="h-5 w-5 mr-2" />
                   Upload Your First Paper
@@ -436,7 +448,7 @@ export default function PapersPage() {
           ) : (
             <div className="max-w-md mx-auto">
               <motion.div
-                className="bg-gradient-to-br from-gray-100 to-blue-100 rounded-full p-6 w-24 h-24 mx-auto mb-6"
+                className="bg-linear-to-br from-gray-100 to-blue-100 rounded-full p-6 w-24 h-24 mx-auto mb-6"
                 whileHover={{ scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
@@ -480,11 +492,11 @@ export default function PapersPage() {
                   onClick={() => handlePaperClick(paper)}
                 >
                   {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 via-purple-50/0 to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-linear-to-br from-blue-50/0 via-purple-50/0 to-blue-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
                   {/* Animated Background Elements */}
                   <motion.div
-                    className="absolute top-2 right-2 w-16 h-16 bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-xl opacity-0 group-hover:opacity-100"
+                    className="absolute top-2 right-2 w-16 h-16 bg-linear-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-xl opacity-0 group-hover:opacity-100"
                     animate={{ 
                       scale: [1, 1.2, 1],
                       rotate: [0, 180, 360]
@@ -496,7 +508,7 @@ export default function PapersPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <motion.div
-                          className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl p-3 shrink-0"
+                          className="bg-linear-to-br from-blue-500 to-purple-500 rounded-xl p-3 shrink-0"
                           whileHover={{ scale: 1.1, rotate: 5 }}
                           transition={{ type: "spring", stiffness: 300 }}
                         >
@@ -527,8 +539,8 @@ export default function PapersPage() {
                         </div>
                       </div>
                       
-                      {/* Enhanced Action Buttons */}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                      {/* Enhanced Action Buttons - Always Visible */}
+                      <div className="flex gap-1 transition-all duration-300">
                         <motion.div
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
@@ -541,6 +553,7 @@ export default function PapersPage() {
                               handlePaperClick(paper);
                             }}
                             className="h-10 w-10 rounded-xl hover:bg-blue-100 hover:text-blue-600"
+                            title="View paper details"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -550,31 +563,59 @@ export default function PapersPage() {
                             <motion.div
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-10 w-10 rounded-xl hover:bg-red-100 hover:text-red-600"
+                                className="h-10 w-10 rounded-xl hover:bg-red-100 hover:text-red-600 transition-all duration-200 group/delete"
+                                title="Delete paper permanently"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <motion.div
+                                  whileHover={{ rotate: 10 }}
+                                  transition={{ type: "spring", stiffness: 300 }}
+                                >
+                                  <Trash2 className="h-4 w-4 group-hover/delete:scale-110 transition-transform" />
+                                </motion.div>
                               </Button>
                             </motion.div>
                           </AlertDialogTrigger>
-                          <AlertDialogContent className="rounded-2xl border-2">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="text-xl">Delete Paper</AlertDialogTitle>
-                              <AlertDialogDescription className="text-gray-600">
-                                Are you sure you want to delete &quot;{paper.title || 'Untitled Paper'}&quot;? This action cannot be undone and all associated data will be permanently removed.
+                          <AlertDialogContent className="rounded-2xl border-2 max-w-md">
+                            <AlertDialogHeader className="text-center pb-4">
+                              <motion.div
+                                className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4"
+                                initial={{ scale: 0.8, rotate: -10 }}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ type: "spring", stiffness: 300 }}
+                              >
+                                <Trash2 className="h-8 w-8 text-red-600 mx-auto" />
+                              </motion.div>
+                              <AlertDialogTitle className="text-2xl font-bold text-gray-900">
+                                Delete Paper?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription className="text-gray-600 leading-relaxed">
+                                Are you sure you want to permanently delete{" "}
+                                <span className="font-semibold text-gray-900">
+                                  &quot;{(paper.title || paper.filename || 'Untitled Paper').length > 40 
+                                    ? (paper.title || paper.filename || 'Untitled Paper').substring(0, 40) + '...'
+                                    : (paper.title || paper.filename || 'Untitled Paper')}&quot;
+                                </span>?
+                                <br /><br />
+                                <span className="text-red-600 font-medium">
+                                  This action cannot be undone and all associated data, chat history, and AI analysis will be permanently removed.
+                                </span>
                               </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter className="gap-3">
-                              <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                            <AlertDialogFooter className="gap-3 pt-6">
+                              <AlertDialogCancel className="rounded-xl flex-1 h-12">
+                                Keep Paper
+                              </AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={(e) => handleDeletePaper(paper.id, paper.title, e)}
-                                className="bg-red-500 hover:bg-red-600 rounded-xl"
+                                className="bg-red-500 hover:bg-red-600 rounded-xl flex-1 h-12 font-semibold"
                               >
-                                Delete Paper
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Forever
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -601,7 +642,7 @@ export default function PapersPage() {
                       paper.summary.key_points || 
                       Object.values(paper.summary)[0]
                     ) && (
-                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-4 border border-blue-100">
+                      <div className="bg-linear-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-4 border border-blue-100">
                         <div className="text-sm text-gray-700 line-clamp-3">
                           <FormattedSummary summary={paper.summary} />
                         </div>
@@ -639,7 +680,7 @@ export default function PapersPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0 }}
         >
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-100 max-w-md mx-auto">
+          <div className="bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-100 max-w-md mx-auto">
             <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
               <motion.div
                 className="bg-blue-500 rounded-full p-1"
@@ -653,7 +694,7 @@ export default function PapersPage() {
                 <span className="text-purple-600 font-bold">{safePages.length}</span> papers
                 {searchQuery && (
                   <>
-                    {" "}matching <span className="text-indigo-600 font-bold">"{searchQuery}"</span>
+                    {" "}matching <span className="text-indigo-600 font-bold">&quot;{searchQuery}&quot;</span>
                   </>
                 )}
               </span>

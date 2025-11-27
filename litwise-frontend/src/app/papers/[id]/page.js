@@ -271,7 +271,7 @@ export default function PaperPage() {
         </TabsContent>
 
         <TabsContent value="chat" className="space-y-4">
-          <div className="min-h-[600px]">
+          <div className="h-[calc(100vh-320px)] min-h-[600px]">
             <ChatInterface paper={paper} />
           </div>
         </TabsContent>

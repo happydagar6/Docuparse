@@ -91,14 +91,14 @@ export function Navigation() {
         >
           <Link href="/" className="flex items-center gap-3 group">
             <motion.div 
-              className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
+              className="w-10 h-10 bg-linear-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
               whileHover={{ scale: 1.05, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
               <Sparkles className="h-5 w-5 text-white" />
             </motion.div>
             <div>
-              <span className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                 Litwise
               </span>
               <div className="text-xs text-gray-500">AI Research Assistant</div>
@@ -127,7 +127,7 @@ export function Navigation() {
                       className={`
                         relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group cursor-pointer
                         ${active 
-                          ? `bg-gradient-to-r ${item.color} text-white shadow-lg shadow-blue-200` 
+                          ? `bg-linear-to-r ${item.color} text-white shadow-lg shadow-blue-200` 
                           : `text-gray-700 ${item.hoverColor} hover:shadow-md hover:scale-[1.02]`
                         }
                       `}
@@ -223,13 +223,13 @@ export function Navigation() {
         >
           <Link href="/" className="flex items-center gap-3 group">
             <motion.div 
-              className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center"
+              className="w-8 h-8 bg-linear-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center"
               whileHover={{ scale: 1.1, rotate: 10 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
               <Sparkles className="h-4 w-4 text-white" />
             </motion.div>
-            <span className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            <span className="text-lg font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
               Litwise
             </span>
           </Link>
@@ -286,7 +286,7 @@ export function Navigation() {
                             className={`
                               flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-300
                               ${active 
-                                ? `bg-gradient-to-r ${item.color} text-white shadow-lg` 
+                                ? `bg-linear-to-r ${item.color} text-white shadow-lg` 
                                 : `text-gray-700 ${item.hoverColor} hover:shadow-md`
                               }
                             `}
@@ -352,7 +352,7 @@ export function Navigation() {
                     <motion.div 
                       className={`p-2 rounded-lg mb-1 ${
                         active 
-                          ? `bg-gradient-to-r ${item.color} shadow-lg` 
+                          ? `bg-linear-to-r ${item.color} shadow-lg` 
                           : 'bg-transparent'
                       }`}
                       whileHover={!active ? { scale: 1.1 } : {}}

@@ -153,7 +153,7 @@ export function UploadForm({ onUploadSuccess }) {
           className="text-center"
         >
           <motion.div
-            className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-3 w-16 h-16 mx-auto mb-4"
+            className="bg-linear-to-r from-blue-500 to-purple-500 rounded-xl p-3 w-16 h-16 mx-auto mb-4"
             whileHover={{ 
               scale: 1.1, 
               rotate: 5,
@@ -163,7 +163,7 @@ export function UploadForm({ onUploadSuccess }) {
           >
             <Upload className="h-10 w-10 text-white mx-auto" />
           </motion.div>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Upload Research Paper
           </CardTitle>
           <p className="text-gray-600 mt-2">
@@ -178,11 +178,11 @@ export function UploadForm({ onUploadSuccess }) {
           className={`
             relative border-3 border-dashed rounded-2xl p-12 text-center transition-all duration-300 overflow-hidden
             ${isDragOver 
-              ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-purple-50 scale-[1.02]' 
+              ? 'border-blue-400 bg-linear-to-r from-blue-50 to-purple-50 scale-[1.02]' 
               : 'border-gray-300 hover:border-gray-400'
             }
-            ${selectedFile ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50' : ''}
-            ${isUploading ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50' : ''}
+            ${selectedFile ? 'border-green-400 bg-linear-to-r from-green-50 to-emerald-50' : ''}
+            ${isUploading ? 'border-blue-400 bg-linear-to-r from-blue-50 to-indigo-50' : ''}
           `}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -239,7 +239,7 @@ export function UploadForm({ onUploadSuccess }) {
                 className="space-y-6"
               >
                 <motion.div
-                  className="bg-gradient-to-br from-gray-100 to-blue-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-gray-100 to-blue-100 rounded-full p-6 w-24 h-24 mx-auto"
                   animate={{ 
                     rotate: [0, 5, -5, 0],
                     scale: [1, 1.05, 1]
@@ -295,7 +295,7 @@ export function UploadForm({ onUploadSuccess }) {
                 className="space-y-6"
               >
                 <motion.div
-                  className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
                   animate={{ 
                     scale: [1, 1.1, 1],
                     rotate: [0, 10, 0]
@@ -322,7 +322,7 @@ export function UploadForm({ onUploadSuccess }) {
                     <Button 
                       onClick={handleUpload} 
                       size="lg"
-                      className="px-8 py-4 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
+                      className="px-8 py-4 rounded-xl bg-linear-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
                     >
                       <Sparkles className="h-5 w-5 mr-2" />
                       Upload & Process
@@ -355,7 +355,7 @@ export function UploadForm({ onUploadSuccess }) {
                 className="space-y-6"
               >
                 <motion.div
-                  className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-blue-100 to-indigo-100 rounded-full p-6 w-24 h-24 mx-auto"
                   animate={{ 
                     rotate: 360,
                     scale: [1, 1.1, 1]
@@ -397,7 +397,7 @@ export function UploadForm({ onUploadSuccess }) {
                 className="space-y-6"
               >
                 <motion.div
-                  className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
                   animate={{ 
                     scale: [0.8, 1.2, 1],
                     rotate: [0, 15, 0]
@@ -421,7 +421,7 @@ export function UploadForm({ onUploadSuccess }) {
                   <Button 
                     onClick={handleReset} 
                     size="lg"
-                    className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
+                    className="px-8 py-4 rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
                   >
                     Upload Another Paper
                   </Button>
@@ -436,7 +436,7 @@ export function UploadForm({ onUploadSuccess }) {
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="mt-6 p-6 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-2xl"
+            className="mt-6 p-6 bg-linear-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-2xl"
           >
             <div className="flex items-start gap-4">
               <motion.div
@@ -469,14 +469,14 @@ export function UploadForm({ onUploadSuccess }) {
         
         {/* Enhanced Processing Steps Info */}
         <motion.div 
-          className="mt-8 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-200"
+          className="mt-8 bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-200"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
           <div className="flex items-center gap-3 mb-4">
             <motion.div
-              className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg p-2"
+              className="bg-linear-to-r from-blue-500 to-purple-500 rounded-lg p-2"
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
             >

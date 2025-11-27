@@ -296,21 +296,40 @@ export function useDeletePaper() {
         queryClient.setQueryData(queryKeys.papers.lists(), context.previousPapers);
       }
       
+      // Get paper details for error message
+      const papers = context?.previousPapers;
+      const failedPaper = papers?.find(p => p.id === paperId);
+      
       toast.error(
-        'Failed to delete paper',
+        'Failed to delete paper ❌',
         {
-          description: error.message || 'An error occurred while deleting the paper.',
-          duration: 5000
+          description: `Could not delete "${failedPaper?.title || failedPaper?.filename || 'the paper'}". ${error.message || 'Please try again.'}`,
+          duration: 6000,
+          action: {
+            label: "Retry",
+            onClick: () => {
+              // Could trigger retry logic here if needed
+              toast.dismiss();
+            }
+          }
         }
       );
     },
     
-    onSuccess: () => {
+    onSuccess: (data, paperId) => {
+      // Get paper details for the success message
+      const papers = queryClient.getQueryData(queryKeys.papers.lists());
+      const deletedPaper = papers?.find(p => p.id === paperId);
+      
       toast.success(
-        'Paper deleted successfully',
+        'Paper deleted successfully! 🗑️',
         {
-          description: 'The paper has been permanently removed.',
-          duration: 4000
+          description: `"${deletedPaper?.title || deletedPaper?.filename || 'Untitled Paper'}" has been permanently removed from your library.`,
+          duration: 5000,
+          action: {
+            label: "Dismiss",
+            onClick: () => toast.dismiss()
+          }
         }
       );
     },
