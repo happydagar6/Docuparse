@@ -43,12 +43,6 @@ export function PaperReader({ paper, onBack }) {
   const [error, setError] = useState(null);
   const [pageInputValue, setPageInputValue] = useState('');
   
-  // React 19.2: useOptimistic for page transitions
-  const [optimisticPage, setOptimisticPage] = useOptimistic(
-    1,
-    (state, newPage) => newPage
-  );
-  
   // Refs
   const contentRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -72,6 +66,12 @@ export function PaperReader({ paper, onBack }) {
     setFontSize,
     clearHighlights
   } = usePaperStore();
+  
+  // React 19.2: useOptimistic for page transitions - synced with store
+  const [optimisticPage, setOptimisticPage] = useOptimistic(
+    currentPage,
+    (state, newPage) => newPage
+  );
 
   /**
    * Initialize pagination when paper data loads - using React 19.2 patterns
@@ -148,7 +148,8 @@ export function PaperReader({ paper, onBack }) {
       case 'h':
         e.preventDefault();
         startTransition(() => {
-          setOptimisticPage(Math.max(1, optimisticPage - 1));
+          const prevPage = Math.max(1, currentPage - 1);
+          setOptimisticPage(prevPage);
           goToPreviousPage();
         });
         break;
@@ -156,7 +157,8 @@ export function PaperReader({ paper, onBack }) {
       case 'l':
         e.preventDefault();
         startTransition(() => {
-          setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
+          const nextPage = Math.min(totalPages, currentPage + 1);
+          setOptimisticPage(nextPage);
           goToNextPage();
         });
         break;
@@ -170,7 +172,7 @@ export function PaperReader({ paper, onBack }) {
         }
         break;
     }
-  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar, optimisticPage, totalPages, setOptimisticPage]);
+  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar, currentPage, totalPages, setOptimisticPage]);
 
   useLayoutEffect(() => {
     window.addEventListener('keydown', handleKeyboardNavigation);
@@ -462,12 +464,13 @@ export function PaperReader({ paper, onBack }) {
               <Button
                 variant="outline"
                 onClick={() => {
+                  const prevPage = Math.max(1, currentPage - 1);
                   startTransition(() => {
-                    setOptimisticPage(Math.max(1, optimisticPage - 1));
+                    setOptimisticPage(prevPage);
                     goToPreviousPage();
                   });
                 }}
-                disabled={optimisticPage <= 1}
+                disabled={currentPage <= 1}
                 className="flex items-center gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -481,12 +484,13 @@ export function PaperReader({ paper, onBack }) {
               <Button
                 variant="outline"
                 onClick={() => {
+                  const nextPage = Math.min(totalPages, currentPage + 1);
                   startTransition(() => {
-                    setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
+                    setOptimisticPage(nextPage);
                     goToNextPage();
                   });
                 }}
-                disabled={optimisticPage >= totalPages}
+                disabled={currentPage >= totalPages}
                 className="flex items-center gap-2"
               >
                 Next Page

@@ -20,7 +20,7 @@
 
 'use client';
 
-import { useState, useActionState, useOptimistic, useCallback, startTransition, useMemo, useEffectEvent } from 'react';
+import { useState, useActionState, useOptimistic, useCallback, startTransition, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -42,6 +42,14 @@ export function SearchForm({ onResultClick }) {
   // Local state for search input
   const [searchInput, setSearchInput] = useState('');
   
+  // Advanced filter state
+  const [filters, setFilters] = useState({
+    author: '',
+    yearFrom: null,
+    yearTo: null,
+    keywords: []
+  });
+  
   // Zustand store for search state
   const {
     query,
@@ -56,8 +64,9 @@ export function SearchForm({ onResultClick }) {
   } = useSearchStore();
 
   // React 19.2: useOptimistic for immediate UI feedback
+  // Ensure initial state is always an array (never null/undefined)
   const [optimisticResults, addOptimisticResult] = useOptimistic(
-    searchResults,
+    searchResults || [],
     (state, newResult) => [...state, newResult]
   );
   
@@ -72,22 +81,44 @@ export function SearchForm({ onResultClick }) {
         return { error: 'Please enter a search query' };
       }
 
+      // Validate year range if provided
+      if (filters.yearFrom && filters.yearTo && filters.yearFrom > filters.yearTo) {
+        return { error: 'Year range "From" must be less than or equal to "To"' };
+      }
+
       try {
         // Update query in store with transition
         startTransition(() => {
           setQuery(searchQuery);
         });
         
-        // Execute search mutation
+        // Build filters object for API
+        const searchFilters = {};
+        if (filters.author?.trim()) {
+          searchFilters.author = filters.author.trim();
+        }
+        if (filters.yearFrom) {
+          searchFilters.year_from = parseInt(filters.yearFrom);
+        }
+        if (filters.yearTo) {
+          searchFilters.year_to = parseInt(filters.yearTo);
+        }
+        if (filters.keywords?.length > 0) {
+          searchFilters.keywords = filters.keywords;
+        }
+        
+        // Execute search mutation with filters
         const result = await searchMutation.mutateAsync({ 
           query: searchQuery,
+          filters: Object.keys(searchFilters).length > 0 ? searchFilters : undefined,
           debug: process.env.NODE_ENV === 'development' 
         });
 
         return { 
           success: true, 
           query: searchQuery,
-          resultCount: result?.length || 0
+          resultCount: result?.length || 0,
+          filtersApplied: Object.keys(searchFilters).length > 0
         };
       } catch (error) {
         console.error('Search failed:', error);
@@ -99,47 +130,32 @@ export function SearchForm({ onResultClick }) {
     { success: false }
   );
 
-  /**
-   * Handle search execution with optimistic updates
-   */
-  const handleSearch = useCallback(async (searchQuery = searchInput) => {
-    if (!searchQuery.trim()) return;
-    
-    // React 19.2: Optimistic update for immediate feedback
-    const optimisticResult = {
-      id: `searching-${Date.now()}`,
-      title: 'Searching...',
-      summary: 'Please wait while we search through your papers.',
-      score: 0,
-      isOptimistic: true
+  // Debounced search using useCallback
+  const performSearchRef = useRef();
+  
+  useEffect(() => {
+    performSearchRef.current = (query) => {
+      if (query.trim()) {
+        // Trigger form submission programmatically
+        const form = document.querySelector('form[data-search-form]');
+        if (form) {
+          form.requestSubmit();
+        }
+      }
     };
-
-    startTransition(() => {
-      addOptimisticResult(optimisticResult);
-    });
-
-    // Use form action for consistent handling
-    const formData = new FormData();
-    formData.set('query', searchQuery);
-    await searchAction(formData);
-  }, [searchInput, searchAction, addOptimisticResult]);
-
-  // React 19.2: useEffectEvent for debounced search without dependency issues
-  const performSearch = useEffectEvent((query) => {
-    if (query.trim() && query !== searchInput) {
-      startTransition(() => {
-        handleSearch(query);
-      });
-    }
   });
 
   const debouncedSearch = useMemo(() => {
     let timeoutId;
     return (query) => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => performSearch(query), 500);
+      timeoutId = setTimeout(() => {
+        if (performSearchRef.current) {
+          performSearchRef.current(query);
+        }
+      }, 500);
     };
-  }, [performSearch]);
+  }, []);
 
   /**
    * Handle search input changes with modern debouncing
@@ -151,20 +167,17 @@ export function SearchForm({ onResultClick }) {
   }, [debouncedSearch]);
 
   /**
-   * Handle search form submission
-   */
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    searchAction(formData);
-  };
-
-  /**
    * Handle search history item click
    */
   const handleHistoryClick = (historyQuery) => {
     setSearchInput(historyQuery);
-    handleSearch(historyQuery);
+    // Trigger form submission after input is set
+    setTimeout(() => {
+      const form = document.querySelector('form[data-search-form]');
+      if (form) {
+        form.requestSubmit();
+      }
+    }, 0);
   };
 
   /**
@@ -197,7 +210,7 @@ export function SearchForm({ onResultClick }) {
         </CardHeader>
         
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={searchAction} data-search-form className="space-y-4">
             {/* Main Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -254,6 +267,8 @@ export function SearchForm({ onResultClick }) {
                       <Input 
                         placeholder="Author name" 
                         size="sm"
+                        value={filters.author}
+                        onChange={(e) => setFilters(prev => ({ ...prev, author: e.target.value }))}
                       />
                     </div>
                     <div>
@@ -265,15 +280,36 @@ export function SearchForm({ onResultClick }) {
                           placeholder="From" 
                           size="sm"
                           type="number"
+                          min="1900"
+                          max="2100"
+                          value={filters.yearFrom || ''}
+                          onChange={(e) => setFilters(prev => ({ ...prev, yearFrom: e.target.value ? parseInt(e.target.value) : null }))}
                         />
                         <Input 
                           placeholder="To" 
                           size="sm"
                           type="number"
+                          min="1900"
+                          max="2100"
+                          value={filters.yearTo || ''}
+                          onChange={(e) => setFilters(prev => ({ ...prev, yearTo: e.target.value ? parseInt(e.target.value) : null }))}
                         />
                       </div>
                     </div>
                   </div>
+                  {/* Clear filters button */}
+                  {(filters.author || filters.yearFrom || filters.yearTo) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFilters({ author: '', yearFrom: null, yearTo: null, keywords: [] })}
+                      className="text-xs"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear Filters
+                    </Button>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -306,6 +342,9 @@ export function SearchForm({ onResultClick }) {
             {searchState?.success && (
               <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
                 Found {searchState.resultCount} result(s) for "{searchState.query}"
+                {searchState.filtersApplied && (
+                  <span className="ml-1 text-xs">(with filters applied)</span>
+                )}
               </div>
             )}
           </form>
@@ -313,7 +352,7 @@ export function SearchForm({ onResultClick }) {
       </Card>
       
       {/* Search History */}
-      {searchHistory.length > 0 && !searchResults.length && !isSearching && (
+      {searchHistory.length > 0 && !optimisticResults.length && !isSearching && (
         <Card>
           <CardContent className="pt-6">
             <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -396,8 +435,8 @@ export function SearchForm({ onResultClick }) {
                         
                         {/* Relevance Score */}
                         <div className="ml-4 text-right">
-                          <div className={`text-sm font-medium ${getScoreColor(result.score)}`}>
-                            {(result.score * 100).toFixed(1)}%
+                          <div className={`text-sm font-medium ${getScoreColor(result.score || result.relevance_score || 0)}`}>
+                            {((result.score || result.relevance_score || 0) * 100).toFixed(1)}%
                           </div>
                           <div className="text-xs text-gray-400">
                             relevance

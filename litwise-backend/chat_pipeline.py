@@ -46,7 +46,9 @@ class RAGChatPipeline:
     def __init__(self):
         # Initialize clients
         self.openai_llm = ChatOpenAI(
-            model="gpt-5-mini-2025-08-07",
+            model="grok-4-1-fast-reasoning",
+            api_key=os.getenv("XAI_API_KEY"),
+            base_url="https://api.x.ai/v1",
             streaming=True
         )
         
@@ -453,7 +455,7 @@ Answer based only on the context above."""),
                     "session_id": session_id,
                     "memory_data": memory_data,
                     "updated_at": datetime.now().isoformat()
-                }).execute()
+                }, on_conflict="session_id").execute()
             )
         except Exception as e:
             print(f"Memory storage failed: {str(e)}")

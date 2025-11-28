@@ -52,7 +52,7 @@ app.add_middleware(
 
 @app.post("/upload", response_model=dict)
 async def upload_paper(file: UploadFile = File(...), title: str = None):
-    """Upload and extract text from PDF (without AI processing)."""
+    """Upload and extract text and metadata from PDF (without AI processing)."""
     try:
         # Generate unique ID for paper
         paper_id = str(uuid.uuid4())
@@ -70,9 +70,15 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             tmp_path = tmp.name
 
         try:
+            # Extract text and page info
             text, page_info = extract_text_from_pdf(tmp_path)
             if not text or len(text.strip()) < 10:
                 raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
+            
+            # Extract metadata from PDF
+            from workflow.metadata_extractor import metadata_extractor
+            paper_metadata = metadata_extractor.extract_from_pdf(tmp_path)
+            
         finally:
             os.unlink(tmp_path)  # Cleanup
 
@@ -81,26 +87,37 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
         if file.filename:
             clean_filename = os.path.splitext(file.filename)[0]
         
+        # Use extracted title if not provided and available in metadata
+        final_title = title or paper_metadata.get('extracted_title') or clean_filename or "Untitled Document"
+        
         # Store in Supabase papers table (without AI summary)
         paper_data = {
             "id": paper_id,
-            "title": title or clean_filename or "Untitled Document",
+            "title": final_title,
             "content_text": text,
-            "page_info": json.dumps(page_info),  # Store page info as JSON
+            "page_info": json.dumps(page_info),
             "embedding_id": paper_id,
             "user_id": None,
             "file_size": file_size,
             "filename": file.filename,
             "processing_status": "uploaded",
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
+            # Add extracted metadata
+            "authors": json.dumps(paper_metadata.get('authors', [])),
+            "publication_year": paper_metadata.get('publication_year'),
+            "doi": paper_metadata.get('doi'),
+            "keywords": paper_metadata.get('keywords', []),
+            "journal_or_conference": paper_metadata.get('journal_or_conference'),
+            "abstract": paper_metadata.get('abstract')
         }
         
         # Insert into Supabase
         try:
             supabase_result = supabase.table("papers").insert(paper_data).execute()
-            print(f"Successfully uploaded paper: {paper_id}")
+            print(f"✅ Successfully uploaded paper: {paper_id}")
+            print(f"📊 Metadata: {len(paper_metadata.get('authors', []))} authors, year: {paper_metadata.get('publication_year')}")
         except Exception as e:
-            print(f"Database insertion error: {e}")
+            print(f"❌ Database insertion error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
         # Note: Embeddings will be generated during processing stage for efficiency
@@ -109,13 +126,21 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             "id": paper_id,
             "title": paper_data["title"],
             "status": "uploaded",
-            "message": "Paper uploaded successfully! You can start chatting now. AI summary generation is optional for enhanced features."
+            "message": "Paper uploaded successfully! Metadata extracted. You can start chatting now.",
+            "metadata": {
+                "authors": paper_metadata.get('authors', []),
+                "year": paper_metadata.get('publication_year'),
+                "doi": paper_metadata.get('doi'),
+                "keywords": paper_metadata.get('keywords', [])
+            }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Upload error: {e}")
+        print(f"❌ Upload error: {e}")
+        import traceback # What is traceback used for? It provides detailed error stack traces for debugging.
+        traceback.print_exc() # Print the full traceback to the console for debugging.
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @app.post("/papers/{paper_id}/process", response_model=ProcessingResponse)
@@ -296,172 +321,173 @@ async def process_paper_ai(paper_id: str):
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 @app.post("/search")
-def search_papers(query: SearchQuery):
-    from workflow.db import qdrant
+async def search_papers(query: SearchQuery):
+    """
+    Advanced semantic search across all papers using hybrid search
+    
+    Features:
+    - Vector similarity search (semantic understanding)
+    - BM25 keyword search (lexical matching) when available
+    - Query expansion (acronyms + synonyms)
+    - Metadata filtering (author, year, keywords)
+    - Result diversity scoring (prefer results from different papers)
+    
+    Args:
+        query: SearchQuery with query text, filters, and options
+        
+    Returns:
+        List of search results with relevance scores and metadata
+    """
+    from workflow.db import qdrant, supabase
     from workflow.utils import generate_embeddings
+    from workflow.enhanced_search import enhanced_search
+    from langchain_openai import OpenAIEmbeddings
     from fastapi import HTTPException
-    from qdrant_client.http import models as rest_models
-
-    collection = "litwise_collection"
-    vector = generate_embeddings(query.query)
-
-    # Try several client methods for compatibility across qdrant-client versions.
-    # For each call we try both possible argument names ('vector' and 'query_vector'),
-    # and continue to the next option on any exception until one succeeds.
-    raw_hits = None
-    last_exc = None
-
-    def try_call(func, /, *args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            return e
-
-    # 1) qdrant.search
-    if hasattr(qdrant, "search"):
-        for kw in ("vector", "query_vector"):
-            res = try_call(getattr(qdrant, "search"), collection_name=collection, **{kw: vector}, limit=query.limit, with_payload=True)
-            if not isinstance(res, Exception):
-                raw_hits = res
-                break
-            last_exc = res
-
-    # 2) qdrant.query_points
-    if raw_hits is None and hasattr(qdrant, "query_points"):
-        for kw in ("vector", "query_vector"):
-            res = try_call(getattr(qdrant, "query_points"), collection_name=collection, **{kw: vector}, limit=query.limit)
-            if not isinstance(res, Exception):
-                raw_hits = res
-                break
-            last_exc = res
-
-    # 3) qdrant.search_points
-    if raw_hits is None and hasattr(qdrant, "search_points"):
-        for kw in ("vector", "query_vector"):
-            # some clients accept 'vector' positional arg
-            try:
-                if kw == "vector":
-                    res = try_call(getattr(qdrant, "search_points"), collection_name=collection, vector=vector, limit=query.limit)
-                else:
-                    res = try_call(getattr(qdrant, "search_points"), collection_name=collection, query_vector=vector, limit=query.limit)
-            except Exception as e:
-                res = e
-            if not isinstance(res, Exception):
-                raw_hits = res
-                break
-            last_exc = res
-
-    # 4) HTTP API fallback
-    if raw_hits is None and hasattr(qdrant, "http") and hasattr(qdrant.http, "points_api"):
-        api = qdrant.http.points_api
-        # find any method name containing 'search' and try calling it
-        search_methods = [name for name in dir(api) if "search" in name]
-        if search_methods:
-            for name in search_methods:
-                func = getattr(api, name)
-                try:
-                    # Try calling with (collection_name=..., body=SearchPoints(...))
-                    resp = func(collection_name=collection, body=rest_models.SearchPoints(vector=vector, limit=query.limit)).result
-                    raw_hits = resp
-                    break
-                except TypeError:
-                    # Try alternative positional call
-                    try:
-                        resp = func(collection, rest_models.SearchPoints(vector=vector, limit=query.limit)).result
-                        raw_hits = resp
-                        break
-                    except Exception as e:
-                        last_exc = e
-                        continue
-                except Exception as e:
-                    last_exc = e
-                    continue
-        else:
-            # As a last resort, call Qdrant HTTP REST API directly using requests.
-            # This covers environments where the generated points_api client doesn't expose a search helper.
-            try:
-                import requests
-                QDRANT_URL = os.getenv("QDRANT_URL")
-                QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-                if not QDRANT_URL:
-                    raise RuntimeError("QDRANT_URL not configured in environment")
-
-                url = QDRANT_URL.rstrip("/") + f"/collections/{collection}/points/search"
-                headers = {"Content-Type": "application/json"}
-                # Qdrant cloud uses 'api-key' header; try both common headers
-                if QDRANT_API_KEY:
-                    headers.update({"api-key": QDRANT_API_KEY, "x-api-key": QDRANT_API_KEY})
-
-                body = {"vector": vector, "top": query.limit, "with_payload": True}
-                resp = requests.post(url, json=body, headers=headers, timeout=15)
-                if resp.status_code >= 400:
-                    last_exc = RuntimeError(f"Qdrant REST search failed: {resp.status_code} {resp.text}")
-                else:
-                    parsed = resp.json()
-                    # The REST response typically contains 'result' or 'points'
-                    candidates = parsed.get("result") or parsed.get("points") or parsed.get("hits") or []
-                    raw_hits = candidates
-            except Exception as e:
-                last_exc = e
-
-    if raw_hits is None:
-        # If debug requested, return diagnostics instead of raising immediately
-        if getattr(query, "debug", False):
-            diag = {}
-            try:
-                diag = qdrant_diagnostics()
-            except Exception as e:
-                diag = {"diagnostics_error": str(e)}
-            return {"results": [], "error": str(last_exc), "diagnostics": diag}
-        raise HTTPException(status_code=500, detail=f"Qdrant search failed: {last_exc}")
-
-    results = []
-    # Normalize different hit formats
+    
     try:
-        for hit in raw_hits:
-            title = None
-            score = None
-            # object with payload and score attributes
-            if hasattr(hit, "payload"):
-                payload = hit.payload
-                if isinstance(payload, dict):
-                    title = payload.get("title")
-                score = getattr(hit, "score", None)
-            # dict-like response
-            elif isinstance(hit, dict):
-                payload = hit.get("payload") or hit.get("result") or hit
-                if isinstance(payload, dict):
-                    title = payload.get("title")
-                score = hit.get("score") or (hit.get("result") and hit.get("result").get("score"))
-            # fallback: try nested structures (e.g., http response object)
-            else:
-                try:
-                    # Example: resp.points -> list of point objects
-                    pts = getattr(raw_hits, "points", None) or getattr(raw_hits, "result", None)
-                    if pts:
-                        for ph in pts:
-                            pld = getattr(ph, "payload", None) or (isinstance(ph, dict) and ph.get("payload"))
-                            t = None
-                            if isinstance(pld, dict):
-                                t = pld.get("title")
-                            s = getattr(ph, "score", None) or (isinstance(ph, dict) and ph.get("score"))
-                            results.append({"title": t, "score": s})
-                        continue
-                except Exception:
-                    pass
-            results.append({"title": title, "score": score})
+        # Initialize embeddings model
+        embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=os.getenv("OPENAI_API_KEY")
+        )
+        
+        # Get paper IDs from filters if specified
+        filtered_paper_ids = None
+        filters = getattr(query, 'filters', None)
+        
+        if filters and getattr(filters, 'paper_ids', None):
+            filtered_paper_ids = filters.paper_ids
+        
+        # Apply database-level metadata filters (author, year, keywords)
+        db_filters = []
+        if filters:
+            if getattr(filters, 'author', None):
+                # Search for author name in JSONB authors field
+                author_filter = f"authors @> '[{{\"name\": \"{filters.author}\"}}]'::jsonb"
+                db_filters.append(author_filter)
+            
+            if getattr(filters, 'year_from', None):
+                db_filters.append(f"publication_year >= {filters.year_from}")
+            
+            if getattr(filters, 'year_to', None):
+                db_filters.append(f"publication_year <= {filters.year_to}")
+            
+            if getattr(filters, 'keywords', None):
+                # Match any of the provided keywords
+                for keyword in filters.keywords:
+                    db_filters.append(f"'{keyword}' = ANY(keywords)")
+        
+        # Fetch filtered papers from database if filters applied
+        if db_filters and not filtered_paper_ids:
+            try:
+                where_clause = " AND ".join(db_filters)
+                result = supabase.table("papers").select("id").filter(where_clause).execute()
+                filtered_paper_ids = [paper['id'] for paper in result.data]
+                
+                if not filtered_paper_ids:
+                    print(f"⚠️ No papers match the metadata filters")
+                    return []
+                
+                print(f"📋 Filtered to {len(filtered_paper_ids)} papers by metadata")
+            except Exception as e:
+                print(f"⚠️ Metadata filtering failed: {e}, proceeding without filters")
+                filtered_paper_ids = None
+        
+        # Perform hybrid search across all papers (or filtered subset)
+        results = await enhanced_search.hybrid_search(
+            qdrant_client=qdrant,
+            embeddings_model=embeddings,
+            paper_id=None,  # Cross-paper search
+            query=query.query,
+            top_k=query.limit,
+            use_query_expansion=True
+        )
+        
+        # Filter results by paper_ids if specified
+        if filtered_paper_ids:
+            results = [
+                result for result in results 
+                if result.get('paper_id') in filtered_paper_ids
+            ]
+        
+        # Collect unique paper IDs from results
+        unique_paper_ids = list(set(result.get('paper_id') for result in results if result.get('paper_id')))
+        
+        # Fetch all paper metadata in one batch query (optimization)
+        paper_metadata_map = {}
+        if unique_paper_ids:
+            try:
+                # Batch fetch paper metadata for all unique paper IDs
+                paper_data = supabase.table("papers").select(
+                    "id, title, authors, publication_year, doi, keywords, journal_or_conference"
+                ).in_("id", unique_paper_ids).execute()
+                
+                # Create a map for quick lookup
+                for paper in paper_data.data:
+                    paper_metadata_map[paper['id']] = paper
+                    
+                print(f"📚 Fetched metadata for {len(paper_metadata_map)} unique papers")
+            except Exception as e:
+                print(f"⚠️ Failed to fetch paper metadata: {e}")
+        
+        # Enrich results with paper metadata from database
+        enriched_results = []
+        for result in results:
+            paper_id = result.get('paper_id')
+            if not paper_id:
+                continue
+            
+            # Get metadata from pre-fetched map
+            paper_info = paper_metadata_map.get(paper_id)
+            if paper_info:
+                result['paper_title'] = paper_info.get('title', 'Unknown')
+                result['authors'] = paper_info.get('authors', [])
+                result['publication_year'] = paper_info.get('publication_year')
+                result['doi'] = paper_info.get('doi')
+                result['keywords'] = paper_info.get('keywords', [])
+                result['journal_or_conference'] = paper_info.get('journal_or_conference')
+            
+            enriched_results.append(result)
+        
+        print(f"✅ Search complete: {len(enriched_results)} results returned")
+        return enriched_results
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse qdrant hits: {e}")
+        print(f"❌ Search failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        if query.debug:
+            return {
+                "results": [],
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search failed: {str(e)}"
+        )
 
-    # If no results and debug requested, include diagnostics
-    if not results and getattr(query, "debug", False):
-        try:
-            diag = qdrant_diagnostics()
-        except Exception as e:
-            diag = {"diagnostics_error": str(e)}
-        return {"results": results, "diagnostics": diag}
-
-    return results
+        print(f"✅ Search complete: {len(enriched_results)} results returned")
+        return enriched_results
+        
+    except Exception as e:
+        print(f"❌ Search failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        if query.debug:
+            return {
+                "results": [],
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search failed: {str(e)}"
+        )
 
 
 @app.get("/qdrant/diagnostics", response_model=dict)

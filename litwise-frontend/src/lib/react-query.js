@@ -152,7 +152,7 @@ export function useUploadPaper() {
 /**
  * Custom Hook: Search Papers
  * 
- * Handle semantic search and caching and state management
+ * Handle semantic search with filters, caching and state management
  */
 export function useSearchPapers(){
     const {
@@ -162,7 +162,8 @@ export function useSearchPapers(){
     } = useSearchStore(); 
 
     return useMutation({
-        mutationFn: ({ query, debug = false }) => searchPapers(query, debug),
+        mutationFn: ({ query, filters = null, debug = false, limit = 10 }) => 
+            searchPapers(query, { filters, debug, limit }),
         onMutate: () => {
             startSearch();
         },

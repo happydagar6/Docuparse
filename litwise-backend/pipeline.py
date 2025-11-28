@@ -7,9 +7,15 @@ from models.paper import PaperSummary
 from dotenv import load_dotenv
 import json
 
-load_dotenv()
 
-llm = ChatOpenAI(model="gpt-5-mini-2025-08-07")
+load_dotenv()
+import os
+
+llm = ChatOpenAI(
+    model="grok-4-1-fast-reasoning",
+    api_key=os.getenv("XAI_API_KEY"),
+    base_url="https://api.x.ai/v1"
+)
 
 
 def merge_dicts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:

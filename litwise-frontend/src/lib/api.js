@@ -125,17 +125,28 @@ export async function processPaperAI(paperId) {
  * 3. Results include similarity scores and metadata
  * 
  * @param {string} query - Search query text
- * @param {boolean} debug - Enable debug mode for detailed response
+ * @param {object} options - Search options
+ * @param {object} options.filters - Advanced filters (author, year_from, year_to, keywords)
+ * @param {boolean} options.debug - Enable debug mode for detailed response
+ * @param {number} options.limit - Maximum results to return (default: 10)
  * @returns {Promise<Array>} - Array of matching papers with scores
  */
 
-export async function searchPapers(query, debug = false) {
+export async function searchPapers(query, { filters = null, debug = false, limit = 10 } = {}) {
+  const requestBody = { 
+    query,
+    limit,
+    debug 
+  };
+  
+  // Add filters if provided
+  if (filters && Object.keys(filters).length > 0) {
+    requestBody.filters = filters;
+  }
+  
   return apiRequest('/search', {
     method: 'POST',
-    body: JSON.stringify({ 
-      query,
-      debug 
-    }),
+    body: JSON.stringify(requestBody),
   });
 }
 
