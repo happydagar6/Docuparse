@@ -19,6 +19,7 @@ import {
   Settings,
   Menu,
   X,
+  Brain,
   ChevronRight,
   Sparkles
 } from 'lucide-react';
@@ -59,6 +60,15 @@ export function Navigation() {
       color: 'from-purple-500 to-purple-600',
       bgColor: 'bg-purple-50',
       hoverColor: 'hover:bg-purple-100'
+    },
+    {
+      href: '/synthesis',
+      label: 'History',
+      icon: Brain,
+      description: 'View saved syntheses',
+      color: 'from-indigo-500 to-indigo-600',
+      bgColor: 'bg-indigo-50',
+      hoverColor: 'hover:bg-indigo-100'
     },
     {
       href: '/papers',

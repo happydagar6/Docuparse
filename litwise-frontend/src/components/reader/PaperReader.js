@@ -36,6 +36,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { FormattedContent, FormattedSummary } from '@/components/ui/formatted-content';
 import { usePaperStore } from '@/lib/stores';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
 export function PaperReader({ paper, onBack }) {
   // Local state
@@ -139,8 +148,9 @@ export function PaperReader({ paper, onBack }) {
 
   /**
    * Keyboard shortcuts with React 19.2 optimizations
+   * useEffectEvent ensures we always use latest functions without re-adding event listener
    */
-  const handleKeyboardNavigation = useCallback((e) => {
+  const handleKeyboardNavigation = useEffectEvent((e) => {
     if (e.target.tagName === 'INPUT') return;
     
     switch (e.key) {
@@ -172,12 +182,12 @@ export function PaperReader({ paper, onBack }) {
         }
         break;
     }
-  }, [goToPreviousPage, goToNextPage, toggleSidebar, showSidebar, currentPage, totalPages, setOptimisticPage]);
+  });
 
   useLayoutEffect(() => {
     window.addEventListener('keydown', handleKeyboardNavigation);
     return () => window.removeEventListener('keydown', handleKeyboardNavigation);
-  }, [handleKeyboardNavigation]);
+  }, []); // ✅ Empty deps - event listener added once, but always calls latest functions
 
   /**
    * Handle page input change
@@ -316,32 +326,38 @@ export function PaperReader({ paper, onBack }) {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="px-6 py-4 flex items-center justify-between">
+    <SidebarProvider defaultOpen={false}>
+      <div className="h-screen flex flex-col bg-background w-full">
+        {/* Header */}
+        <div className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+          <div className="px-3 md:px-6 py-2 md:py-4 flex items-center justify-between gap-2">
           {/* Left side - Navigation */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="flex items-center gap-2"
+              className="flex items-center gap-1 md:gap-2 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              <span className="hidden md:inline">Back</span>
             </Button>
             
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <h1 className="font-semibold text-lg truncate max-w-md">
+            <div className="flex items-center gap-1 md:gap-2 min-w-0">
+              <FileText className="h-4 w-4 md:h-5 md:w-5 text-primary shrink-0" />
+              <h1 className="font-semibold text-sm md:text-lg truncate">
                 {paper?.title || paper?.filename || 'Research Paper'}
               </h1>
             </div>
+            
+            {/* Mobile AI Insights button */}
+            <SidebarTrigger className="md:hidden">
+              <Brain className="h-4 w-4" />
+            </SidebarTrigger>
           </div>
           
           {/* Center - Page Navigation */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 md:gap-4 shrink-0">
             <Button
               variant="ghost"
               size="sm"
@@ -352,22 +368,23 @@ export function PaperReader({ paper, onBack }) {
                 });
               }}
               disabled={optimisticPage <= 1}
+              className="h-8 w-8 md:h-9 md:w-9 p-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Page</span>
+            <div className="flex items-center gap-1 md:gap-2">
+              <span className="text-xs md:text-sm text-muted-foreground hidden sm:inline">Page</span>
               <form onSubmit={handlePageInputSubmit}>
                 <Input
                   type="text"
                   value={pageInputValue}
                   onChange={handlePageInputChange}
-                  className="w-16 h-8 text-center text-sm"
+                  className="w-10 md:w-16 h-7 md:h-8 text-center text-xs md:text-sm"
                   onBlur={handlePageInputSubmit}
                 />
               </form>
-              <span className="text-sm text-muted-foreground">of {totalPages}</span>
+              <span className="text-xs md:text-sm text-muted-foreground">/ {totalPages}</span>
             </div>
             
             <Button
@@ -380,68 +397,60 @@ export function PaperReader({ paper, onBack }) {
                 });
               }}
               disabled={optimisticPage >= totalPages}
+              className="h-8 w-8 md:h-9 md:w-9 p-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
           
           {/* Right side - Controls */}
-          <div className="flex items-center gap-2">
-            {/* Font size controls */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={decreaseFontSize}
-              disabled={fontSize === 'small'}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={increaseFontSize}
-              disabled={fontSize === 'large'}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
+            {/* Font size controls - hide on mobile */}
+            <div className="hidden lg:flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={decreaseFontSize}
+                disabled={fontSize === 'small'}
+              >
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={increaseFontSize}
+                disabled={fontSize === 'large'}
+              >
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+            </div>
             
-            {/* Actions */}
-            <Button variant="ghost" size="sm">
+            {/* Actions - hide some on mobile */}
+            <Button variant="ghost" size="sm" className="hidden md:flex">
               <Download className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" className="hidden md:flex">
               <Share2 className="h-4 w-4" />
             </Button>
             
             {/* Sidebar toggle with label */}
-            <Button
-              variant={showSidebar ? "default" : "ghost"}
-              size="sm"
-              onClick={toggleSidebar}
-              className="gap-2"
-            >
+            <SidebarTrigger className="gap-2">
               <BookOpen className="h-4 w-4" />
-              {showSidebar ? 'Hide' : 'Show'} AI Insights
-            </Button>
+              <span className="hidden lg:inline">AI Insights</span>
+            </SidebarTrigger>
           </div>
         </div>
       </div>
       
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Paper Content */}
-        <div 
-          className={`flex-1 overflow-auto transition-all duration-300 ${
-            showSidebar ? 'mr-96' : 'mr-0'
-          }`}
-        >
+      {/* Main Content Area with Sidebar */}
+      <div className="flex-1 flex overflow-hidden">\n        <SidebarInset className="overflow-auto">
           <div 
             ref={contentRef}
-            className="max-w-4xl mx-auto p-8"
+            className="max-w-4xl mx-auto p-3 md:p-8 pb-8 md:pb-16"
           >
             {/* Page indicator */}
-            <div className="mb-4 text-center">
-              <span className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
+            <div className="mb-3 md:mb-4 text-center">
+              <span className="inline-flex items-center px-2 md:px-3 py-1 bg-primary/10 text-primary text-xs md:text-sm rounded-full">
                 Page {optimisticPage} of {totalPages}
               </span>
             </div>
@@ -452,17 +461,18 @@ export function PaperReader({ paper, onBack }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className={`prose max-w-none ${getFontSizeClass()}`}
+              className={`prose prose-sm md:prose max-w-none ${getFontSizeClass()}`}
             >
-              <div className="min-h-[600px] p-6 bg-white rounded-lg shadow-sm border">
+              <div className="min-h-[400px] md:min-h-[600px] p-3 md:p-6 bg-white rounded-lg shadow-sm border">
                 <FormattedContent content={currentPageData.content} />
               </div>
             </motion.div>
 
             {/* Page navigation footer */}
-            <div className="mt-8 flex justify-between items-center">
+            <div className="mt-4 md:mt-8 flex justify-between items-center gap-2">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   const prevPage = Math.max(1, currentPage - 1);
                   startTransition(() => {
@@ -471,18 +481,20 @@ export function PaperReader({ paper, onBack }) {
                   });
                 }}
                 disabled={currentPage <= 1}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
-                Previous Page
+                <span className="hidden sm:inline">Previous Page</span>
+                <span className="sm:hidden">Prev</span>
               </Button>
               
-              <span className="text-sm text-muted-foreground">
-                Page {optimisticPage} of {totalPages}
+              <span className="text-xs md:text-sm text-muted-foreground">
+                {optimisticPage} / {totalPages}
               </span>
               
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   const nextPage = Math.min(totalPages, currentPage + 1);
                   startTransition(() => {
@@ -491,74 +503,51 @@ export function PaperReader({ paper, onBack }) {
                   });
                 }}
                 disabled={currentPage >= totalPages}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2"
               >
-                Next Page
+                <span className="hidden sm:inline">Next Page</span>
+                <span className="sm:hidden">Next</span>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
-        </div>
+        </SidebarInset>
         
-        {/* Enhanced Sidebar */}
-        <AnimatePresence>
-          {showSidebar && (
-            <motion.div
-              ref={sidebarRef}
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 20 }}
-              className="fixed right-0 top-[73px] bottom-0 w-96 bg-white border-l shadow-lg z-20 overflow-auto"
-            >
-              {/* Sidebar Header */}
-              <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-                <h2 className="font-semibold text-lg">AI Insights</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleSidebar}
-                  className="h-8 w-8 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="p-6 space-y-6">
+        {/* AI Insights Sidebar using shadcn Sidebar */}
+        <Sidebar side="right" className="border-l">
+          <SidebarHeader className="border-b">
+            <div className="flex items-center justify-between p-4">
+              <h2 className="font-semibold text-base lg:text-lg">AI Insights</h2>
+            </div>
+          </SidebarHeader>
+          <SidebarContent className="p-4 space-y-4">
                 {/* Sidebar sections */}
                 {sidebarSections.map((section, index) => {
                   const IconComponent = section.icon;
                   
                   return (
-                    <motion.div
-                      key={section.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="flex items-center gap-2 text-base">
-                            <IconComponent className="h-4 w-4" />
-                            {section.title}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-sm text-gray-700 leading-relaxed">
-                          {section.id === 'summary' ? (
-                            <FormattedSummary summary={section.content} />
-                          ) : (
-                            <FormattedContent 
-                              content={section.content 
-                                ? (Array.isArray(section.content) 
-                                   ? section.content.map(item => `• ${item}`).join('\n')
-                                   : section.content)
-                                : `${section.title} will be generated based on the paper content.`
-                              } 
-                            />
-                          )}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
+                    <Card key={section.id}>
+                      <CardHeader className="pb-3 p-3">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <IconComponent className="h-4 w-4" />
+                          {section.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="text-xs text-gray-700 leading-relaxed p-3 pt-0">
+                        {section.id === 'summary' ? (
+                          <FormattedSummary summary={section.content} />
+                        ) : (
+                          <FormattedContent 
+                            content={section.content 
+                              ? (Array.isArray(section.content) 
+                                 ? section.content.map(item => `• ${item}`).join('\n')
+                                 : section.content)
+                              : `${section.title} will be generated based on the paper content.`
+                            } 
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
                   );
                 })}
                 
@@ -581,18 +570,15 @@ export function PaperReader({ paper, onBack }) {
                     Go to First Page
                   </Button>
                 </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </SidebarContent>
+        </Sidebar>
       </div>
       
       {/* Keyboard shortcuts help */}
-      <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-white/80 backdrop-blur-sm px-2 py-1 rounded">
-        <span className="hidden lg:inline">
-          ← → Navigate • S Toggle sidebar • ESC Close sidebar
-        </span>
+      <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-white/80 backdrop-blur-sm px-2 py-1 rounded hidden md:block">
+        ← → Navigate • Ctrl+B Toggle sidebar
       </div>
     </div>
+    </SidebarProvider>
   );
 }

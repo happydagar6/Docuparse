@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useLayoutEffect, useOptimistic, startTransition, useMemo, useEffectEvent } from 'react';
+import React, { useState, useRef, useLayoutEffect, startTransition, useMemo, useEffectEvent, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
   Loader2,
   MessageCircle,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -29,41 +30,58 @@ const ChatInterface = ({ paper }) => {
   const [streamingMessage, setStreamingMessage] = useState('');
   const [sources, setSources] = useState([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [failedMessageIds, setFailedMessageIds] = useState(new Set());
+  const [pendingMessageId, setPendingMessageId] = useState(null);
   
-  // React 19.2: useOptimistic for optimistic UI updates
-  const [optimisticMessages, addOptimisticMessage] = useOptimistic(
-    [],
-    (state, newMessage) => [...state, newMessage]
-  );
+  // AbortController for stopping generation
+  const abortControllerRef = useRef(null);
   
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
-  const scrollContainerRef = useRef(null);
-
   // Query hooks
   const { data: sessions = [], refetch: refetchSessions } = useChatSessions(paper.id);
   const { data: messages = [], refetch: refetchMessages } = useChatMessages(activeSessionId);
   const createSessionMutation = useCreateChatSession();
   const deleteSessionMutation = useDeleteChatSession();
 
-  // Combine actual messages with optimistic messages using useMemo
+  // Track optimistic messages separately to avoid reset issues
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState(null);
+  
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+
+  // Combine actual messages with optimistic message
   const displayMessages = useMemo(() => {
-    return [...messages, ...optimisticMessages];
-  }, [messages, optimisticMessages]);
+    let allMessages = [...messages];
+    
+    // Add optimistic message if it exists and isn't already in messages
+    if (optimisticUserMessage) {
+      const existsInMessages = messages.some(msg => msg.id === optimisticUserMessage.id);
+      if (!existsInMessages) {
+        allMessages.push(optimisticUserMessage);
+      }
+    }
+    
+    // Enrich messages with pending and failed states
+    return allMessages.map(msg => ({
+      ...msg,
+      isPending: msg.id === pendingMessageId,
+      isFailed: failedMessageIds.has(msg.id)
+    }));
+  }, [messages, optimisticUserMessage, pendingMessageId, failedMessageIds]);
 
   // Auto-scroll to bottom using useLayoutEffect for better performance
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   // Manual scroll to bottom
-  const forceScrollToBottom = () => {
+  const forceScrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollButton(false);
-  };
+  }, []);
 
-  // Check if user is near bottom without causing re-renders
-  const isUserNearBottom = () => {
+  // React 19.2: useEffectEvent for scroll checking without dependency issues
+  const isUserNearBottom = useEffectEvent(() => {
     if (scrollContainerRef.current) {
       const container = scrollContainerRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (container) {
@@ -72,22 +90,14 @@ const ChatInterface = ({ paper }) => {
       }
     }
     return true; // Default to true if we can't detect
-  };
+  });
 
   // Handle new messages (not during streaming)
   useLayoutEffect(() => {
     if (!isStreaming && displayMessages.length > 0) {
       scrollToBottom();
-      setShowScrollButton(false);
     }
-  }, [displayMessages.length, isStreaming]);
-
-  // Handle streaming start/end
-  useLayoutEffect(() => {
-    if (!isStreaming) {
-      setShowScrollButton(false);
-    }
-  }, [isStreaming]);
+  }, [displayMessages.length, isStreaming, scrollToBottom]);
 
   // Handle streaming message updates with throttling
   useLayoutEffect(() => {
@@ -97,12 +107,13 @@ const ChatInterface = ({ paper }) => {
         const nearBottom = isUserNearBottom();
         
         if (nearBottom) {
-          setShowScrollButton(false);
           // Scroll to bottom
           messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-        } else {
-          setShowScrollButton(true);
         }
+        // Update button state outside the effect using setTimeout to avoid cascading renders
+        setTimeout(() => {
+          setShowScrollButton(!nearBottom);
+        }, 0);
       } else if (streamingMessage.length < 50) {
         // For the first few characters, ensure we're scrolled to bottom
         const nearBottom = isUserNearBottom();
@@ -155,47 +166,141 @@ const ChatInterface = ({ paper }) => {
     if (!message.trim() || isStreaming || !activeSessionId) return;
 
     const userMessage = message;
+    const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: optimisticId,
       content: userMessage,
       role: 'user',
       timestamp: new Date().toISOString(),
-      session_id: activeSessionId
+      created_at: new Date().toISOString(),
+      session_id: activeSessionId,
+      isPending: true
     };
 
-    // React 19.2: Add optimistic message immediately
-    startTransition(() => {
-      addOptimisticMessage(optimisticMessage);
-      setMessage('');
-      setIsStreaming(true);
-      setStreamingMessage('');
-      setSources([]);
-    });
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
+    // Add optimistic message immediately (doesn't reset like useOptimistic)
+    setOptimisticUserMessage(optimisticMessage);
+    setPendingMessageId(optimisticId);
+    setMessage('');
+    setIsStreaming(true);
+    setStreamingMessage('');
+    setSources([]);
 
     try {
-      await chatApi.streamChat(activeSessionId, userMessage, (chunk) => {
-        if (chunk.type === 'token' && chunk.content) {
-          setStreamingMessage(prev => prev + chunk.content);
-        } else if (chunk.type === 'sources' && chunk.sources) {
-          setSources(chunk.sources);
-        } else if (chunk.type === 'complete') {
-          setIsStreaming(false);
-          setStreamingMessage('');
-          setShowScrollButton(false); // Hide scroll button when streaming ends
-          refetchMessages();
-        } else if (chunk.type === 'error') {
-          toast.error(chunk.error);
-          setIsStreaming(false);
-          setStreamingMessage('');
-          setShowScrollButton(false); // Hide scroll button on error
-        }
-      });
+      await chatApi.streamChat(
+        activeSessionId, 
+        userMessage, 
+        (chunk) => {
+          // Inline callback for handling stream chunks
+          if (chunk.type === 'token' && chunk.content) {
+            setStreamingMessage(prev => prev + chunk.content);
+            // Clear pending state once we get first response
+            if (pendingMessageId) {
+              setPendingMessageId(null);
+            }
+          } else if (chunk.type === 'sources' && chunk.sources) {
+            setSources(chunk.sources);
+          } else if (chunk.type === 'complete') {
+            // Reset all streaming-related state
+            setIsStreaming(false);
+            setStreamingMessage('');
+            setSources([]);
+            setShowScrollButton(false);
+            setPendingMessageId(null);
+            abortControllerRef.current = null;
+            // Clear optimistic message before refetch
+            setOptimisticUserMessage(null);
+            // Refetch after a brief delay to ensure backend has saved messages
+            setTimeout(() => {
+              refetchMessages();
+            }, 500);
+          } else if (chunk.type === 'aborted') {
+            // Handle user-initiated abort
+            toast.info('Generation stopped', {
+              description: 'AI response was stopped by user'
+            });
+            // Save partial response if any content was generated
+            if (streamingMessage) {
+              // The partial response stays visible until user sends next message
+            }
+            // Reset streaming state
+            setIsStreaming(false);
+            setShowScrollButton(false);
+            setPendingMessageId(null);
+            abortControllerRef.current = null;
+            // Clear optimistic message and refetch
+            setOptimisticUserMessage(null);
+            setTimeout(() => {
+              refetchMessages();
+            }, 500);
+          } else if (chunk.type === 'error') {
+            toast.error(chunk.error);
+            // Reset all streaming-related state
+            setIsStreaming(false);
+            setStreamingMessage('');
+            setSources([]);
+            setShowScrollButton(false);
+            setPendingMessageId(null);
+            abortControllerRef.current = null;
+            // Mark message as failed
+            setFailedMessageIds(prev => new Set([...prev, optimisticId]));
+          }
+        },
+        abortControllerRef.current.signal // Pass abort signal
+      );
     } catch (error) {
-      toast.error('Failed to send message');
+      console.error('Chat error:', error);
+      toast.error('Failed to send message', {
+        description: 'Click to retry',
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            setMessage(userMessage);
+            // Remove failed state
+            setFailedMessageIds(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(optimisticId);
+              return newSet;
+            });
+          },
+        },
+      });
+      // Reset all streaming-related state
       setIsStreaming(false);
       setStreamingMessage('');
-      setShowScrollButton(false); // Hide scroll button on error
+      setSources([]);
+      setShowScrollButton(false);
+      setPendingMessageId(null);
+      abortControllerRef.current = null;
+      // Don't clear optimistic message on error - keep it visible with failed state
+      // Mark message as failed
+      setFailedMessageIds(prev => new Set([...prev, optimisticId]));
     }
+  };
+
+  // Handle stopping generation
+  const handleStopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      toast.info('Stopping generation...', {
+        duration: 2000
+      });
+    }
+  }, []);
+
+  // Handle message retry - defined after handleSendMessage to avoid hoisting issues
+  const handleRetryMessage = async (failedMessage) => {
+    setFailedMessageIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(failedMessage.id);
+      return newSet;
+    });
+    
+    // Resend the message
+    setMessage(failedMessage.content);
+    await handleSendMessage();
   };
 
   const handleKeyPress = (e) => {
@@ -217,9 +322,9 @@ const ChatInterface = ({ paper }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-280px)] min-h-[600px]">
-      {/* Sessions Sidebar */}
-      <Card className="md:col-span-1 flex flex-col">
+    <div className="flex flex-col md:grid md:grid-cols-4 gap-4 h-full">
+      {/* Sessions Sidebar - Hidden on mobile, collapsible */}
+      <Card className="hidden md:flex md:col-span-1 flex-col">
         <CardHeader className="pb-3 shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Chat Sessions</CardTitle>
@@ -249,10 +354,10 @@ const ChatInterface = ({ paper }) => {
 
       {/* Chat Area */}
       <Card className="md:col-span-3 flex flex-col overflow-hidden">
-        <CardHeader className="pb-3 shrink-0">
-          <CardTitle className="text-sm flex items-center gap-2">
+        <CardHeader className="pb-3 shrink-0 p-3 md:p-6">
+          <CardTitle className="text-sm md:text-base flex items-center gap-2">
             <Bot className="h-4 w-4" />
-            Chat with `{paper.title}`
+            <span className="truncate">Chat with `{paper.title}`</span>
             {activeSessionId && (
               <Badge variant="secondary" className="ml-2">
                 {sessions.find(s => s.id === activeSessionId)?.title}
@@ -263,12 +368,13 @@ const ChatInterface = ({ paper }) => {
         
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
           {!activeSessionId ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-muted-foreground">
-                <MessageCircle className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <p>Create or select a chat session to begin</p>
+                <MessageCircle className="mx-auto h-10 w-10 md:h-12 md:w-12 mb-4 opacity-50" />
+                <p className="text-sm md:text-base">Create or select a chat session to begin</p>
                 <Button 
                   className="mt-4" 
+                  size="sm"
                   onClick={handleCreateSession}
                   disabled={createSessionMutation.isLoading}
                 >
@@ -281,35 +387,49 @@ const ChatInterface = ({ paper }) => {
               {/* Messages Area with proper flex and overflow */}
               <div className="flex-1 overflow-hidden relative">
                 <ScrollArea 
-                  className="h-full px-4" 
+                  className="h-full px-2 md:px-4" 
                   ref={scrollContainerRef}
                 >
-                  <div className="space-y-4 py-4">
+                  <div className="space-y-3 md:space-y-4 py-3 md:py-4">
                     {displayMessages.map((msg) => (
-                      <ChatMessage key={msg.id} message={msg} />
+                      <ChatMessage key={msg.id} message={msg} onRetry={handleRetryMessage} />
                     ))}
                     
                     {isStreaming && (
-                      <div className="flex gap-3">
+                      <div className="flex gap-2 md:gap-3">
                         <div className="shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Bot className="h-4 w-4 text-primary" />
+                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Bot className="h-3 w-3 md:h-4 md:w-4 text-primary" />
                           </div>
                         </div>
                         <div className="flex-1">
-                          <div className="bg-muted rounded-lg p-3">
-                            <div className="streaming-content">
-                              <FormattedContent content={streamingMessage} />
-                              <span className="animate-pulse">|</span>
+                          <div className="bg-muted rounded-lg p-2 md:p-3">
+                            <div className="streaming-content text-sm md:text-base">
+                              {streamingMessage ? (
+                                <>
+                                  <FormattedContent content={streamingMessage} />
+                                  <span className="animate-pulse">|</span>
+                                </>
+                              ) : (
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                                    <span className="text-xs md:text-sm">🔍 Searching...</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-muted-foreground ml-4 md:ml-6">
+                                    <span className="text-xs md:text-sm animate-pulse">Reasoning...</span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             {sources.length > 0 && (
-                              <div className="mt-3 pt-3 border-t">
-                                <p className="text-xs text-muted-foreground mb-2">Sources:</p>
+                              <div className="mt-2 md:mt-3 pt-2 md:pt-3 border-t">
+                                <p className="text-xs text-muted-foreground mb-1 md:mb-2">Sources:</p>
                                 <div className="space-y-1">
                                   {sources.map((source, idx) => (
                                     <div key={idx} className="text-xs bg-background rounded p-2">
                                       <p className="font-medium">Page {source.page}</p>
-                                      <p className="text-muted-foreground">{source.content}</p>
+                                      <p className="text-muted-foreground line-clamp-2">{source.content}</p>
                                       <p className="text-xs text-blue-600">
                                         Relevance: {(source.relevance_score * 100).toFixed(1)}%
                                       </p>
@@ -329,15 +449,15 @@ const ChatInterface = ({ paper }) => {
                 
                 {/* Scroll to bottom button - appears when user scrolls up during streaming */}
                 {showScrollButton && (
-                  <div className="absolute bottom-4 right-4 z-10">
+                  <div className="absolute bottom-3 right-3 md:bottom-4 md:right-4 z-10">
                     <Button
                       size="sm"
                       onClick={forceScrollToBottom}
-                      className="rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                      className="rounded-full shadow-lg bg-primary hover:bg-primary/90 h-8 md:h-auto"
                     >
                       <div className="flex items-center gap-1">
                         <span className="text-xs">AI is typing</span>
-                        <ChevronDown className="w-4 h-4" />
+                        <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />
                       </div>
                     </Button>
                   </div>
@@ -347,30 +467,37 @@ const ChatInterface = ({ paper }) => {
               <Separator className="shrink-0" />
               
               {/* Input Area */}
-              <div className="p-4 shrink-0">
+              <div className="p-2 md:p-4 shrink-0">
                 <div className="flex gap-2">
                   <Input
                     ref={inputRef}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Ask questions about this paper..."
+                    placeholder="Ask questions..."
                     disabled={isStreaming}
-                    className="flex-1"
+                    className="flex-1 text-sm"
                   />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={!message.trim() || isStreaming}
-                    size="icon"
-                  >
-                    {isStreaming ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
+                  {isStreaming ? (
+                    <Button
+                      onClick={handleStopGeneration}
+                      variant="destructive"
+                      size="icon"
+                      title="Stop generation"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!message.trim()}
+                      size="icon"
+                    >
                       <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                    </Button>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground mt-2 hidden sm:block">
                   Press Enter to send • Shift+Enter for new line
                 </p>
               </div>

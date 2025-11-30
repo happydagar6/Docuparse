@@ -40,8 +40,8 @@ export const chatApi = {
     return response.json();
   },
 
-  // Stream chat response
-  streamChat: async (sessionId, message, onChunk) => {
+  // Stream chat response with abort support
+  streamChat: async (sessionId, message, onChunk, abortSignal = null) => {
     console.log('Starting chat stream for session:', sessionId, 'message:', message);
     
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
@@ -53,6 +53,7 @@ export const chatApi = {
         session_id: sessionId,
         message: message,
       }),
+      signal: abortSignal, // Add abort signal support
     });
 
     console.log('Stream response status:', response.status);
@@ -83,6 +84,14 @@ export const chatApi = {
           }
         }
       }
+    } catch (error) {
+      // If aborted, don't throw error - it's intentional
+      if (error.name === 'AbortError') {
+        console.log('Stream aborted by user');
+        onChunk({ type: 'aborted', message: 'Generation stopped by user' });
+        return;
+      }
+      throw error;
     } finally {
       reader.releaseLock();
     }

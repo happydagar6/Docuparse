@@ -5,13 +5,16 @@
  * 
  * COMPONENT LOGIC FLOW:
  * 1. User enters search query
- * 2. Query sent to FastAPI /search endpoint
- * 3. Backend generates embeddings → queries Qdrant → returns relevant papers
- * 4. Results displayed with similarity scores
- * 5. Optional debug mode for detailed search insights
+ * 2. User clicks "Search Papers" button (manual trigger)
+ * 3. Query sent to FastAPI /search endpoint
+ * 4. Backend generates embeddings → queries Qdrant → returns relevant papers
+ * 5. Results displayed with similarity scores
+ * 6. User selects papers and manually triggers synthesis
  * 
  * FEATURES:
- * - Real-time search as user types (debounced)
+ * - Manual search (button click required)
+ * - Paper selection with checkboxes
+ * - Manual synthesis trigger
  * - Search history and suggestions
  * - Advanced search filters
  * - Result ranking and scoring
@@ -20,7 +23,7 @@
 
 'use client';
 
-import { useState, useActionState, useOptimistic, useCallback, startTransition, useMemo, useRef, useEffect } from 'react';
+import { useState, useActionState, useOptimistic, useCallback, startTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -29,18 +32,28 @@ import {
   Settings, 
   X, 
   Loader2,
-  AlertCircle 
+  AlertCircle,
+  Brain  // Phase 1: Synthesis icon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
 import { FormattedSummary } from '@/components/ui/formatted-content';
-import { useSearchPapers } from '@/lib/react-query';
+import { useSearchPapers, useSynthesizeResults } from '@/lib/react-query';  // Phase 1: Add synthesis hook
 import { useSearchStore } from '@/lib/stores';
+import { SynthesisPanel } from '@/components/search/SynthesisPanel';  // Phase 1: Import synthesis panel
 
 export function SearchForm({ onResultClick }) {
   // Local state for search input
   const [searchInput, setSearchInput] = useState('');
+  
+  // Phase 1: Synthesis state
+  const [synthesis, setSynthesis] = useState(null);
+  const [showSynthesis, setShowSynthesis] = useState(true);
+  const [selectedPapers, setSelectedPapers] = useState([]);
+  const [synthesisLimit, setSynthesisLimit] = useState(20);
   
   // Advanced filter state
   const [filters, setFilters] = useState({
@@ -72,6 +85,9 @@ export function SearchForm({ onResultClick }) {
   
   // React Query mutation for search
   const searchMutation = useSearchPapers();
+  
+  // Phase 1: React Query mutation for synthesis
+  const synthesisMutation = useSynthesizeResults();
 
   // React 19.2: useActionState for form handling
   const [searchState, searchAction, isPending] = useActionState(
@@ -113,6 +129,18 @@ export function SearchForm({ onResultClick }) {
           filters: Object.keys(searchFilters).length > 0 ? searchFilters : undefined,
           debug: process.env.NODE_ENV === 'development' 
         });
+        
+        // Phase 1: Auto-select all papers after search (manual synthesis trigger)
+        if (result && result.length > 0) {
+          const allIds = result.map((r, index) => 
+            r.chunk_id || r.id || `result-${index}`
+          ).filter(Boolean);
+          setSelectedPapers(allIds);
+          setSynthesis(null); // Clear previous synthesis
+        } else {
+          setSelectedPapers([]);
+          setSynthesis(null);
+        }
 
         return { 
           success: true, 
@@ -130,54 +158,19 @@ export function SearchForm({ onResultClick }) {
     { success: false }
   );
 
-  // Debounced search using useCallback
-  const performSearchRef = useRef();
-  
-  useEffect(() => {
-    performSearchRef.current = (query) => {
-      if (query.trim()) {
-        // Trigger form submission programmatically
-        const form = document.querySelector('form[data-search-form]');
-        if (form) {
-          form.requestSubmit();
-        }
-      }
-    };
-  });
-
-  const debouncedSearch = useMemo(() => {
-    let timeoutId;
-    return (query) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (performSearchRef.current) {
-          performSearchRef.current(query);
-        }
-      }, 500);
-    };
-  }, []);
-
   /**
-   * Handle search input changes with modern debouncing
+   * Handle search input changes (manual - no debounce)
    */
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     setSearchInput(value);
-    debouncedSearch(value);
-  }, [debouncedSearch]);
+  }, []);
 
   /**
    * Handle search history item click
    */
   const handleHistoryClick = (historyQuery) => {
     setSearchInput(historyQuery);
-    // Trigger form submission after input is set
-    setTimeout(() => {
-      const form = document.querySelector('form[data-search-form]');
-      if (form) {
-        form.requestSubmit();
-      }
-    }, 0);
   };
 
   /**
@@ -186,6 +179,69 @@ export function SearchForm({ onResultClick }) {
   const handleClear = () => {
     setSearchInput('');
     clearSearch();
+    setSelectedPapers([]);
+    setSynthesis(null);
+  };
+
+  /**
+   * Toggle paper selection
+   */
+  const togglePaperSelection = (paperId) => {
+    setSelectedPapers(prev => {
+      if (prev.includes(paperId)) {
+        return prev.filter(id => id !== paperId);
+      } else {
+        return [...prev, paperId];
+      }
+    });
+  };
+
+  /**
+   * Select all papers
+   */
+  const selectAllPapers = () => {
+    const allIds = optimisticResults.map((r, index) => 
+      r.chunk_id || r.id || `result-${index}`
+    ).filter(Boolean);
+    setSelectedPapers(allIds);
+  };
+
+  /**
+   * Deselect all papers
+   */
+  const deselectAllPapers = () => {
+    setSelectedPapers([]);
+  };
+
+  /**
+   * Handle manual synthesis trigger for selected papers
+   */
+  const handleSynthesizeSelected = async () => {
+    if (selectedPapers.length === 0) return;
+
+    try {
+      // Filter selected results
+      const selectedResults = optimisticResults.filter((r, index) => {
+        const uniqueId = r.chunk_id || r.id || `result-${index}`;
+        return selectedPapers.includes(uniqueId);
+      });
+
+      // Apply synthesis limit (slice to max allowed chunks)
+      const limitedResults = selectedResults.slice(0, synthesisLimit);
+      
+      console.log(`📊 Synthesis: Selected ${selectedResults.length} chunks, limited to ${limitedResults.length} by slider`);
+
+      const synthesisData = await synthesisMutation.mutateAsync({
+        query: query || searchInput,
+        searchResults: limitedResults,
+        maxPapers: synthesisLimit  // Pass limit to backend
+      });
+      
+      setSynthesis(synthesisData);
+      setShowSynthesis(true);
+    } catch (error) {
+      console.error('Manual synthesis failed:', error);
+    }
   };
 
   /**
@@ -341,7 +397,7 @@ export function SearchForm({ onResultClick }) {
             )}
             {searchState?.success && (
               <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
-                Found {searchState.resultCount} result(s) for "{searchState.query}"
+                Found {searchState.resultCount} result(s) for &quot;{searchState.query}&quot;
                 {searchState.filtersApplied && (
                   <span className="ml-1 text-xs">(with filters applied)</span>
                 )}
@@ -374,6 +430,17 @@ export function SearchForm({ onResultClick }) {
         </Card>
       )}
       
+      {/* Phase 1: AI Research Synthesis Panel */}
+      {synthesis && showSynthesis && optimisticResults.length > 0 && (
+        <SynthesisPanel
+          synthesis={synthesis}
+          isLoading={synthesisMutation.isPending}
+          error={synthesisMutation.error}
+          searchResults={optimisticResults}
+          maxPapers={synthesisLimit}
+        />
+      )}
+      
       {/* Search Results */}
       <AnimatePresence>
         {optimisticResults.length > 0 && (
@@ -386,27 +453,119 @@ export function SearchForm({ onResultClick }) {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Search Results ({optimisticResults.length})</span>
-                  <Button variant="ghost" size="sm" onClick={handleClear}>
-                    Clear Results
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleClear}>
+                      Clear Results
+                    </Button>
+                  </div>
                 </CardTitle>
+                
+                {/* Paper Selection Controls */}
+                <div className="mt-4 flex items-center justify-between bg-linear-to-r from-purple-50 to-blue-50 p-3 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={selectedPapers.length === optimisticResults.length && optimisticResults.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          selectAllPapers();
+                        } else {
+                          deselectAllPapers();
+                        }
+                      }}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Select All
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ({selectedPapers.length} selected)
+                    </span>
+                  </div>
+                  
+                  {selectedPapers.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {/* Synthesis Limit Slider */}
+                      <div className="bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-gray-700">
+                            Synthesis Scope
+                          </label>
+                          <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
+                            {Math.min(selectedPapers.length, synthesisLimit)} chunks
+                          </span>
+                        </div>
+                        <Slider
+                          value={[synthesisLimit]}
+                          onValueChange={(value) => setSynthesisLimit(value[0])}
+                          min={10}
+                          max={100}
+                          step={10}
+                          className="w-full"
+                        />
+                        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                          <span>10 (Fast)</span>
+                          <span className="text-purple-600 font-medium">{synthesisLimit}</span>
+                          <span>100 (Comprehensive)</span>
+                        </div>
+                      </div>
+                      
+                      <Button 
+                        size="sm"
+                        onClick={handleSynthesizeSelected}
+                        disabled={synthesisMutation.isPending}
+                        className="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      >
+                        {synthesisMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                            Synthesizing...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="h-3 w-3 mr-2" />
+                            Synthesize {Math.min(selectedPapers.length, synthesisLimit)} Chunk{Math.min(selectedPapers.length, synthesisLimit) > 1 ? 's' : ''}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               
               <CardContent>
                 <div className="space-y-4">
-                  {optimisticResults.map((result, index) => (
+                  {optimisticResults.map((result, index) => {
+                    // Use chunk_id as unique identifier (each chunk is unique even if from same paper)
+                    const uniqueId = result.chunk_id || result.id || `result-${index}`;
+                    const isSelected = selectedPapers.includes(uniqueId);
+                    
+                    return (
                     <motion.div
-                      key={result.id || index}
+                      key={uniqueId}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className={`p-4 border rounded-lg transition-colors cursor-pointer ${
+                      className={`p-4 border rounded-lg transition-all ${
                         result.isOptimistic 
                           ? 'border-blue-200 bg-blue-50' 
-                          : 'border-gray-200 hover:border-primary'
+                          : isSelected
+                          ? 'border-purple-400 bg-purple-50 shadow-md'
+                          : 'border-gray-200 hover:border-purple-300'
                       }`}
-                      onClick={() => !result.isOptimistic && onResultClick?.(result)}
                     >
+                      <div className="flex items-start gap-3">
+                        {/* Selection Checkbox */}
+                        <div className="pt-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              togglePaperSelection(uniqueId);
+                            }}
+                            disabled={result.isOptimistic}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        
+                        <div className="flex-1 cursor-pointer" onClick={() => !result.isOptimistic && onResultClick?.(result)}>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
@@ -443,8 +602,11 @@ export function SearchForm({ onResultClick }) {
                           </div>
                         </div>
                       </div>
+                        </div>
+                      </div>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

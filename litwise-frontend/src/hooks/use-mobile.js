@@ -5,25 +5,15 @@ const MOBILE_BREAKPOINT = 768
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(undefined)
 
-  // React 19.2: useEffectEvent for media query handler without dependencies
-  const handleChange = React.useEffectEvent(() => {
-    const newIsMobile = window.innerWidth < MOBILE_BREAKPOINT
-    React.startTransition(() => {
-      setIsMobile(newIsMobile)
-    })
-  })
-
-  // React 19.2: Use useLayoutEffect for synchronous DOM measurements
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    
-    // Set initial value immediately
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    mql.addEventListener("change", onChange)
     setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    
-    // Listen for changes
-    mql.addEventListener("change", handleChange)
-    return () => mql.removeEventListener("change", handleChange)
-  }, []) // 🎉 No dependencies needed!
+    return () => mql.removeEventListener("change", onChange);
+  }, [])
 
   return !!isMobile
 }

@@ -3,11 +3,12 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { User, Bot, FileText } from 'lucide-react';
+import { User, Bot, FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { FormattedContent } from '@/components/ui/formatted-content';
+import { Button } from '@/components/ui/button';
 
-const ChatMessage = ({ message }) => {
+const ChatMessage = ({ message, onRetry }) => {
   const isUser = message.role === 'user';
   
   // Handle both timestamp and created_at fields with error handling
@@ -41,7 +42,9 @@ const ChatMessage = ({ message }) => {
       <div className={`flex-1 max-w-[80%] ${isUser ? 'text-right' : 'text-left'}`}>
         <div className={`rounded-lg p-3 ${
           isUser 
-            ? 'bg-primary text-primary-foreground ml-auto' 
+            ? message.isFailed
+              ? 'bg-red-100 text-red-900 border-2 border-red-300 ml-auto'
+              : 'bg-primary text-primary-foreground ml-auto' 
             : 'bg-muted'
         }`}>
           <div className="wrap-break-word">
@@ -51,6 +54,25 @@ const ChatMessage = ({ message }) => {
               <FormattedContent content={message.content} />
             )}
           </div>
+          
+          {/* Failed message indicator */}
+          {message.isFailed && (
+            <div className="mt-2 pt-2 border-t border-red-300 flex items-center gap-2 text-xs">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="text-red-700">Failed to send</span>
+              {onRetry && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onRetry(message)}
+                  className="h-6 px-2 text-xs hover:bg-red-200"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
+              )}
+            </div>
+          )}
           
           {/* Sources (only for assistant messages) */}
           {!isUser && message.sources && message.sources.length > 0 && (
@@ -80,13 +102,23 @@ const ChatMessage = ({ message }) => {
           )}
         </div>
         
+        {/* Timestamp with pending state */}
         <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-          {isUser ? (
-            <User className="h-3 w-3" />
+          {message.isPending ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Sending...</span>
+            </>
           ) : (
-            <Bot className="h-3 w-3" />
+            <>
+              {isUser ? (
+                <User className="h-3 w-3" />
+              ) : (
+                <Bot className="h-3 w-3" />
+              )}
+              {format(timestamp, 'MMM d, h:mm a')}
+            </>
           )}
-          {format(timestamp, 'MMM d, h:mm a')}
         </p>
       </div>
       

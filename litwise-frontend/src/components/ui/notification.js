@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useLayoutEffect, useCallback } from 'react';
+import { useLayoutEffect, useCallback, useEffectEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle, 
@@ -20,8 +20,8 @@ import { useUIStore } from '@/lib/stores';
 export function NotificationSystem() {
   const { notifications, removeNotification } = useUIStore();
 
-  // React 19.2: Auto-remove notifications with useLayoutEffect for better timing
-  const setupAutoRemoval = useCallback((notification) => {
+  // React 19.2: useEffectEvent to access latest removeNotification without effect re-runs
+  const setupAutoRemoval = useEffectEvent((notification) => {
     if (notification.autoRemove !== false) {
       const timeoutId = setTimeout(() => {
         removeNotification(notification.id);
@@ -29,7 +29,7 @@ export function NotificationSystem() {
       return timeoutId;
     }
     return null;
-  }, [removeNotification]);
+  });
 
   useLayoutEffect(() => {
     const timeouts = [];
@@ -44,7 +44,7 @@ export function NotificationSystem() {
     return () => {
       timeouts.forEach(clearTimeout);
     };
-  }, [notifications, setupAutoRemoval]);
+  }, [notifications]); // ✅ Only notifications - setupAutoRemoval doesn't trigger re-runs
 
   const getIcon = (type) => {
     switch (type) {

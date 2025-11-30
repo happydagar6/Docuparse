@@ -133,9 +133,6 @@ async def stream_chat(request: ChatRequest):
             try:
                 print(f"Starting stream generation for session: {session_id}")
                 
-                # Send initial test chunk
-                yield f"data: {json.dumps({'type': 'token', 'content': 'Starting chat...'})}\n\n"
-                
                 assistant_message_id = str(uuid.uuid4())
                 full_response = ""
                 sources = []

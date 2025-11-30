@@ -63,7 +63,7 @@ export default function PaperPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-4 md:py-8 px-4 space-y-4 md:space-y-6">
       {/* Back Button */}
       <Button onClick={handleBack} variant="outline" size="sm">
         <ArrowLeft className="mr-2 h-4 w-4" />
@@ -72,10 +72,10 @@ export default function PaperPage() {
 
       {/* Header */}
       <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <CardTitle className="text-2xl">{paper.title}</CardTitle>
+        <CardHeader className="p-4 md:p-6">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <CardTitle className="text-lg md:text-2xl">{paper.title}</CardTitle>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
@@ -114,31 +114,35 @@ export default function PaperPage() {
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Overview
+        <TabsList className="w-full grid grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
+            <FileText className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
+            <span className="hidden sm:inline">Overview</span>
+            <span className="sm:hidden">Info</span>
           </TabsTrigger>
-          <TabsTrigger value="content" className="flex items-center gap-2">
-            <Brain className="h-4 w-4" />
-            AI Analysis
+          <TabsTrigger value="content" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
+            <Brain className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
+            <span className="hidden sm:inline">AI Analysis</span>
+            <span className="sm:hidden">AI</span>
           </TabsTrigger>
-          <TabsTrigger value="reader" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            Reader
+          <TabsTrigger value="reader" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
+            <BookOpen className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
+            <span className="hidden sm:inline">Reader</span>
+            <span className="sm:hidden">Read</span>
           </TabsTrigger>
-          <TabsTrigger value="chat" className="flex items-center gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Chat
+          <TabsTrigger value="chat" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
+            <MessageCircle className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
+            <span className="hidden sm:inline">Chat</span>
+            <span className="sm:hidden">Chat</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Document Information</CardTitle>
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="text-base md:text-lg">Document Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 md:p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
@@ -191,13 +195,13 @@ export default function PaperPage() {
             <div className="grid gap-4">
               {/* Key Points */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5" />
+                <CardHeader className="p-4 md:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                    <Brain className="h-4 w-4 md:h-5 md:w-5" />
                     Key Points
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 md:p-6">
                   {paper.summary.key_points && paper.summary.key_points.length > 0 ? (
                     <ul className="space-y-2">
                       {paper.summary.key_points.map((point, index) => (
@@ -216,10 +220,10 @@ export default function PaperPage() {
               {/* Citations */}
               {paper.summary.citations && paper.summary.citations.length > 0 && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Citations</CardTitle>
+                  <CardHeader className="p-4 md:p-6">
+                    <CardTitle className="text-base md:text-lg">Citations</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 md:p-6">
                     <ul className="space-y-2">
                       {paper.summary.citations.map((citation, index) => (
                         <li key={index} className="text-sm bg-muted p-3 rounded">
@@ -234,10 +238,10 @@ export default function PaperPage() {
               {/* Related Works */}
               {paper.summary.related_works && paper.summary.related_works.length > 0 && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Related Works</CardTitle>
+                  <CardHeader className="p-4 md:p-6">
+                    <CardTitle className="text-base md:text-lg">Related Works</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 md:p-6">
                     <div className="flex flex-wrap gap-2">
                       {paper.summary.related_works.map((work, index) => (
                         <Badge key={index} variant="secondary">
@@ -262,7 +266,7 @@ export default function PaperPage() {
         </TabsContent>
 
         <TabsContent value="reader" className="space-y-4">
-          <div className="h-[800px] rounded-lg border overflow-hidden">
+          <div className="h-[calc(100vh-16rem)] md:h-[800px] min-h-[400px] rounded-lg border overflow-hidden">
             <PaperReader 
               paper={paper} 
               onBack={handleBack} 
@@ -271,7 +275,7 @@ export default function PaperPage() {
         </TabsContent>
 
         <TabsContent value="chat" className="space-y-4">
-          <div className="h-[calc(100vh-320px)] min-h-[600px]">
+          <div className="h-[calc(100vh-16rem)] md:h-[calc(100vh-20rem)] min-h-[500px]">
             <ChatInterface paper={paper} />
           </div>
         </TabsContent>

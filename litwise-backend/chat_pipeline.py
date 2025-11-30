@@ -83,7 +83,7 @@ class RAGChatPipeline:
                     embeddings_model=self.embeddings,
                     paper_id=paper_id,
                     query=question,
-                    top_k=15  # Get top 15 most relevant results
+                    top_k=17  # Get top 17 most relevant results
                 )
                 
                 if enhanced_documents:
@@ -107,8 +107,8 @@ class RAGChatPipeline:
                             "relevance_score": doc['relevance_score']
                         })
                         
-                        # Prepare sources for frontend (top 5)
-                        if len(sources) < 5:
+                        # Prepare sources for frontend (top 6)
+                        if len(sources) < 6:
                             content = doc['content']
                             page = doc.get('page', 1)
                             
@@ -477,9 +477,6 @@ Answer based only on the context above."""),
                 "paper_id": paper_id
             }
             
-            # Send loading message
-            yield {"type": "token", "content": "🔍 Searching..."}
-            
             # Load memory and retrieve context in parallel for speed
             import asyncio
             memory_task = self._load_memory(state)
@@ -500,8 +497,6 @@ Answer based only on the context above."""),
             if state.get("sources"):
                 yield {"type": "sources", "sources": state["sources"]}
                 
-            yield {"type": "token", "content": "\n\n"}
-            
             # Generate streaming response immediately
             async for chunk in self._stream_response(state):
                 yield chunk

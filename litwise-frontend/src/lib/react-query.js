@@ -23,7 +23,8 @@ import {
   getPapers, 
   getPaper, 
   deletePaper,
-  getQdrantDiagnostics 
+  getQdrantDiagnostics,
+  synthesizeSearchResults  // Phase 1: Synthesis API
 } from './api';
 import { chatApi } from './chat-api';
 import { useUploadStore, useSearchStore } from './stores';
@@ -395,6 +396,50 @@ export function useQdrantDiagnostics() {
     queryFn: getQdrantDiagnostics,
     enabled: process.env.NODE_ENV === 'development', // Only in development
     staleTime: 30 * 1000, // Refresh every 30 seconds
+  });
+}
+
+/**
+ * Custom Hook: Synthesize Search Results (Phase 1)
+ * 
+ * Generates AI-powered research synthesis from search results.
+ * Uses LLM to identify themes, key findings, research gaps, and trends.
+ * 
+ * @returns Mutation object with mutate function and loading/error states
+ * 
+ * Usage:
+ * const synthesisMutation = useSynthesizeResults();
+ * synthesisMutation.mutate({ query: "transformers", searchResults: [...] });
+ */
+export function useSynthesizeResults() {
+  return useMutation({
+    mutationFn: ({ query, searchResults, maxPapers }) => 
+      synthesizeSearchResults(query, searchResults, maxPapers),
+    
+    onMutate: () => {
+      // Show loading toast
+      toast.loading('Generating AI synthesis...', {
+        id: 'synthesis-progress'
+      });
+    },
+    
+    onSuccess: (data) => {
+      // Success notification
+      toast.success('Synthesis complete!', {
+        id: 'synthesis-progress',
+        description: `Analyzed ${data.paper_count} papers and identified ${data.themes?.length || 0} themes`,
+        duration: 3000
+      });
+    },
+    
+    onError: (error) => {
+      // Error notification
+      toast.error('Synthesis failed', {
+        id: 'synthesis-progress',
+        description: error.message || 'Could not generate synthesis. Please try again.',
+        duration: 5000
+      });
+    }
   });
 }
 
