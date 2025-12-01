@@ -349,11 +349,6 @@ export function PaperReader({ paper, onBack }) {
                 {paper?.title || paper?.filename || 'Research Paper'}
               </h1>
             </div>
-            
-            {/* Mobile AI Insights button */}
-            <SidebarTrigger className="md:hidden">
-              <Brain className="h-4 w-4" />
-            </SidebarTrigger>
           </div>
           
           {/* Center - Page Navigation */}
@@ -433,10 +428,10 @@ export function PaperReader({ paper, onBack }) {
               <Share2 className="h-4 w-4" />
             </Button>
             
-            {/* Sidebar toggle with label */}
-            <SidebarTrigger className="gap-2">
-              <BookOpen className="h-4 w-4" />
-              <span className="hidden lg:inline">AI Insights</span>
+            {/* Sidebar toggle - single button for all screen sizes */}
+            <SidebarTrigger className="gap-1 md:gap-2">
+              <Brain className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs md:text-sm">AI</span>
             </SidebarTrigger>
           </div>
         </div>
@@ -447,11 +442,11 @@ export function PaperReader({ paper, onBack }) {
         <SidebarInset className="overflow-auto">
           <div 
             ref={contentRef}
-            className="max-w-4xl mx-auto p-3 md:p-8 pb-8 md:pb-16"
+            className="w-full max-w-4xl mx-auto px-2 py-3 sm:px-4 sm:py-4 md:p-8 pb-8 md:pb-16"
           >
             {/* Page indicator */}
-            <div className="mb-3 md:mb-4 text-center">
-              <span className="inline-flex items-center px-2 md:px-3 py-1 bg-primary/10 text-primary text-xs md:text-sm rounded-full">
+            <div className="mb-2 sm:mb-3 md:mb-4 text-center">
+              <span className="inline-flex items-center px-2 md:px-3 py-1 bg-primary/10 text-primary text-[10px] sm:text-xs md:text-sm rounded-full">
                 Page {optimisticPage} of {totalPages}
               </span>
             </div>
@@ -462,15 +457,17 @@ export function PaperReader({ paper, onBack }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className={`prose prose-sm md:prose max-w-none ${getFontSizeClass()}`}
+              className={`prose prose-sm max-w-none ${getFontSizeClass()}`}
             >
-              <div className="min-h-[400px] md:min-h-[600px] p-3 md:p-6 bg-white rounded-lg shadow-sm border">
-                <FormattedContent content={currentPageData.content} />
+              <div className="min-h-[300px] sm:min-h-[400px] md:min-h-[600px] p-2 sm:p-3 md:p-6 bg-white rounded-lg shadow-sm border overflow-x-hidden">
+                <div className="break-words overflow-wrap-anywhere">
+                  <FormattedContent content={currentPageData.content} />
+                </div>
               </div>
             </motion.div>
 
             {/* Page navigation footer */}
-            <div className="mt-4 md:mt-8 flex justify-between items-center gap-2">
+            <div className="mt-3 sm:mt-4 md:mt-8 flex justify-between items-center gap-1 sm:gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -482,14 +479,14 @@ export function PaperReader({ paper, onBack }) {
                   });
                 }}
                 disabled={currentPage <= 1}
-                className="flex items-center gap-1 md:gap-2"
+                className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
               >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Previous Page</span>
-                <span className="sm:hidden">Prev</span>
+                <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline sm:hidden">Prev</span>
+                <span className="hidden sm:inline">Previous</span>
               </Button>
               
-              <span className="text-xs md:text-sm text-muted-foreground">
+              <span className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
                 {optimisticPage} / {totalPages}
               </span>
               
@@ -504,11 +501,11 @@ export function PaperReader({ paper, onBack }) {
                   });
                 }}
                 disabled={currentPage >= totalPages}
-                className="flex items-center gap-1 md:gap-2"
+                className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
               >
-                <span className="hidden sm:inline">Next Page</span>
-                <span className="sm:hidden">Next</span>
-                <ChevronRight className="h-4 w-4" />
+                <span className="hidden xs:inline sm:hidden">Next</span>
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </div>

@@ -71,17 +71,17 @@ export function PageLayout({
   return (
     <div className={`min-h-full ${className}`}>
       {title && (
-        <div className="bg-white border-b border-gray-200 py-8">
-          <div className={`${fullWidth ? 'px-6' : 'max-w-7xl mx-auto px-6'}`}>
-            <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+        <div className="bg-white border-b border-gray-200 py-4 sm:py-6 lg:py-8 mt-16 lg:mt-0">
+          <div className={`${fullWidth ? 'px-4 sm:px-6' : 'max-w-7xl mx-auto px-4 sm:px-6'}`}>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{title}</h1>
             {description && (
-              <p className="mt-2 text-gray-600">{description}</p>
+              <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">{description}</p>
             )}
           </div>
         </div>
       )}
       
-      <div className={`${fullWidth ? 'p-6' : 'max-w-7xl mx-auto p-6'} ${!title ? 'pt-16 lg:pt-6' : ''} pb-6`}>
+      <div className={`${fullWidth ? 'p-4 sm:p-6' : 'max-w-7xl mx-auto p-4 sm:p-6'} ${!title ? 'pt-20 lg:pt-6' : ''} pb-6`}>
         {children}
       </div>
     </div>

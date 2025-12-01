@@ -145,15 +145,15 @@ export function UploadForm({ onUploadSuccess }) {
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto rounded-2xl border-2 border-gray-100 shadow-2xl bg-white/90 backdrop-blur-sm">
-      <CardHeader className="pb-6">
+    <Card className="w-full max-w-3xl mx-auto rounded-xl sm:rounded-2xl border-2 border-gray-100 shadow-xl sm:shadow-2xl bg-white/90 backdrop-blur-sm">
+      <CardHeader className="pb-4 sm:pb-6 px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
           <motion.div
-            className="bg-linear-to-r from-blue-500 to-purple-500 rounded-xl p-3 w-16 h-16 mx-auto mb-4"
+            className="bg-linear-to-r from-blue-500 to-purple-500 rounded-lg sm:rounded-xl p-2 sm:p-3 w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4"
             whileHover={{ 
               scale: 1.1, 
               rotate: 5,
@@ -161,22 +161,22 @@ export function UploadForm({ onUploadSuccess }) {
             }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <Upload className="h-10 w-10 text-white mx-auto" />
+            <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-white mx-auto" />
           </motion.div>
-          <CardTitle className="text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Upload Research Paper
           </CardTitle>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base px-2">
             Transform your PDF into an intelligent, searchable research companion
           </p>
         </motion.div>
       </CardHeader>
       
-      <CardContent className="px-8 pb-8">
+      <CardContent className="px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8">
         {/* Enhanced Upload Area */}
         <motion.div
           className={`
-            relative border-3 border-dashed rounded-2xl p-12 text-center transition-all duration-300 overflow-hidden
+            relative border-2 sm:border-3 border-dashed rounded-xl sm:rounded-2xl p-6 sm:p-8 lg:p-12 text-center transition-all duration-300 overflow-hidden
             ${isDragOver 
               ? 'border-blue-400 bg-linear-to-r from-blue-50 to-purple-50 scale-[1.02]' 
               : 'border-gray-300 hover:border-gray-400'
@@ -236,23 +236,23 @@ export function UploadForm({ onUploadSuccess }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6"
               >
                 <motion.div
-                  className="bg-linear-to-r from-gray-100 to-blue-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-gray-100 to-blue-100 rounded-full p-4 sm:p-6 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto"
                   animate={{ 
                     rotate: [0, 5, -5, 0],
                     scale: [1, 1.05, 1]
                   }}
                   transition={{ duration: 4, repeat: Infinity }}
                 >
-                  <Upload className="h-12 w-12 mx-auto text-blue-600" />
+                  <Upload className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto text-blue-600" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900 mb-2">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                     Drop your PDF here
                   </p>
-                  <p className="text-lg text-gray-600 mb-4">
+                  <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-3 sm:mb-4">
                     or{' '}
                     <motion.button
                       onClick={openFilePicker}
@@ -263,11 +263,11 @@ export function UploadForm({ onUploadSuccess }) {
                       browse your files
                     </motion.button>
                   </p>
-                  <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 border border-white/40 max-w-md mx-auto">
-                    <p className="text-sm text-gray-600 mb-3">
+                  <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/40 max-w-md mx-auto">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
                       <strong>Supported:</strong> PDF files up to 10MB
                     </p>
-                    <div className="flex items-center justify-center gap-6 text-xs text-gray-500">
+                    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[10px] sm:text-xs text-gray-500">
                       <div className="flex items-center gap-1">
                         <Brain className="h-3 w-3" />
                         AI Analysis
@@ -292,29 +292,29 @@ export function UploadForm({ onUploadSuccess }) {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6"
               >
                 <motion.div
-                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-4 sm:p-6 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto"
                   animate={{ 
                     scale: [1, 1.1, 1],
                     rotate: [0, 10, 0]
                   }}
                   transition={{ duration: 0.6 }}
                 >
-                  <FileText className="h-12 w-12 mx-auto text-green-600" />
+                  <FileText className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto text-green-600" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900 mb-2">
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-gray-900 mb-2 px-2 break-all">
                     {selectedFile.name}
                   </p>
-                  <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-white/40 max-w-sm mx-auto mb-6">
-                    <p className="text-lg text-gray-600 font-medium">
+                  <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-white/40 max-w-sm mx-auto mb-4 sm:mb-6">
+                    <p className="text-sm sm:text-base lg:text-lg text-gray-600 font-medium">
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-4 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                   <motion.div
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -322,9 +322,9 @@ export function UploadForm({ onUploadSuccess }) {
                     <Button 
                       onClick={handleUpload} 
                       size="lg"
-                      className="px-8 py-4 rounded-xl bg-linear-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl bg-linear-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
                     >
-                      <Sparkles className="h-5 w-5 mr-2" />
+                      <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       Upload & Process
                     </Button>
                   </motion.div>
@@ -336,9 +336,9 @@ export function UploadForm({ onUploadSuccess }) {
                       onClick={handleReset} 
                       variant="outline" 
                       size="lg"
-                      className="px-8 py-4 rounded-xl border-2"
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl border-2 text-sm sm:text-base"
                     >
-                      <X className="h-5 w-5 mr-2" />
+                      <X className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       Remove
                     </Button>
                   </motion.div>
@@ -352,10 +352,10 @@ export function UploadForm({ onUploadSuccess }) {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6"
               >
                 <motion.div
-                  className="bg-linear-to-r from-blue-100 to-indigo-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-blue-100 to-indigo-100 rounded-full p-4 sm:p-6 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto"
                   animate={{ 
                     rotate: 360,
                     scale: [1, 1.1, 1]
@@ -365,19 +365,19 @@ export function UploadForm({ onUploadSuccess }) {
                     scale: { duration: 1, repeat: Infinity }
                   }}
                 >
-                  <Upload className="h-12 w-12 mx-auto text-blue-600" />
+                  <Upload className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto text-blue-600" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900 mb-2">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                     Processing your research...
                   </p>
-                  <p className="text-lg text-gray-600 mb-6">
+                  <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-4 sm:mb-6 px-2">
                     Our AI is extracting insights and generating summaries
                   </p>
-                  <div className="max-w-md mx-auto">
-                    <Progress value={uploadProgress} className="w-full h-3 rounded-full mb-3" />
+                  <div className="max-w-md mx-auto px-4">
+                    <Progress value={uploadProgress} className="w-full h-2 sm:h-3 rounded-full mb-2 sm:mb-3" />
                     <motion.p 
-                      className="text-sm text-blue-600 font-semibold"
+                      className="text-xs sm:text-sm text-blue-600 font-semibold"
                       animate={{ opacity: [0.5, 1, 0.5] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
                     >
@@ -394,23 +394,23 @@ export function UploadForm({ onUploadSuccess }) {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6"
               >
                 <motion.div
-                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-6 w-24 h-24 mx-auto"
+                  className="bg-linear-to-r from-green-100 to-emerald-100 rounded-full p-4 sm:p-6 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto"
                   animate={{ 
                     scale: [0.8, 1.2, 1],
                     rotate: [0, 15, 0]
                   }}
                   transition={{ duration: 0.8 }}
                 >
-                  <CheckCircle className="h-12 w-12 mx-auto text-green-600" />
+                  <CheckCircle className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 mx-auto text-green-600" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900 mb-2">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
                     Upload Successful! 🎉
                   </p>
-                  <p className="text-lg text-gray-600 mb-6">
+                  <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-4 sm:mb-6 px-2">
                     Your paper has been processed and is ready for intelligent exploration
                   </p>
                 </div>
@@ -421,7 +421,7 @@ export function UploadForm({ onUploadSuccess }) {
                   <Button 
                     onClick={handleReset} 
                     size="lg"
-                    className="px-8 py-4 rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
+                    className="px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
                   >
                     Upload Another Paper
                   </Button>
@@ -436,19 +436,19 @@ export function UploadForm({ onUploadSuccess }) {
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="mt-6 p-6 bg-linear-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-2xl"
+            className="mt-4 sm:mt-6 p-4 sm:p-6 bg-linear-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl sm:rounded-2xl"
           >
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <motion.div
-                className="bg-red-100 rounded-full p-2"
+                className="bg-red-100 rounded-full p-1.5 sm:p-2 shrink-0"
                 whileHover={{ scale: 1.1 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <AlertCircle className="h-6 w-6 text-red-500" />
+                <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" />
               </motion.div>
-              <div className="flex-1">
-                <p className="text-lg font-semibold text-red-800 mb-1">Upload Failed</p>
-                <p className="text-red-700 mb-4 leading-relaxed">{uploadError}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-base sm:text-lg font-semibold text-red-800 mb-1">Upload Failed</p>
+                <p className="text-sm sm:text-base text-red-700 mb-3 sm:mb-4 leading-relaxed break-words">{uploadError}</p>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -457,7 +457,7 @@ export function UploadForm({ onUploadSuccess }) {
                     onClick={handleReset} 
                     variant="outline" 
                     size="sm"
-                    className="border-red-300 text-red-700 hover:bg-red-100 rounded-xl"
+                    className="border-red-300 text-red-700 hover:bg-red-100 rounded-lg sm:rounded-xl text-xs sm:text-sm"
                   >
                     Try Again
                   </Button>
@@ -469,24 +469,24 @@ export function UploadForm({ onUploadSuccess }) {
         
         {/* Enhanced Processing Steps Info */}
         <motion.div 
-          className="mt-8 bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-200"
+          className="mt-6 sm:mt-8 bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-blue-200"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <motion.div
-              className="bg-linear-to-r from-blue-500 to-purple-500 rounded-lg p-2"
+              className="bg-linear-to-r from-blue-500 to-purple-500 rounded-lg p-1.5 sm:p-2"
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              <Sparkles className="h-5 w-5 text-white" />
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </motion.div>
-            <h4 className="text-lg font-bold text-gray-900">
+            <h4 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900">
               What happens after upload:
             </h4>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
             {[
               {
                 step: "1",
@@ -519,18 +519,18 @@ export function UploadForm({ onUploadSuccess }) {
             ].map((item, index) => (
               <motion.div
                 key={index}
-                className="flex items-center gap-3 p-3 bg-white/60 backdrop-blur-sm rounded-xl border border-white/40"
+                className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl border border-white/40"
                 whileHover={{ scale: 1.02, y: -2 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <div className={`bg-${item.color}-100 rounded-lg p-2`}>
-                  <item.icon className={`h-4 w-4 text-${item.color}-600`} />
+                <div className={`bg-${item.color}-100 rounded-lg p-1.5 sm:p-2 shrink-0`}>
+                  <item.icon className={`h-3 w-3 sm:h-4 sm:w-4 text-${item.color}-600`} />
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-                  <p className="text-xs text-gray-600">{item.description}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-xs sm:text-sm">{item.title}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600 leading-tight">{item.description}</p>
                 </div>
-                <span className={`bg-${item.color}-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ml-auto`}>
+                <span className={`bg-${item.color}-500 text-white text-[10px] sm:text-xs font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0`}>
                   {item.step}
                 </span>
               </motion.div>

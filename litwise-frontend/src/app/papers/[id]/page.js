@@ -266,7 +266,7 @@ export default function PaperPage() {
         </TabsContent>
 
         <TabsContent value="reader" className="space-y-4">
-          <div className="h-[calc(100vh-16rem)] md:h-[800px] min-h-[400px] rounded-lg border overflow-hidden">
+          <div className="h-[calc(100vh-14rem)] sm:h-[calc(100vh-16rem)] md:h-[800px] min-h-[350px] sm:min-h-[400px] rounded-lg border overflow-hidden">
             <PaperReader 
               paper={paper} 
               onBack={handleBack} 

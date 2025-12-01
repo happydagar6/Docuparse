@@ -110,7 +110,7 @@ export default function SynthesisHistoryPage() {
         {/* Search and Filter Bar */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -196,33 +196,33 @@ export default function SynthesisHistoryPage() {
                       transition={{ delay: index * 0.05 }}
                     >
                       <Card className="hover:shadow-lg transition-shadow">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                        <CardHeader className="p-4 sm:p-6">
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-2">
-                                <Brain className="h-5 w-5 text-purple-600" />
-                                <CardTitle className="text-lg">
+                                <Brain className="h-5 w-5 text-purple-600 shrink-0" />
+                                <CardTitle className="text-base sm:text-lg line-clamp-2">
                                   {synthesis.query}
                                 </CardTitle>
                               </div>
                               
-                              <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
                                 <div className="flex items-center gap-1">
-                                  <FileText className="h-4 w-4" />
+                                  <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
                                   {synthesis.paper_count} papers
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <Brain className="h-4 w-4" />
+                                  <Brain className="h-3 w-3 sm:h-4 sm:w-4" />
                                   {synthesis.theme_count} themes
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <Calendar className="h-4 w-4" />
+                                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                                   {new Date(synthesis.created_at).toLocaleDateString()}
                                 </div>
                               </div>
                               
                               {synthesis.tags && synthesis.tags.length > 0 && (
-                                <div className="flex items-center gap-2 mt-3">
+                                <div className="flex flex-wrap items-center gap-2 mt-3">
                                   {synthesis.tags.map((tag, i) => (
                                     <Badge key={i} variant="secondary" className="text-xs">
                                       <Tag className="h-3 w-3 mr-1" />
@@ -233,7 +233,7 @@ export default function SynthesisHistoryPage() {
                               )}
                             </div>
                             
-                            <div className="flex items-center gap-2 ml-4">
+                            <div className="flex items-center gap-2 shrink-0">
                               <Button
                                 variant="outline"
                                 size="sm"

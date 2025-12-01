@@ -99,12 +99,12 @@ function ThemeBadge({ theme, onClick }) {
     >
       <Badge
         variant="secondary"
-        className="cursor-pointer bg-purple-100 hover:bg-purple-200 text-purple-800 px-3 py-1"
+        className="cursor-pointer bg-purple-100 hover:bg-purple-200 text-purple-800 px-2 sm:px-3 py-1 text-xs sm:text-sm"
         onClick={() => onClick && onClick(theme)}
       >
         <Sparkles className="h-3 w-3 mr-1" />
         {theme.name}
-        <span className="ml-2 bg-purple-200 px-2 py-0.5 rounded-full text-xs">
+        <span className="ml-1 sm:ml-2 bg-purple-200 px-1.5 sm:px-2 py-0.5 rounded-full text-xs">
           {theme.count}
         </span>
       </Badge>
@@ -134,12 +134,12 @@ function TimelineChart({ timeline }) {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
           >
-            <span className="text-sm font-medium text-gray-600 w-16">
+            <span className="text-xs sm:text-sm font-medium text-gray-600 w-12 sm:w-16 shrink-0">
               {point.year}
             </span>
-            <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
+            <div className="flex-1 bg-gray-200 rounded-full h-5 sm:h-6 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${barWidth}%` }}
@@ -176,22 +176,22 @@ function CollapsibleSection({
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between mb-3 hover:bg-white/50 p-2 rounded-lg transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-purple-600" />
-          <h4 className="font-semibold text-gray-900">{title}</h4>
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 shrink-0" />
+          <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{title}</h4>
           {badge && (
             <Badge
               variant="secondary"
-              className="bg-purple-100 text-purple-800"
+              className="bg-purple-100 text-purple-800 text-xs shrink-0"
             >
               {badge}
             </Badge>
           )}
         </div>
         {isOpen ? (
-          <ChevronUp className="h-4 w-4 text-gray-500" />
+          <ChevronUp className="h-4 w-4 text-gray-500 shrink-0 ml-2" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-gray-500" />
+          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0 ml-2" />
         )}
       </button>
 
@@ -204,7 +204,7 @@ function CollapsibleSection({
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <div className="pl-7">{children}</div>
+            <div className="pl-4 sm:pl-7">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -340,30 +340,33 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
       className="mb-6"
     >
       <Card className="bg-linear-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-200 shadow-lg">
-        <CardHeader className="border-b border-purple-200/50 bg-white/50">
-          <div className="flex items-start justify-between">
+        <CardHeader className="border-b border-purple-200/50 bg-white/50 p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Title Row */}
             <div className="flex items-start gap-3">
               <motion.div
                 animate={{ rotate: [0, 5, -5, 0] }}
                 transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                className="bg-linear-to-br from-purple-500 to-blue-500 rounded-lg p-2 mt-1"
+                className="bg-linear-to-br from-purple-500 to-blue-500 rounded-lg p-1.5 sm:p-2 mt-1 shrink-0"
               >
-                <Brain className="h-6 w-6 text-white" />
+                <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </motion.div>
-              <div>
-                <CardTitle className="text-xl text-gray-900 mb-1">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg sm:text-xl text-gray-900 mb-1">
                   AI Research Synthesis
                 </CardTitle>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   Analysis of <strong>{paper_count}</strong> papers about &quot;
                   {query}&quot;
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            
+            {/* Actions Row */}
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="secondary"
-                className="bg-green-100 text-green-800"
+                className="bg-green-100 text-green-800 text-xs"
               >
                 <Sparkles className="h-3 w-3 mr-1" />
                 AI-Generated
@@ -375,21 +378,22 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                 size="sm"
                 disabled={isSaving || isSaved}
                 onClick={handleSaveSynthesis}
-                className={isSaved ? "bg-green-50 text-green-700 border-green-300" : "bg-blue-600 hover:bg-blue-700 text-white"}
+                className={`text-xs sm:text-sm ${isSaved ? "bg-green-50 text-green-700 border-green-300" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
               >
                 {isSaved ? (
                   <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Saved
+                    <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">Saved</span>
+                    <span className="xs:hidden">✓</span>
                   </>
                 ) : isSaving ? (
                   <>
-                    <Download className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
+                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                    <span className="hidden sm:inline">Saving...</span>
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4 mr-2" />
+                    <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Save
                   </>
                 )}
@@ -402,9 +406,9 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                     variant="outline"
                     size="sm"
                     disabled={isExporting}
-                    className="bg-white hover:bg-gray-50"
+                    className="bg-white hover:bg-gray-50 text-xs sm:text-sm"
                   >
-                    <Download className="h-4 w-4 mr-2" />
+                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Export
                   </Button>
                 </DropdownMenuTrigger>
@@ -436,7 +440,7 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
           </div>
         </CardHeader>
 
-        <CardContent className="pt-6 space-y-6">
+        <CardContent className="p-4 sm:pt-6 sm:p-6 space-y-4 sm:space-y-6">
           {/* Themes Section */}
           {themes.length > 0 && (
             <CollapsibleSection
@@ -471,9 +475,9 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-start gap-2 text-sm text-gray-700 bg-white/70 p-3 rounded-lg"
+                    className="flex items-start gap-2 text-xs sm:text-sm text-gray-700 bg-white/70 p-2 sm:p-3 rounded-lg"
                   >
-                    <Lightbulb className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                    <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500 mt-0.5 shrink-0" />
                     <span>{finding}</span>
                   </motion.li>
                 ))}
@@ -496,9 +500,9 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-start gap-2 text-sm text-gray-700 bg-white/70 p-3 rounded-lg"
+                    className="flex items-start gap-2 text-xs sm:text-sm text-gray-700 bg-white/70 p-2 sm:p-3 rounded-lg"
                   >
-                    <Target className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                    <Target className="h-3 w-3 sm:h-4 sm:w-4 text-red-500 mt-0.5 shrink-0" />
                     <span>{gap}</span>
                   </motion.li>
                 ))}
@@ -514,8 +518,8 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
               defaultOpen={false}
             >
               <div className="space-y-3">
-                <p className="text-sm text-gray-700 bg-white/70 p-3 rounded-lg">
-                  <Calendar className="h-4 w-4 inline mr-2 text-blue-500" />
+                <p className="text-xs sm:text-sm text-gray-700 bg-white/70 p-2 sm:p-3 rounded-lg">
+                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4 inline mr-2 text-blue-500" />
                   {trends.trend_description}
                 </p>
                 <TimelineChart timeline={trends.timeline} />
@@ -538,11 +542,11 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-white/70 p-3 rounded-lg hover:bg-white/90 transition-colors"
+                    className="bg-white/70 p-2 sm:p-3 rounded-lg hover:bg-white/90 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 line-clamp-2">
                           {paper.title}
                         </p>
                         {paper.year && (
@@ -553,7 +557,7 @@ export function SynthesisPanel({ synthesis, isLoading, error, searchResults = []
                       </div>
                       <Badge
                         variant="secondary"
-                        className="bg-blue-100 text-blue-800 shrink-0"
+                        className="bg-blue-100 text-blue-800 shrink-0 text-xs"
                       >
                         {(paper.relevance * 100).toFixed(0)}%
                       </Badge>

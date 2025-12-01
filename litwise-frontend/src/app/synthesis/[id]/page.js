@@ -129,21 +129,21 @@ export default function SynthesisDetailPage() {
           >
             {/* Metadata Card */}
             <Card className="mb-6">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-sm text-gray-500 mb-2">
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-xs sm:text-sm text-gray-500 mb-2">
                       Synthesis Information
                     </CardTitle>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-xs sm:text-sm">
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
                         <span className="text-gray-600">
                           Saved on {new Date(synthesis.metadata.created_at).toLocaleDateString()}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 shrink-0" />
                         <span className="text-gray-600">
                           {synthesis.paper_count} papers analyzed
                         </span>
@@ -151,7 +151,7 @@ export default function SynthesisDetailPage() {
                     </div>
                   </div>
                   {synthesis.metadata.tags && synthesis.metadata.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 shrink-0">
                       {synthesis.metadata.tags.map((tag, i) => (
                         <Badge key={i} variant="secondary">
                           <Tag className="h-3 w-3 mr-1" />
