@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -18,7 +18,7 @@ import { MessageCircle, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-const ChatSessions = ({
+const ChatSessions = memo(({
   sessions,
   activeSessionId,
   onSessionSelect,
@@ -60,7 +60,7 @@ const ChatSessions = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                  className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0"
                   onClick={(e) => e.stopPropagation()}
                   disabled={isDeleting}
                 >
@@ -94,6 +94,6 @@ const ChatSessions = ({
       </div>
     </ScrollArea>
   );
-};
+});
 
 export default ChatSessions;

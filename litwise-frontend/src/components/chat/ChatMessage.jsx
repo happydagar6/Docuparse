@@ -1,14 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Bot, FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { FormattedContent } from '@/components/ui/formatted-content';
 import { Button } from '@/components/ui/button';
 
-const ChatMessage = ({ message, onRetry }) => {
+const ChatMessage = memo(({ message, onRetry }) => {
   const isUser = message.role === 'user';
   
   // Handle both timestamp and created_at fields with error handling
@@ -28,6 +28,24 @@ const ChatMessage = ({ message, onRetry }) => {
     console.warn('Invalid date in message:', error);
     timestamp = new Date(); // Fallback to current time
   }
+
+  // Format time intelligently
+  const formatMessageTime = (date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    
+    if (diffInMinutes < 1) {
+      return 'Just now';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    } else if (isToday(date)) {
+      return format(date, 'h:mm a');
+    } else if (isYesterday(date)) {
+      return `Yesterday, ${format(date, 'h:mm a')}`;
+    } else {
+      return format(date, 'MMM d, h:mm a');
+    }
+  };
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -116,7 +134,7 @@ const ChatMessage = ({ message, onRetry }) => {
               ) : (
                 <Bot className="h-3 w-3" />
               )}
-              {format(timestamp, 'MMM d, h:mm a')}
+              {formatMessageTime(timestamp)}
             </>
           )}
         </p>
@@ -131,6 +149,6 @@ const ChatMessage = ({ message, onRetry }) => {
       )}
     </div>
   );
-};
+});
 
 export default ChatMessage;

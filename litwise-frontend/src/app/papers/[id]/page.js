@@ -20,6 +20,7 @@ import { usePaper } from '@/lib/react-query';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { PaperReader } from '@/components/reader/PaperReader';
 import ChatInterface from '@/components/chat/ChatInterface.jsx';
+import { FormattedContent } from '@/components/ui/formatted-content';
 
 export default function PaperPage() {
   const params = useParams();
@@ -203,14 +204,13 @@ export default function PaperPage() {
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
                   {paper.summary.key_points && paper.summary.key_points.length > 0 ? (
-                    <ul className="space-y-2">
+                    <div className="space-y-4">
                       {paper.summary.key_points.map((point, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <span className="w-2 h-2 bg-primary rounded-full mt-2 shrink-0" />
-                          <span>{point}</span>
-                        </li>
+                        <div key={index} className="prose prose-sm max-w-none">
+                          <FormattedContent content={point} />
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   ) : (
                     <p className="text-muted-foreground">No key points extracted.</p>
                   )}
@@ -224,13 +224,13 @@ export default function PaperPage() {
                     <CardTitle className="text-base md:text-lg">Citations</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 md:p-6">
-                    <ul className="space-y-2">
+                    <div className="space-y-2">
                       {paper.summary.citations.map((citation, index) => (
-                        <li key={index} className="text-sm bg-muted p-3 rounded">
-                          {citation}
-                        </li>
+                        <div key={index} className="text-sm bg-muted p-3 rounded prose prose-sm max-w-none">
+                          <FormattedContent content={citation} />
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -275,7 +275,7 @@ export default function PaperPage() {
         </TabsContent>
 
         <TabsContent value="chat" className="space-y-4">
-          <div className="h-[calc(100vh-16rem)] md:h-[calc(100vh-20rem)] min-h-[500px]">
+          <div className="h-[calc(100vh-12rem)] md:h-[600px] lg:h-[700px] min-h-[450px]">
             <ChatInterface paper={paper} />
           </div>
         </TabsContent>

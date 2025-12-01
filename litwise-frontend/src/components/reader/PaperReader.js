@@ -443,7 +443,8 @@ export function PaperReader({ paper, onBack }) {
       </div>
       
       {/* Main Content Area with Sidebar */}
-      <div className="flex-1 flex overflow-hidden">\n        <SidebarInset className="overflow-auto">
+      <div className="flex-1 flex overflow-hidden">
+        <SidebarInset className="overflow-auto">
           <div 
             ref={contentRef}
             className="max-w-4xl mx-auto p-3 md:p-8 pb-8 md:pb-16"
@@ -518,6 +519,9 @@ export function PaperReader({ paper, onBack }) {
           <SidebarHeader className="border-b">
             <div className="flex items-center justify-between p-4">
               <h2 className="font-semibold text-base lg:text-lg">AI Insights</h2>
+              <SidebarTrigger className="h-8 w-8">
+                <X className="h-4 w-4" />
+              </SidebarTrigger>
             </div>
           </SidebarHeader>
           <SidebarContent className="p-4 space-y-4">

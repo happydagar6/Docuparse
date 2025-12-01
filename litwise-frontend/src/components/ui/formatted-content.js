@@ -8,27 +8,44 @@
  * - Line breaks and paragraphs
  */
 
+import { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
-export function FormattedContent({ content, className = '' }) {
-  if (!content || typeof content !== 'string') {
+export const FormattedContent = memo(function FormattedContent({ content, className = '' }) {
+  // Memoize the expensive parsing operation
+  const formattedElements = useMemo(() => {
+    if (!content || typeof content !== 'string') {
+      return null;
+    }
+    return formatText(content);
+  }, [content]);
+
+  if (!formattedElements) {
     return <div className={cn('text-gray-500', className)}>No content available</div>;
   }
 
-  /**
-   * Format text with basic markdown-like parsing
-   */
-  const formatText = (text) => {
-    // Pre-process text to ensure proper line breaks for headers and lists
-    let processedText = text
-      // Add line breaks before headers if they don't exist
-      .replace(/([.!?])\s*(#+\s)/g, '$1\n\n$2')
-      // Add line breaks before list items if they don't exist
-      .replace(/([.!?])\s*(-\s)/g, '$1\n\n$2')
-      // Add line breaks after headers if they don't exist
-      .replace(/(#+\s[^\n]+)([A-Z])/g, '$1\n\n$2')
-      // Ensure double line breaks for proper paragraph separation
-      .replace(/\n\n+/g, '\n\n')
+  return (
+    <div className={cn('formatted-content prose prose-gray max-w-none', className)}>
+      {formattedElements}
+    </div>
+  );
+});
+
+/**
+ * Format text with basic markdown-like parsing
+ * Moved outside component to avoid recreation on each render
+ */
+function formatText(text) {
+  // Pre-process text to ensure proper line breaks for headers and lists
+  let processedText = text
+    // Add line breaks before headers if they don't exist
+    .replace(/([.!?])\s*(#+\s)/g, '$1\n\n$2')
+    // Add line breaks before list items if they don't exist
+    .replace(/([.!?])\s*(-\s)/g, '$1\n\n$2')
+    // Add line breaks after headers if they don't exist
+    .replace(/(#+\s[^\n]+)([A-Z])/g, '$1\n\n$2')
+    // Ensure double line breaks for proper paragraph separation
+    .replace(/\n\n+/g, '\n\n')
       // Clean up any trailing spaces
       .trim();
 
@@ -152,46 +169,40 @@ export function FormattedContent({ content, className = '' }) {
     }
 
     return formattedElements;
-  };
+}
 
-  /**
-   * Format inline content (bold, italic, etc.)
-   */
-  const formatInlineContent = (text) => {
-    if (!text) return '';
+/**
+ * Format inline content (bold, italic, etc.)
+ * Defined outside component to avoid recreation on each render
+ */
+function formatInlineContent(text) {
+  if (!text) return '';
 
-    // Split by bold patterns
-    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  // Split by bold patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
 
-    return parts.map((part, index) => {
-      // Bold text **text**
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={index} className="font-semibold text-gray-900">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
+  return parts.map((part, index) => {
+    // Bold text **text**
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={index} className="font-semibold text-gray-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
 
-      // Italic text *text*
-      if (part.startsWith('*') && part.endsWith('*') && !part.includes('**')) {
-        return (
-          <em key={index} className="italic text-gray-800">
-            {part.slice(1, -1)}
-          </em>
-        );
-      }
+    // Italic text *text*
+    if (part.startsWith('*') && part.endsWith('*') && !part.includes('**')) {
+      return (
+        <em key={index} className="italic text-gray-800">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
 
-      // Regular text
-      return <span key={index}>{part}</span>;
-    });
-  };
-
-  return (
-    <div className={cn('formatted-content prose prose-gray max-w-none', className)}>
-      {formatText(content)}
-    </div>
-  );
+    // Regular text
+    return <span key={index}>{part}</span>;
+  });
 }
 
 /**

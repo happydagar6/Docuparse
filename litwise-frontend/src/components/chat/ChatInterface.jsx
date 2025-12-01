@@ -8,6 +8,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
   Send,
   Bot,
   FileText,
@@ -15,6 +22,7 @@ import {
   MessageCircle,
   ChevronDown,
   X,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -29,6 +37,7 @@ const ChatInterface = ({ paper }) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
   const [sources, setSources] = useState([]);
+  const [showMobileSessions, setShowMobileSessions] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [failedMessageIds, setFailedMessageIds] = useState(new Set());
   const [pendingMessageId, setPendingMessageId] = useState(null);
@@ -44,6 +53,9 @@ const ChatInterface = ({ paper }) => {
 
   // Track optimistic messages separately to avoid reset issues
   const [optimisticUserMessage, setOptimisticUserMessage] = useState(null);
+  
+  // Track if we should auto-scroll (only when user sends a new message)
+  const shouldScrollRef = useRef(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -92,12 +104,13 @@ const ChatInterface = ({ paper }) => {
     return true; // Default to true if we can't detect
   });
 
-  // Handle new messages (not during streaming)
+  // Handle new messages - only scroll when user just sent a message
   useLayoutEffect(() => {
-    if (!isStreaming && displayMessages.length > 0) {
+    if (shouldScrollRef.current && displayMessages.length > 0) {
       scrollToBottom();
+      shouldScrollRef.current = false;
     }
-  }, [displayMessages.length, isStreaming, scrollToBottom]);
+  }, [displayMessages.length, scrollToBottom]);
 
   // Handle streaming message updates with throttling
   useLayoutEffect(() => {
@@ -180,6 +193,9 @@ const ChatInterface = ({ paper }) => {
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
 
+    // Mark that we should scroll to bottom (user initiated action)
+    shouldScrollRef.current = true;
+
     // Add optimistic message immediately (doesn't reset like useOptimistic)
     setOptimisticUserMessage(optimisticMessage);
     setPendingMessageId(optimisticId);
@@ -203,38 +219,39 @@ const ChatInterface = ({ paper }) => {
           } else if (chunk.type === 'sources' && chunk.sources) {
             setSources(chunk.sources);
           } else if (chunk.type === 'complete') {
-            // Reset all streaming-related state
+            // Reset streaming state but keep messages visible until refetch completes
             setIsStreaming(false);
-            setStreamingMessage('');
-            setSources([]);
             setShowScrollButton(false);
             setPendingMessageId(null);
             abortControllerRef.current = null;
-            // Clear optimistic message before refetch
-            setOptimisticUserMessage(null);
-            // Refetch after a brief delay to ensure backend has saved messages
-            setTimeout(() => {
-              refetchMessages();
-            }, 500);
+            
+            // Refetch messages, then clear optimistic/streaming state
+            setTimeout(async () => {
+              await refetchMessages();
+              // Only clear after refetch completes so there's no flash
+              setStreamingMessage('');
+              setSources([]);
+              setOptimisticUserMessage(null);
+            }, 300);
           } else if (chunk.type === 'aborted') {
             // Handle user-initiated abort
             toast.info('Generation stopped', {
               description: 'AI response was stopped by user'
             });
-            // Save partial response if any content was generated
-            if (streamingMessage) {
-              // The partial response stays visible until user sends next message
-            }
             // Reset streaming state
             setIsStreaming(false);
             setShowScrollButton(false);
             setPendingMessageId(null);
             abortControllerRef.current = null;
-            // Clear optimistic message and refetch
-            setOptimisticUserMessage(null);
-            setTimeout(() => {
-              refetchMessages();
-            }, 500);
+            
+            // Refetch messages, then clear optimistic/streaming state
+            setTimeout(async () => {
+              await refetchMessages();
+              // Only clear after refetch completes so there's no flash
+              setStreamingMessage('');
+              setSources([]);
+              setOptimisticUserMessage(null);
+            }, 300);
           } else if (chunk.type === 'error') {
             toast.error(chunk.error);
             // Reset all streaming-related state
@@ -322,7 +339,7 @@ const ChatInterface = ({ paper }) => {
   }
 
   return (
-    <div className="flex flex-col md:grid md:grid-cols-4 gap-4 h-full">
+    <div className="h-full flex flex-col md:grid md:grid-cols-4 gap-4">
       {/* Sessions Sidebar - Hidden on mobile, collapsible */}
       <Card className="hidden md:flex md:col-span-1 flex-col">
         <CardHeader className="pb-3 shrink-0">
@@ -353,20 +370,64 @@ const ChatInterface = ({ paper }) => {
       </Card>
 
       {/* Chat Area */}
-      <Card className="md:col-span-3 flex flex-col overflow-hidden">
-        <CardHeader className="pb-3 shrink-0 p-3 md:p-6">
-          <CardTitle className="text-sm md:text-base flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            <span className="truncate">Chat with `{paper.title}`</span>
-            {activeSessionId && (
-              <Badge variant="secondary" className="ml-2">
-                {sessions.find(s => s.id === activeSessionId)?.title}
-              </Badge>
-            )}
-          </CardTitle>
+      <Card className="flex-1 md:col-span-3 flex flex-col overflow-hidden">
+        <CardHeader className="pb-2 shrink-0 p-2 md:p-4 border-b">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm md:text-base flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              <span className="truncate max-w-[150px] md:max-w-none">Chat</span>
+              {activeSessionId && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {sessions.find(s => s.id === activeSessionId)?.title}
+                </Badge>
+              )}
+            </CardTitle>
+            
+            {/* Mobile Sessions Button */}
+            <div className="flex items-center gap-2 md:hidden">
+              <Sheet open={showMobileSessions} onOpenChange={setShowMobileSessions}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4 mr-1" />
+                    Sessions
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] p-0">
+                  <SheetHeader className="p-4 border-b">
+                    <SheetTitle className="flex items-center justify-between">
+                      Chat Sessions
+                      <Button
+                        size="sm"
+                        onClick={handleCreateSession}
+                        disabled={createSessionMutation.isLoading}
+                      >
+                        {createSessionMutation.isLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <MessageCircle className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex-1 overflow-hidden">
+                    <ChatSessions
+                      sessions={sessions}
+                      activeSessionId={activeSessionId}
+                      onSessionSelect={(id) => {
+                        setActiveSessionId(id);
+                        setShowMobileSessions(false);
+                      }}
+                      onSessionDelete={handleDeleteSession}
+                      isDeleting={deleteSessionMutation.isLoading}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
         </CardHeader>
         
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+        <CardContent className="flex-1 flex flex-col min-h-0 p-0">
           {!activeSessionId ? (
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-muted-foreground">
@@ -385,26 +446,26 @@ const ChatInterface = ({ paper }) => {
           ) : (
             <>
               {/* Messages Area with proper flex and overflow */}
-              <div className="flex-1 overflow-hidden relative">
+              <div className="flex-1 min-h-0 overflow-hidden relative">
                 <ScrollArea 
-                  className="h-full px-2 md:px-4" 
+                  className="h-full px-3 md:px-4" 
                   ref={scrollContainerRef}
                 >
-                  <div className="space-y-3 md:space-y-4 py-3 md:py-4">
+                  <div className="space-y-4 py-3 md:py-4 max-w-3xl mx-auto">
                     {displayMessages.map((msg) => (
                       <ChatMessage key={msg.id} message={msg} onRetry={handleRetryMessage} />
                     ))}
                     
                     {isStreaming && (
-                      <div className="flex gap-2 md:gap-3">
+                      <div className="flex gap-3">
                         <div className="shrink-0">
-                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Bot className="h-3 w-3 md:h-4 md:w-4 text-primary" />
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary" />
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="bg-muted rounded-lg p-2 md:p-3">
-                            <div className="streaming-content text-sm md:text-base">
+                        <div className="flex-1 min-w-0">
+                          <div className="bg-muted rounded-lg p-3">
+                            <div className="streaming-content text-sm">
                               {streamingMessage ? (
                                 <>
                                   <FormattedContent content={streamingMessage} />
@@ -466,40 +527,41 @@ const ChatInterface = ({ paper }) => {
 
               <Separator className="shrink-0" />
               
-              {/* Input Area */}
-              <div className="p-2 md:p-4 shrink-0">
-                <div className="flex gap-2">
-                  <Input
-                    ref={inputRef}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Ask questions..."
-                    disabled={isStreaming}
-                    className="flex-1 text-sm"
-                  />
-                  {isStreaming ? (
-                    <Button
-                      onClick={handleStopGeneration}
-                      variant="destructive"
-                      size="icon"
-                      title="Stop generation"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!message.trim()}
-                      size="icon"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+              {/* Input Area - Claude-like styling */}
+              <div className="p-3 md:p-4 shrink-0 bg-background">
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex gap-2 items-end">
+                    <Input
+                      ref={inputRef}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask anything about this paper..."
+                      disabled={isStreaming}
+                      className="flex-1 text-base py-3 px-4 rounded-xl border-2 focus:border-primary"
+                    />
+                    {isStreaming ? (
+                      <Button
+                        onClick={handleStopGeneration}
+                        variant="destructive"
+                        size="icon"
+                        className="h-11 w-11 rounded-xl shrink-0"
+                        title="Stop generation"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!message.trim()}
+                        size="icon"
+                        className="h-11 w-11 rounded-xl shrink-0"
+                      >
+                        <Send className="h-5 w-5" />
+                      </Button>
                   )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2 hidden sm:block">
-                  Press Enter to send • Shift+Enter for new line
-                </p>
               </div>
             </>
           )}
