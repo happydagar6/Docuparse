@@ -95,19 +95,16 @@ export default function PaperPage() {
         </CardHeader>
       </Card>
 
-      {/* Processing Banner */}
+      {/* Processing Banner - informational only, button is in header */}
       {(paper.processing_status === 'uploaded' || paper.processing_status === 'failed') && (
         <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Brain className="h-5 w-5 text-blue-600" />
               <div>
                 <h3 className="font-medium text-blue-900">AI Summary Available</h3>
-                <p className="text-sm text-blue-700">Generate AI insights for this paper</p>
+                <p className="text-sm text-blue-700">Use the button above to generate AI insights for this paper</p>
               </div>
-              <ProcessingStatus 
-                paper={paper}
-                showButton={true}
-              />
             </div>
           </CardContent>
         </Card>

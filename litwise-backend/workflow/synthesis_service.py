@@ -70,7 +70,7 @@ class SynthesisService:
                    Available: grok-4-1-fast-reasoning, grok-beta, grok-2-1212
         """
         self.model = model
-        self.max_chunk_length = 1500  # Characters per chunk to include
+        self.max_chunk_length = 1900  # Characters per chunk to include
     
     async def synthesize_search_results(
         self, 
@@ -219,8 +219,8 @@ Return ONLY the JSON array, no other text."""
                     {"role": "system", "content": "You are a research analysis assistant. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more consistent output
-                max_tokens=1000
+                temperature=0.2,  # Lower temperature for more consistent output
+                max_tokens=1800
             )
             
             content = response.choices[0].message.content.strip()
@@ -295,7 +295,7 @@ IMPORTANT: Return ONLY the JSON array, nothing else. No explanations, no markdow
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=800
+                max_tokens=1900
             )
             
             content = response.choices[0].message.content.strip()
@@ -304,7 +304,7 @@ IMPORTANT: Return ONLY the JSON array, nothing else. No explanations, no markdow
             content = clean_json_response(content)
             
             # Debug: Print what we got from GPT-4
-            print(f"📝 GPT-4 findings response (first 200 chars): {content[:200]}")
+            print(f"📝 LLM findings response (first 200 chars): {content[:200]}")
             
             findings = json.loads(content)
             
@@ -376,7 +376,7 @@ Return ONLY the JSON array, no other text."""
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.4,  # Slightly higher for creative gap identification
-                max_tokens=600
+                max_tokens=900
             )
             
             content = response.choices[0].message.content.strip()

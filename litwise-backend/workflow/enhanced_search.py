@@ -317,7 +317,7 @@ class EnhancedSearchSystem:
         return final_results
     
     async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]], 
-                           top_k: int = 15) -> List[Tuple[Dict, float]]:
+                           top_k: int = 20) -> List[Tuple[Dict, float]]:
         """Simple re-ranking based on query term overlap and diversity"""
         if not results:
             return []
@@ -361,7 +361,7 @@ class EnhancedSearchSystem:
             return results[:top_k]
     
     async def hybrid_search(self, qdrant_client, embeddings_model, paper_id: Optional[str], 
-                          query: str, top_k: int = 15, use_query_expansion: bool = True) -> List[Dict]:
+                          query: str, top_k: int = 25, use_query_expansion: bool = True) -> List[Dict]:
         """
         Complete hybrid search pipeline:
         1. Query expansion (acronyms + synonyms)

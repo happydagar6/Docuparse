@@ -83,7 +83,7 @@ class RAGChatPipeline:
                     embeddings_model=self.embeddings,
                     paper_id=paper_id,
                     query=question,
-                    top_k=17  # Get top 17 most relevant results
+                    top_k=25  # Get top 19 most relevant results
                 )
                 
                 if enhanced_documents:

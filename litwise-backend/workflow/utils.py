@@ -224,7 +224,7 @@ def find_chunk_page(chunk_start_pos: int, chunk_end_pos: int, page_info: list[di
     
     return closest_page
 
-def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[tuple[str, int, int]]:
+def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 250) -> list[tuple[str, int, int]]:
     """
     Split text into chunks with position tracking.
     
@@ -320,7 +320,7 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
             # If collection doesn't exist, that's fine - we'll create it
     
     # Chunk the text with position tracking
-    chunks_with_positions = chunk_text(text, chunk_size=1000, chunk_overlap=200)
+    chunks_with_positions = chunk_text(text, chunk_size=1000, chunk_overlap=250)
     print(f"Created {len(chunks_with_positions)} chunks for paper: {paper_id}")
     
     try:

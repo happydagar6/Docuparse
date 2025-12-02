@@ -156,7 +156,7 @@ Provide 3-5 most relevant research topics or works."""
         final_summary = {
             "key_points": current_summary.get('key_points', []),
             "citations": current_summary.get('citations', []),
-            "related_works": related_works[:5]  # Limit to 5 items
+            "related_works": related_works[:8]  # Limit to 8 items
         }
         
         return {"summary": ensure_json_serializable(final_summary)}

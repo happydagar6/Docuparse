@@ -1077,13 +1077,22 @@ def delete_paper(paper_id: str):
         # Delete embeddings from Qdrant
         try:
             from workflow.db import qdrant
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 
-            # Try to delete by point ID (if using paper_id as point ID)
+            # Delete by paper_id field in payload (embeddings use UUIDs as point IDs)
             try:
                 qdrant.delete(
                     collection_name="litwise_collection",
-                    points_selector={"ids": [paper_id]},
+                    points_selector=Filter(
+                        must=[
+                            FieldCondition(
+                                key="paper_id",
+                                match=MatchValue(value=paper_id)
+                            )
+                        ]
+                    ),
                 )
+                print(f"✅ Deleted embeddings for paper: {paper_id}")
             except Exception as e:
                 # If deletion fails, log but don't fail the whole operation
                 print(f"Warning: Failed to delete embeddings for {paper_id}: {e}")
