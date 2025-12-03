@@ -23,7 +23,9 @@ import {
   Upload,
   BookOpen,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +56,10 @@ export default function PapersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = useState('newest');
+  
+  // Pagination state
+  const PAPERS_PER_PAGE = 6;
+  const [visibleCount, setVisibleCount] = useState(PAPERS_PER_PAGE);
 
   const { data: papers, isLoading, error } = usePapers();
   const deletePaperMutation = useDeletePaper();
@@ -98,6 +104,25 @@ export default function PapersPage() {
                 return 0;
         }
     });
+    
+    // Paginate filtered results
+    const visiblePapers = filteredPapers.slice(0, visibleCount);
+    const hasMore = visibleCount < filteredPapers.length;
+    const showingMore = visibleCount > PAPERS_PER_PAGE;
+    
+    // Handlers for Show More/Less
+    const handleShowMore = () => {
+      setVisibleCount(prev => prev + PAPERS_PER_PAGE);
+    };
+    
+    const handleShowLess = () => {
+      setVisibleCount(PAPERS_PER_PAGE);
+    };
+    
+    // Reset visible count when search or sort changes
+    React.useEffect(() => {
+      setVisibleCount(PAPERS_PER_PAGE);
+    }, [searchQuery, sortBy]);
 
     const handlePaperClick = (paper) => {
         router.push(`/papers/${paper.id}`);
@@ -477,7 +502,7 @@ export default function PapersPage() {
           transition={{ delay: 0.8 }}
         >
           <AnimatePresence mode="wait">
-            {filteredPapers.map((paper, index) => (
+            {visiblePapers.map((paper, index) => (
               <motion.div
                 key={paper.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -671,6 +696,38 @@ export default function PapersPage() {
           </AnimatePresence>
         </motion.div>
       )}
+      
+      {/* Show More / Show Less Buttons */}
+      {filteredPapers.length > 0 && (hasMore || showingMore) && (
+        <motion.div 
+          className="flex items-center justify-center gap-4 mt-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+        >
+          {hasMore && (
+            <Button
+              variant="outline"
+              onClick={handleShowMore}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
+            >
+              <ChevronDown className="h-4 w-4" />
+              Show More ({filteredPapers.length - visibleCount} remaining)
+            </Button>
+          )}
+          
+          {showingMore && (
+            <Button
+              variant="ghost"
+              onClick={handleShowLess}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            >
+              <ChevronUp className="h-4 w-4" />
+              Show Less
+            </Button>
+          )}
+        </motion.div>
+      )}
 
       {/* Enhanced Results count */}
       {filteredPapers.length > 0 && (
@@ -690,12 +747,15 @@ export default function PapersPage() {
                 <Sparkles className="h-3 w-3 text-white" />
               </motion.div>
               <span className="font-medium">
-                Showing <span className="text-blue-600 font-bold">{filteredPapers.length}</span> of{" "}
-                <span className="text-purple-600 font-bold">{safePages.length}</span> papers
+                Showing <span className="text-blue-600 font-bold">{Math.min(visibleCount, filteredPapers.length)}</span> of{" "}
+                <span className="text-purple-600 font-bold">{filteredPapers.length}</span> papers
                 {searchQuery && (
                   <>
                     {" "}matching <span className="text-indigo-600 font-bold">&quot;{searchQuery}&quot;</span>
                   </>
+                )}
+                {filteredPapers.length !== safePages.length && (
+                  <span className="text-gray-500"> (from {safePages.length} total)</span>
                 )}
               </span>
             </div>

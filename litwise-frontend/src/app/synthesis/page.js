@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Brain, 
@@ -18,7 +18,9 @@ import {
   AlertCircle,
   Search,
   Filter,
-  Tag
+  Tag,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +51,10 @@ export default function SynthesisHistoryPage() {
   const [tagFilter, setTagFilter] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [synthesisToDelete, setSynthesisToDelete] = useState(null);
+  
+  // Pagination state
+  const ITEMS_PER_PAGE = 6;
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   
   // Fetch synthesis history
   const loadHistory = useCallback(async () => {
@@ -100,6 +106,25 @@ export default function SynthesisHistoryPage() {
     const query = searchQuery.toLowerCase();
     return synthesis.query.toLowerCase().includes(query);
   });
+  
+  // Paginate filtered results
+  const visibleSyntheses = filteredSyntheses.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredSyntheses.length;
+  const showingMore = visibleCount > ITEMS_PER_PAGE;
+  
+  // Handlers for Show More/Less
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+  };
+  
+  const handleShowLess = () => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  };
+  
+  // Reset visible count when search changes
+  React.useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [searchQuery]);
   
   return (
     <PageLayout
@@ -186,8 +211,15 @@ export default function SynthesisHistoryPage() {
               </Card>
             ) : (
               <div className="space-y-4">
+                {/* Showing count indicator */}
+                <div className="flex items-center justify-between text-sm text-gray-500 px-1">
+                  <span>
+                    Showing {Math.min(visibleCount, filteredSyntheses.length)} of {filteredSyntheses.length} syntheses
+                  </span>
+                </div>
+                
                 <AnimatePresence>
-                  {filteredSyntheses.map((synthesis, index) => (
+                  {visibleSyntheses.map((synthesis, index) => (
                     <motion.div
                       key={synthesis.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -289,6 +321,33 @@ export default function SynthesisHistoryPage() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
+                
+                {/* Show More / Show Less Buttons */}
+                {(hasMore || showingMore) && (
+                  <div className="flex items-center justify-center gap-3 pt-4">
+                    {hasMore && (
+                      <Button
+                        variant="outline"
+                        onClick={handleShowMore}
+                        className="flex items-center gap-2"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                        Show More ({filteredSyntheses.length - visibleCount} remaining)
+                      </Button>
+                    )}
+                    
+                    {showingMore && (
+                      <Button
+                        variant="ghost"
+                        onClick={handleShowLess}
+                        className="flex items-center gap-2 text-gray-600"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                        Show Less
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -6,7 +6,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
@@ -16,7 +16,9 @@ import {
   Brain, 
   Zap,
   ArrowRight,
-  BookOpen 
+  BookOpen,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +35,24 @@ export default function Home() {
     if (isLoading) return [];
     return Array.isArray(papers) ? papers : [];
   }, [papers, isLoading]);
+
+  // Pagination for Recent Papers
+  const PAPERS_PER_PAGE = 6;
+  const [visiblePapersCount, setVisiblePapersCount] = useState(PAPERS_PER_PAGE);
+  
+  // Slice papers to show only visible amount
+  const visiblePapers = safePapers.slice(0, visiblePapersCount);
+  const hasMorePapers = visiblePapersCount < safePapers.length;
+  const showingMorePapers = visiblePapersCount > PAPERS_PER_PAGE;
+  
+  // Handlers for Show More/Less
+  const handleShowMorePapers = () => {
+    setVisiblePapersCount(prev => prev + PAPERS_PER_PAGE);
+  };
+  
+  const handleShowLessPapers = () => {
+    setVisiblePapersCount(PAPERS_PER_PAGE);
+  };
 
   const features = [
     {
@@ -193,23 +213,31 @@ export default function Home() {
         >
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Recent Papers
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Recent Papers
+                </CardTitle>
+                <span className="text-sm text-gray-500">
+                  Showing {Math.min(visiblePapersCount, safePapers.length)} of {safePapers.length}
+                </span>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {safePapers.slice(0, 3).map((paper, index) => (
-                  <div
+                {/* Paper List - shows only visiblePapers */}
+                {visiblePapers.map((paper) => (
+                  <motion.div
                     key={paper.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-primary transition-colors cursor-pointer"
                     onClick={() => router.push(`/papers/${paper.id}`)}
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-blue-500" />
-                      <div>
-                        <h4 className="font-medium">
+                      <FileText className="h-8 w-8 text-blue-500 shrink-0" />
+                      <div className="min-w-0">
+                        <h4 className="font-medium truncate">
                           {paper.title || paper.filename || 'Untitled'}
                         </h4>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -225,19 +253,44 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-gray-400" />
-                  </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 shrink-0" />
+                  </motion.div>
                 ))}
                 
-                {safePapers.length > 3 && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => router.push('/papers')}
-                    className="w-full"
-                  >
-                    View All Papers ({safePapers.length})
-                  </Button>
-                )}
+                {/* Show More / Show Less Buttons */}
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  {hasMorePapers && (
+                    <Button
+                      variant="outline"
+                      onClick={handleShowMorePapers}
+                      className="flex items-center gap-2"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                      Show More ({safePapers.length - visiblePapersCount} remaining)
+                    </Button>
+                  )}
+                  
+                  {showingMorePapers && (
+                    <Button
+                      variant="ghost"
+                      onClick={handleShowLessPapers}
+                      className="flex items-center gap-2 text-gray-600"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                      Show Less
+                    </Button>
+                  )}
+                </div>
+                
+                {/* View All Papers Link */}
+                <Button
+                  variant="ghost"
+                  onClick={() => router.push('/papers')}
+                  className="w-full text-primary hover:text-primary"
+                >
+                  View All in Library
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
               </div>
             </CardContent>
           </Card>
