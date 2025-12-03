@@ -25,7 +25,16 @@ import {
   Sparkles,
   TrendingUp,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageSquare,
+  Brain,
+  ExternalLink,
+  Copy,
+  Share2,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +54,18 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/Layout';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuGroup,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu';
 import { usePapers, useDeletePaper } from '@/lib/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -147,6 +168,20 @@ export default function PapersPage() {
             toast.dismiss(`delete-${paperId}`);
             // Error is handled by the mutation hook
         }
+    };
+    
+    const handleCopyTitle = (paper, e) => {
+      e?.stopPropagation();
+      const title = paper.title || paper.filename || 'Untitled';
+      navigator.clipboard.writeText(title);
+      toast.success('Title copied to clipboard!');
+    };
+    
+    const handleSharePaper = (paper, e) => {
+      e?.stopPropagation();
+      const url = `${window.location.origin}/papers/${paper.id}`;
+      navigator.clipboard.writeText(url);
+      toast.success('Paper link copied to clipboard!');
     };
 
   // Early loading state with skeleton
@@ -379,17 +414,63 @@ export default function PapersPage() {
         
         {/* Enhanced Filters and View Controls */}
         <div className="flex gap-3">
-          <motion.select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-3 border-2 border-gray-200 rounded-xl text-sm bg-white/70 backdrop-blur-sm hover:border-blue-300 transition-all min-w-[140px]"
-            whileHover={{ scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="title">Title A-Z</option>
-          </motion.select>
+          {/* Sort Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-12 px-4 rounded-xl border-2 border-gray-200 bg-white/70 backdrop-blur-sm hover:border-blue-300 hover:bg-blue-50 transition-all min-w-[160px] justify-between gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  {sortBy === 'newest' && <Clock className="h-4 w-4 text-blue-500" />}
+                  {sortBy === 'oldest' && <Clock className="h-4 w-4 text-gray-500" />}
+                  {sortBy === 'title' && <FileText className="h-4 w-4 text-purple-500" />}
+                  <span className="text-sm font-medium">
+                    {sortBy === 'newest' && 'Newest First'}
+                    {sortBy === 'oldest' && 'Oldest First'}
+                    {sortBy === 'title' && 'Title A-Z'}
+                  </span>
+                </div>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent 
+              align="start" 
+              className="w-48 rounded-xl border-2 shadow-xl bg-white/95 backdrop-blur-sm p-1"
+            >
+              <DropdownMenuLabel className="text-xs text-gray-500 font-normal px-2">
+                Sort papers by
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="my-1" />
+              
+              <DropdownMenuItem 
+                onClick={() => setSortBy('newest')}
+                className={`cursor-pointer rounded-lg mx-1 flex items-center gap-2 ${sortBy === 'newest' ? 'bg-blue-50 text-blue-700' : ''}`}
+              >
+                <Clock className={`h-4 w-4 ${sortBy === 'newest' ? 'text-blue-500' : 'text-gray-400'}`} />
+                <span>Newest First</span>
+                {sortBy === 'newest' && <CheckCircle className="h-4 w-4 ml-auto text-blue-500" />}
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem 
+                onClick={() => setSortBy('oldest')}
+                className={`cursor-pointer rounded-lg mx-1 flex items-center gap-2 ${sortBy === 'oldest' ? 'bg-blue-50 text-blue-700' : ''}`}
+              >
+                <Clock className={`h-4 w-4 ${sortBy === 'oldest' ? 'text-blue-500' : 'text-gray-400'}`} />
+                <span>Oldest First</span>
+                {sortBy === 'oldest' && <CheckCircle className="h-4 w-4 ml-auto text-blue-500" />}
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem 
+                onClick={() => setSortBy('title')}
+                className={`cursor-pointer rounded-lg mx-1 flex items-center gap-2 ${sortBy === 'title' ? 'bg-purple-50 text-purple-700' : ''}`}
+              >
+                <FileText className={`h-4 w-4 ${sortBy === 'title' ? 'text-purple-500' : 'text-gray-400'}`} />
+                <span>Title A-Z</span>
+                {sortBy === 'title' && <CheckCircle className="h-4 w-4 ml-auto text-purple-500" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -564,87 +645,177 @@ export default function PapersPage() {
                         </div>
                       </div>
                       
-                      {/* Enhanced Action Buttons - Always Visible */}
-                      <div className="flex gap-1 transition-all duration-300">
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePaperClick(paper);
-                            }}
-                            className="h-10 w-10 rounded-xl hover:bg-blue-100 hover:text-blue-600"
-                            title="View paper details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </motion.div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                      {/* Enhanced Interactive Dropdown Menu */}
+                      <div className="flex gap-1 transition-all duration-300" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <motion.div
-                              whileHover={{ scale: 1.1 }}
+                              whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={(e) => e.stopPropagation()}
                             >
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-10 w-10 rounded-xl hover:bg-red-100 hover:text-red-600 transition-all duration-200 group/delete"
-                                title="Delete paper permanently"
+                                className="h-10 w-10 rounded-xl hover:bg-gray-100 data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600 transition-all duration-200"
                               >
-                                <motion.div
-                                  whileHover={{ rotate: 10 }}
-                                  transition={{ type: "spring", stiffness: 300 }}
-                                >
-                                  <Trash2 className="h-4 w-4 group-hover/delete:scale-110 transition-transform" />
-                                </motion.div>
+                                <MoreVertical className="h-5 w-5" />
                               </Button>
                             </motion.div>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="rounded-2xl border-2 max-w-md">
-                            <AlertDialogHeader className="text-center pb-4">
-                              <motion.div
-                                className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4"
-                                initial={{ scale: 0.8, rotate: -10 }}
-                                animate={{ scale: 1, rotate: 0 }}
-                                transition={{ type: "spring", stiffness: 300 }}
-                              >
-                                <Trash2 className="h-8 w-8 text-red-600 mx-auto" />
-                              </motion.div>
-                              <AlertDialogTitle className="text-2xl font-bold text-gray-900">
-                                Delete Paper?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription className="text-gray-600 leading-relaxed">
-                                Are you sure you want to permanently delete{" "}
-                                <span className="font-semibold text-gray-900">
-                                  &quot;{(paper.title || paper.filename || 'Untitled Paper').length > 40 
-                                    ? (paper.title || paper.filename || 'Untitled Paper').substring(0, 40) + '...'
-                                    : (paper.title || paper.filename || 'Untitled Paper')}&quot;
-                                </span>?
-                                <br /><br />
-                                <span className="text-red-600 font-medium">
-                                  This action cannot be undone and all associated data, chat history, and AI analysis will be permanently removed.
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent 
+                            align="end" 
+                            className="w-56 rounded-xl border-2 shadow-xl bg-white/95 backdrop-blur-sm p-1"
+                            sideOffset={5}
+                          >
+                            {/* Paper Title Header */}
+                            <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
+                              <div className="bg-linear-to-br from-blue-500 to-purple-500 rounded-lg p-1.5">
+                                <FileText className="h-4 w-4 text-white" />
+                              </div>
+                              <span className="truncate text-sm font-semibold max-w-[180px]">
+                                {paper.title || paper.filename || 'Untitled'}
+                              </span>
+                            </DropdownMenuLabel>
+                            
+                            {/* Processing Status Indicator */}
+                            <div className="px-2 py-1.5 mb-1">
+                              <div className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg ${
+                                paper.processing_status === 'completed' 
+                                  ? 'bg-green-50 text-green-700' 
+                                  : paper.processing_status === 'processing'
+                                  ? 'bg-yellow-50 text-yellow-700'
+                                  : paper.processing_status === 'failed'
+                                  ? 'bg-red-50 text-red-700'
+                                  : 'bg-gray-50 text-gray-600'
+                              }`}>
+                                {paper.processing_status === 'completed' && <CheckCircle className="h-3.5 w-3.5" />}
+                                {paper.processing_status === 'processing' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                                {paper.processing_status === 'failed' && <AlertCircle className="h-3.5 w-3.5" />}
+                                {paper.processing_status === 'uploaded' && <Clock className="h-3.5 w-3.5" />}
+                                <span className="font-medium">
+                                  {paper.processing_status === 'completed' && 'AI Processed'}
+                                  {paper.processing_status === 'processing' && 'Processing...'}
+                                  {paper.processing_status === 'failed' && 'Processing Failed'}
+                                  {paper.processing_status === 'uploaded' && 'Ready to Process'}
                                 </span>
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter className="gap-3 pt-6">
-                              <AlertDialogCancel className="rounded-xl flex-1 h-12">
-                                Keep Paper
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={(e) => handleDeletePaper(paper.id, paper.title, e)}
-                                className="bg-red-500 hover:bg-red-600 rounded-xl flex-1 h-12 font-semibold"
+                              </div>
+                            </div>
+                            
+                            <DropdownMenuSeparator className="my-1" />
+                            
+                            {/* View Options Group */}
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem 
+                                onClick={() => handlePaperClick(paper)}
+                                className="cursor-pointer rounded-lg mx-1 focus:bg-blue-50 focus:text-blue-700"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Forever
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Eye className="h-4 w-4 mr-3 text-blue-500" />
+                                <span>View Details</span>
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem 
+                                onClick={() => router.push(`/papers/${paper.id}?tab=reader`)}
+                                className="cursor-pointer rounded-lg mx-1 focus:bg-green-50 focus:text-green-700"
+                              >
+                                <BookOpen className="h-4 w-4 mr-3 text-green-500" />
+                                <span>Open Reader</span>
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem 
+                                onClick={() => router.push(`/papers/${paper.id}?tab=chat`)}
+                                className="cursor-pointer rounded-lg mx-1 focus:bg-purple-50 focus:text-purple-700"
+                              >
+                                <MessageSquare className="h-4 w-4 mr-3 text-purple-500" />
+                                <span>Chat with Paper</span>
+                              </DropdownMenuItem>
+                              
+                              {paper.processing_status === 'completed' && (
+                                <DropdownMenuItem 
+                                  onClick={() => router.push(`/papers/${paper.id}?tab=content`)}
+                                  className="cursor-pointer rounded-lg mx-1 focus:bg-indigo-50 focus:text-indigo-700"
+                                >
+                                  <Brain className="h-4 w-4 mr-3 text-indigo-500" />
+                                  <span>AI Analysis</span>
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuGroup>
+                            
+                            <DropdownMenuSeparator className="my-1" />
+                            
+                            {/* Quick Actions Group */}
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem 
+                                onClick={(e) => handleCopyTitle(paper, e)}
+                                className="cursor-pointer rounded-lg mx-1 focus:bg-gray-100"
+                              >
+                                <Copy className="h-4 w-4 mr-3 text-gray-500" />
+                                <span>Copy Title</span>
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem 
+                                onClick={(e) => handleSharePaper(paper, e)}
+                                className="cursor-pointer rounded-lg mx-1 focus:bg-gray-100"
+                              >
+                                <Share2 className="h-4 w-4 mr-3 text-gray-500" />
+                                <span>Copy Link</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                            
+                            <DropdownMenuSeparator className="my-1" />
+                            
+                            {/* Danger Zone */}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem 
+                                  onSelect={(e) => e.preventDefault()}
+                                  className="cursor-pointer rounded-lg mx-1 text-red-600 focus:bg-red-50 focus:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-3" />
+                                  <span>Delete Paper</span>
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="rounded-2xl border-2 max-w-md">
+                                <AlertDialogHeader className="text-center pb-4">
+                                  <motion.div
+                                    className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4"
+                                    initial={{ scale: 0.8, rotate: -10 }}
+                                    animate={{ scale: 1, rotate: 0 }}
+                                    transition={{ type: "spring", stiffness: 300 }}
+                                  >
+                                    <Trash2 className="h-8 w-8 text-red-600 mx-auto" />
+                                  </motion.div>
+                                  <AlertDialogTitle className="text-2xl font-bold text-gray-900">
+                                    Delete Paper?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-gray-600 leading-relaxed">
+                                    Are you sure you want to permanently delete{" "}
+                                    <span className="font-semibold text-gray-900">
+                                      &quot;{(paper.title || paper.filename || 'Untitled Paper').length > 40 
+                                        ? (paper.title || paper.filename || 'Untitled Paper').substring(0, 40) + '...'
+                                        : (paper.title || paper.filename || 'Untitled Paper')}&quot;
+                                    </span>?
+                                    <br /><br />
+                                    <span className="text-red-600 font-medium">
+                                      This action cannot be undone and all associated data, chat history, and AI analysis will be permanently removed.
+                                    </span>
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="gap-3 pt-6">
+                                  <AlertDialogCancel className="rounded-xl flex-1 h-12">
+                                    Keep Paper
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={(e) => handleDeletePaper(paper.id, paper.title, e)}
+                                    className="bg-red-500 hover:bg-red-600 rounded-xl flex-1 h-12 font-semibold"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Forever
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </CardHeader>
