@@ -23,8 +23,9 @@ import asyncio
 import json
 from datetime import datetime
 
-# Import chat routes
+# Import chat and study plan routes
 from routes.chat import router as chat_router
+from routes.study_plan import router as study_plan_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -41,6 +42,9 @@ def health_check():
 
 # Include chat router
 app.include_router(chat_router)
+
+# Include study plan router
+app.include_router(study_plan_router)
 
 
 @app.get("/")
