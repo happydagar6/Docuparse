@@ -1,4 +1,4 @@
-from pydantic import BaseModel, FieldInfo
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -9,8 +9,8 @@ class ExamType(str, Enum):
     COMPETITIVE = "competitive"
     CERTIFICATION = "certification"
 
-class StudyPlan(str, Enum):
-    INTERNSIVE = "intensive"
+class StudyStyle(str, Enum):
+    INTENSIVE = "intensive"
     BALANCED = "balanced"
     LIGHT = "light"
     
@@ -33,8 +33,7 @@ class WeekPlan(BaseModel):
     focus_area: str
     days: List[DayPlan]
     goals: List[str]
-    revision_topics: List[str]
-    total_study_hours: float
+    revision_topics: List[str] = []
 
 class StudyPlanResponse(BaseModel):
     id: str
@@ -47,7 +46,7 @@ class StudyPlanResponse(BaseModel):
     tips: List[str]
     created_at: datetime
     
-class StydyPlanDB(BaseModel):
+class StudyPlanDB(BaseModel):
     id: str
     user_id: Optional[str] = None
     paper_id: str

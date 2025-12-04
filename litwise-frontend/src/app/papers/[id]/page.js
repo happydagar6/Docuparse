@@ -21,6 +21,7 @@ import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { PaperReader } from '@/components/reader/PaperReader';
 import ChatInterface from '@/components/chat/ChatInterface.jsx';
 import { FormattedContent } from '@/components/ui/formatted-content';
+import CitationButton from '@/components/citations/CitationButton';
 
 export default function PaperPage() {
   const params = useParams();
@@ -90,7 +91,10 @@ export default function PaperPage() {
                 )}
               </div>
             </div>
-            <ProcessingStatus paper={paper} />
+            <div className="flex items-center gap-2">
+              <CitationButton paperId={paper.id} />
+              <ProcessingStatus paper={paper} />
+            </div>
           </div>
         </CardHeader>
       </Card>

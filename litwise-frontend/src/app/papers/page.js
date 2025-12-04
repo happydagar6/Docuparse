@@ -28,7 +28,6 @@ import {
   ChevronUp,
   MessageSquare,
   Brain,
-  ExternalLink,
   Copy,
   Share2,
   Clock,
@@ -62,13 +61,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuGroup,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { usePapers, useDeletePaper } from '@/lib/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import CitationExport from '@/components/citations/CitationExport';
 
 
 
@@ -419,7 +416,7 @@ export default function PapersPage() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="h-12 px-4 rounded-xl border-2 border-gray-200 bg-white/70 backdrop-blur-sm hover:border-blue-300 hover:bg-blue-50 transition-all min-w-[160px] justify-between gap-2"
+                className="h-12 px-4 rounded-xl border-2 border-gray-200 bg-white/70 backdrop-blur-sm hover:border-blue-300 hover:bg-blue-50 transition-all min-w-40 justify-between gap-2"
               >
                 <div className="flex items-center gap-2">
                   {sortBy === 'newest' && <Clock className="h-4 w-4 text-blue-500" />}
@@ -500,6 +497,22 @@ export default function PapersPage() {
             </Button>
           </motion.div>
         </div>
+        
+        {/* Export Citations Button */}
+        {safePages.length > 0 && (
+          <CitationExport
+            paperIds={safePages.map(p => p.id)}
+            trigger={
+              <Button
+                variant="outline"
+                className="h-12 px-4 rounded-xl border-2 border-gray-200 bg-white/70 backdrop-blur-sm hover:border-purple-300 hover:bg-purple-50 transition-all"
+              >
+                <FileText className="h-5 w-5 mr-2" />
+                Export Citations
+              </Button>
+            }
+          />
+        )}
         
         <motion.div
           whileHover={{ scale: 1.05 }}

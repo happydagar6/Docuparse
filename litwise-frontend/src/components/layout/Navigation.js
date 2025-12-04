@@ -21,7 +21,8 @@ import {
   X,
   Brain,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/lib/stores';
@@ -51,6 +52,15 @@ export function Navigation() {
       color: 'from-green-500 to-green-600',
       bgColor: 'bg-green-50',
       hoverColor: 'hover:bg-green-100'
+    },
+    {
+      href: '/study-plan',
+      label: 'Study Plan',
+      icon: Calendar,
+      description: 'Generate AI study plans',
+      color: 'from-teal-500 to-teal-600',
+      bgColor: 'bg-teal-50',
+      hoverColor: 'hover:bg-teal-100'
     },
     {
       href: '/search',

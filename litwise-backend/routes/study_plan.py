@@ -1,17 +1,14 @@
 from fastapi import APIRouter, HTTPException
-from models.study_plan import StudyPlanRequest, StudyPlanResponse, StudyPlanDB
+from models.study_plan import StudyPlanRequest, StudyPlanResponse
 from services.study_plan_service import study_plan_service
-from database import get_supabase
-from datetime import datetime
 from workflow.db import supabase
-import uuid
+from datetime import datetime
 
 router = APIRouter(prefix="/api/study-plan", tags=["Study Plan"])
 
 @router.post("/generate", response_model=StudyPlanResponse)
 async def generate_study_plan(request: StudyPlanRequest):
     """Generate a study plan for a paper"""
-    supabase = get_supabase()
     
     # Get paper details
     paper = supabase.table("papers").select("*").eq("id", request.paper_id).single().execute()
@@ -40,7 +37,6 @@ async def generate_study_plan(request: StudyPlanRequest):
 @router.get("/list")
 async def list_study_plans(paper_id: str = None):
     """List all study plans, optionally filtered by paper"""
-    supabase = get_supabase()
     
     query = supabase.table("study_plans").select("*").order("created_at", desc=True)
     if paper_id:
@@ -52,7 +48,6 @@ async def list_study_plans(paper_id: str = None):
 @router.get("/{plan_id}")
 async def get_study_plan(plan_id: str):
     """Get a specific study plan"""
-    supabase = get_supabase()
     
     result = supabase.table("study_plans").select("*").eq("id", plan_id).single().execute()
     if not result.data:
@@ -63,6 +58,5 @@ async def get_study_plan(plan_id: str):
 @router.delete("/{plan_id}")
 async def delete_study_plan(plan_id: str):
     """Delete a study plan"""
-    supabase = get_supabase()
     supabase.table("study_plans").delete().eq("id", plan_id).execute()
     return {"success": True}
