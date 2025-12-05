@@ -87,8 +87,8 @@ export default function PlanGenerator({ onPlanGenerated }) {
   };
 
   return (
-    <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-white to-slate-50/50">
-      <CardHeader className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white pb-4">
+    <Card className="overflow-hidden border-0 shadow-lg bg-linear-to-br from-white to-slate-50/50">
+      <CardHeader className="bg-linear-to-r from-teal-500 to-cyan-500 text-white pb-4">
         <CardTitle className="flex items-center gap-2">
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <Brain className="h-5 w-5" />
@@ -118,7 +118,7 @@ export default function PlanGenerator({ onPlanGenerated }) {
                 {papers.map((paper) => (
                   <SelectItem key={paper.id} value={paper.id}>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center">
+                      <div className="w-7 h-7 rounded-lg bg-linear-to-br from-teal-100 to-cyan-100 flex items-center justify-center">
                         <FileText className="h-3.5 w-3.5 text-teal-600" />
                       </div>
                       <span className="truncate max-w-[180px] font-medium">
@@ -264,7 +264,7 @@ export default function PlanGenerator({ onPlanGenerated }) {
           <motion.div whileHover={{ scale: mutation.isPending ? 1 : 1.01 }} whileTap={{ scale: mutation.isPending ? 1 : 0.99 }}>
             <Button 
               type="submit" 
-              className="w-full h-12 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-medium shadow-lg shadow-teal-200 transition-all duration-300" 
+              className="w-full h-12 bg-linear-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-medium shadow-lg shadow-teal-200 transition-all duration-300" 
               disabled={mutation.isPending || !formData.paper_id}
             >
               {mutation.isPending ? (

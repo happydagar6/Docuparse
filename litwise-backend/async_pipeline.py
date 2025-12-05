@@ -4,7 +4,6 @@ Async wrapper for LangGraph pipeline to enable non-blocking processing
 
 import asyncio
 from typing import Dict, Any
-import threading
 from concurrent.futures import ThreadPoolExecutor
 import logging
 

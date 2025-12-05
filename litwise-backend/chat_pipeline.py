@@ -14,7 +14,6 @@ from langchain_core.documents import Document
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
 
 # LangSmith imports
 from langsmith import traceable, Client
@@ -83,7 +82,7 @@ class RAGChatPipeline:
                     embeddings_model=self.embeddings,
                     paper_id=paper_id,
                     query=question,
-                    top_k=25  # Get top 19 most relevant results
+                    top_k=35  # Get top 35 most relevant results
                 )
                 
                 if enhanced_documents:

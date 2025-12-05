@@ -317,7 +317,7 @@ class EnhancedSearchSystem:
         return final_results
     
     async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]], 
-                           top_k: int = 20) -> List[Tuple[Dict, float]]:
+                           top_k: int = 25) -> List[Tuple[Dict, float]]:
         """Simple re-ranking based on query term overlap and diversity"""
         if not results:
             return []

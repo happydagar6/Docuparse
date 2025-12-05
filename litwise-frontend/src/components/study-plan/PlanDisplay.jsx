@@ -66,7 +66,7 @@ export default function PlanDisplay({ plan }) {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <Card className="overflow-hidden border-0 shadow-lg">
-          <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 p-5 text-white">
+          <div className="bg-linear-to-r from-teal-500 via-cyan-500 to-blue-500 p-5 text-white">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
@@ -95,7 +95,7 @@ export default function PlanDisplay({ plan }) {
             </div>
           </div>
           {/* Progress Bar */}
-          <div className="p-4 bg-gradient-to-r from-slate-50 to-white border-t">
+          <div className="p-4 bg-linear-to-r from-slate-50 to-white border-t">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">Study Progress</span>
               <span className="text-sm font-semibold text-teal-600">{completedDays.size}/{totalDays} days</span>
@@ -104,7 +104,7 @@ export default function PlanDisplay({ plan }) {
             {progress > 0 && (
               <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                 <Flame className="h-3 w-3 text-orange-500" />
-                Keep going! You're {Math.round(progress)}% through your plan.
+                Keep going! You&apos;re {Math.round(progress)}% through your plan.
               </p>
             )}
           </div>
@@ -114,7 +114,7 @@ export default function PlanDisplay({ plan }) {
       {/* Tips */}
       {plan.tips?.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
-          <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50/50">
+          <Card className="border-amber-200 bg-linear-to-br from-amber-50 to-yellow-50/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
                 <div className="p-1.5 bg-amber-100 rounded-lg">
@@ -127,7 +127,7 @@ export default function PlanDisplay({ plan }) {
               <ul className="space-y-2">
                 {plan.tips.map((tip, i) => (
                   <motion.li key={i} className="flex items-start gap-2 text-sm" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>
-                    <Sparkles className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <Sparkles className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                     <span className="text-amber-800">{tip}</span>
                   </motion.li>
                 ))}
@@ -149,7 +149,7 @@ export default function PlanDisplay({ plan }) {
               <AccordionItem value={`week-${week.week}`} className="border rounded-xl px-4 shadow-sm hover:shadow-md transition-shadow">
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-4 flex-1">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-all ${weekProgress === 100 ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-lg shadow-green-200' : 'bg-gradient-to-br from-teal-100 to-cyan-100 text-teal-700'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-all ${weekProgress === 100 ? 'bg-linear-to-br from-green-400 to-emerald-500 text-white shadow-lg shadow-green-200' : 'bg-linear-to-br from-teal-100 to-cyan-100 text-teal-700'}`}>
                       {weekProgress === 100 ? <CheckCircle2 className="h-6 w-6" /> : week.week}
                     </div>
                     <div className="text-left flex-1">
@@ -194,7 +194,7 @@ export default function PlanDisplay({ plan }) {
                           return (
                             <div
                               key={day.day}
-                              className={`rounded-xl transition-all duration-200 border-2 overflow-hidden ${isCompleted ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' : 'bg-white border-gray-100 hover:border-teal-200'}`}
+                              className={`rounded-xl transition-all duration-200 border-2 overflow-hidden ${isCompleted ? 'bg-linear-to-r from-green-50 to-emerald-50 border-green-200' : 'bg-white border-gray-100 hover:border-teal-200'}`}
                             >
                               {/* Day Header - Clickable */}
                               <motion.div
@@ -203,7 +203,7 @@ export default function PlanDisplay({ plan }) {
                                 className="p-3 cursor-pointer"
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all flex-shrink-0 ${isCompleted ? 'bg-green-500 text-white' : 'bg-gradient-to-br from-teal-100 to-cyan-100 text-teal-600'}`}>
+                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all shrink-0 ${isCompleted ? 'bg-green-500 text-white' : 'bg-linear-to-br from-teal-100 to-cyan-100 text-teal-600'}`}>
                                     {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <span className="text-sm font-bold">{day.day}</span>}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -229,7 +229,7 @@ export default function PlanDisplay({ plan }) {
                                   <ul className="space-y-1.5">
                                     {day.tasks.map((task, taskIndex) => (
                                       <li key={taskIndex} className={`text-sm flex items-start gap-2 ${isCompleted ? 'text-green-700' : 'text-gray-600'}`}>
-                                        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isCompleted ? 'bg-green-400' : 'bg-teal-400'}`}></span>
+                                        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? 'bg-green-400' : 'bg-teal-400'}`}></span>
                                         <span>{task}</span>
                                       </li>
                                     ))}
@@ -267,11 +267,11 @@ export default function PlanDisplay({ plan }) {
       <AnimatePresence>
         {progress === 100 && (
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
-            <Card className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-xl">
+            <Card className="bg-linear-to-r from-green-500 to-emerald-500 text-white border-0 shadow-xl">
               <CardContent className="p-6 text-center">
                 <Trophy className="h-12 w-12 mx-auto mb-3 text-yellow-300" />
                 <h3 className="text-xl font-bold mb-2">Congratulations! 🎉</h3>
-                <p className="text-white/90">You've completed your entire study plan!</p>
+                <p className="text-white/90">You&apos;ve completed your entire study plan!</p>
               </CardContent>
             </Card>
           </motion.div>

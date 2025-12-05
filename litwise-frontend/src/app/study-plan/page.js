@@ -114,7 +114,7 @@ export default function StudyPlanPage() {
                 transition={{ delay: 0.2 }}
               >
                 <Card className="border-0 shadow-lg overflow-hidden">
-                  <CardHeader className="pb-3 bg-gradient-to-r from-slate-50 to-gray-50 border-b">
+                  <CardHeader className="pb-3 bg-linear-to-r from-slate-50 to-gray-50 border-b">
                     <CardTitle className="text-sm flex items-center gap-2 text-gray-700">
                       <div className="p-1.5 bg-white rounded-lg shadow-sm">
                         <History className="h-4 w-4 text-slate-600" />
@@ -136,14 +136,14 @@ export default function StudyPlanPage() {
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: index * 0.05 }}
-                              className={`relative group w-full p-3 mb-2 rounded-xl text-left transition-all duration-200 ${isSelected ? 'bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 shadow-md' : 'bg-white hover:bg-slate-50 border border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
+                              className={`relative group w-full p-3 mb-2 rounded-xl text-left transition-all duration-200 ${isSelected ? 'bg-linear-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 shadow-md' : 'bg-white hover:bg-slate-50 border border-gray-100 hover:border-gray-200 hover:shadow-sm'}`}
                             >
                               <button
                                 onClick={() => handleSelectPlan(plan)}
                                 className="w-full text-left"
                               >
                                 <div className="flex items-start gap-3">
-                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-200' : 'bg-slate-100 text-slate-500'}`}>
+                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-linear-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-200' : 'bg-slate-100 text-slate-500'}`}>
                                     <BookOpen className="h-5 w-5" />
                                   </div>
                                   <div className="flex-1 min-w-0 pr-8">
@@ -161,7 +161,7 @@ export default function StudyPlanPage() {
                                       </span>
                                     </div>
                                   </div>
-                                  <ChevronRight className={`h-4 w-4 mt-1 flex-shrink-0 transition-colors ${isSelected ? 'text-teal-500' : 'text-gray-300'}`} />
+                                  <ChevronRight className={`h-4 w-4 mt-1 shrink-0 transition-colors ${isSelected ? 'text-teal-500' : 'text-gray-300'}`} />
                                 </div>
                               </button>
                               
@@ -206,13 +206,13 @@ export default function StudyPlanPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Card className="h-[500px] flex items-center justify-center border-2 border-dashed border-gray-200 bg-gradient-to-br from-slate-50 to-gray-50/50">
+                <Card className="h-[500px] flex items-center justify-center border-2 border-dashed border-gray-200 bg-linear-to-br from-slate-50 to-gray-50/50">
                   <div className="text-center px-6">
                     <motion.div
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.2, type: "spring" }}
-                      className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center shadow-lg shadow-teal-100"
+                      className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-linear-to-br from-teal-100 to-cyan-100 flex items-center justify-center shadow-lg shadow-teal-100"
                     >
                       <GraduationCap className="h-12 w-12 text-teal-600" />
                     </motion.div>
@@ -274,7 +274,7 @@ export default function StudyPlanPage() {
             <AlertDialogDescription className="pt-2">
               Are you sure you want to delete the study plan for{' '}
               <span className="font-semibold text-gray-700">
-                "{planToDelete?.paper_title}"
+                &quot;{planToDelete?.paper_title}&quot;
               </span>
               ? This action cannot be undone.
             </AlertDialogDescription>

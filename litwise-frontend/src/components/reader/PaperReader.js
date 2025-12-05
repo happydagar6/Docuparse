@@ -460,7 +460,7 @@ export function PaperReader({ paper, onBack }) {
               className={`prose prose-sm max-w-none ${getFontSizeClass()}`}
             >
               <div className="min-h-[300px] sm:min-h-[400px] md:min-h-[600px] p-2 sm:p-3 md:p-6 bg-white rounded-lg shadow-sm border overflow-x-hidden">
-                <div className="break-words overflow-wrap-anywhere">
+                <div className="wrap-break-word overflow-wrap-anywhere">
                   <FormattedContent content={currentPageData.content} />
                 </div>
               </div>

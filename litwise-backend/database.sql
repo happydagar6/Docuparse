@@ -336,3 +336,39 @@ GROUP BY DATE_TRUNC('day', created_at)
 ORDER BY date DESC;
 
 COMMENT ON VIEW synthesis_stats IS 'Daily statistics for synthesis generation';
+
+
+
+
+CREATE TABLE IF NOT EXISTS literature_reviews (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    topic TEXT NOT NULL,
+    review_style TEXT NOT NULL CHECK (review_style IN ('narrative', 'systematic', 'critical')),
+    paper_ids TEXT[] NOT NULL,
+    paper_count INTEGER NOT NULL DEFAULT 0,
+    content JSONB NOT NULL,
+    word_count INTEGER DEFAULT 0,
+    user_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_literature_reviews_topic ON literature_reviews USING GIN(to_tsvector('english', topic));
+CREATE INDEX IF NOT EXISTS idx_literature_reviews_created_at ON literature_reviews(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_literature_reviews_paper_ids ON literature_reviews USING GIN(paper_ids);
+
+-- Auto-update timestamp
+CREATE OR REPLACE FUNCTION update_literature_reviews_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_literature_reviews_updated_at ON literature_reviews;
+CREATE TRIGGER trigger_update_literature_reviews_updated_at
+    BEFORE UPDATE ON literature_reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION update_literature_reviews_updated_at();

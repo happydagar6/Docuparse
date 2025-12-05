@@ -448,7 +448,7 @@ export function UploadForm({ onUploadSuccess }) {
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="text-base sm:text-lg font-semibold text-red-800 mb-1">Upload Failed</p>
-                <p className="text-sm sm:text-base text-red-700 mb-3 sm:mb-4 leading-relaxed break-words">{uploadError}</p>
+                <p className="text-sm sm:text-base text-red-700 mb-3 sm:mb-4 leading-relaxed wrap-break-word">{uploadError}</p>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}

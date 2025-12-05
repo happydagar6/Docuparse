@@ -72,6 +72,15 @@ export function Navigation() {
       hoverColor: 'hover:bg-purple-100'
     },
     {
+      href: '/literature-review',
+      label: 'Literature Review',
+      icon: Sparkles,
+      description: 'Generate literature reviews',
+      color: 'from-pink-500 to-pink-600',
+      bgColor: 'bg-pink-50',
+      hoverColor: 'hover:bg-pink-100'
+    },
+    {
       href: '/synthesis',
       label: 'History',
       icon: Brain,

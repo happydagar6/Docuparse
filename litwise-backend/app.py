@@ -27,6 +27,7 @@ from datetime import datetime
 from routes.chat import router as chat_router
 from routes.study_plan import router as study_plan_router
 from routes.citations import router as citations_router
+from routes.literature_review import router as literature_review_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -49,6 +50,9 @@ app.include_router(study_plan_router)
 
 # Include citations router
 app.include_router(citations_router)
+
+# Include literature review router
+app.include_router(literature_review_router)
 
 @app.get("/")
 async def root():
