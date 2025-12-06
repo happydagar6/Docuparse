@@ -64,9 +64,9 @@ export default function LiteratureReviewPage() {
     };
 
     const styleColors = {
-        narrative: 'bg-blue-100 text-blue-800',
-        systematic: 'bg-green-100 text-green-800',
-        critical: 'bg-purple-100 text-purple-800',
+        narrative: 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200',
+        systematic: 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border-green-200',
+        critical: 'bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 border-purple-200',
     };
 
     return (
@@ -76,20 +76,22 @@ export default function LiteratureReviewPage() {
       >
         {/* Page content goes here */}
 
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 p-6'>
             {/* Generator Panel */}
-            <div className='lg:col-span-1 space-y-4'>
+            <div className='lg:col-span-1 space-y-5'>
                 <ReviewGenerator onReviewGenerated={handleReviewGenerated} />
 
                     {/* History */}
-                    <Card>
-                        <CardHeader className="pb-3">
+                    <Card className="border-2 shadow-sm hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-3 bg-gradient-to-br from-gray-50 to-transparent">
                             <CardTitle className="text-base flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
+                                <div className="p-1.5 bg-blue-100 rounded-lg">
+                                    <Clock className="h-4 w-4 text-blue-600" />
+                                </div>
                                 Recent Reviews
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                        <CardContent className="space-y-2 max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
                             {isLoading ? (
                                 <div className="flex items-center justify-center py-4">
                                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -98,21 +100,29 @@ export default function LiteratureReviewPage() {
                             ) : isError ? (
                                 <p className='text-sm text-red-500'>Error loading reviews: {error?.message}</p>
                             ) : reviews.length === 0 ? (
-                                <p className='text-sm text-muted-foreground'>No reviews generated yet.</p>
+                                <div className="flex flex-col items-center justify-center py-8 text-center">
+                                    <div className="p-3 bg-gray-100 rounded-full mb-3">
+                                        <BookOpen className="h-6 w-6 text-gray-400" />
+                                    </div>
+                                    <p className='text-sm text-muted-foreground'>No reviews generated yet</p>
+                                    <p className='text-xs text-muted-foreground mt-1'>Generate your first review to get started</p>
+                                </div>
                             ) : (
                                 reviews.map((review) => (
                                     <div
                                         key={review.id}
                                         onClick={() => handleSelectReview(review)}
-                                        className={`p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors ${
-                                            selectedReviewId === review.id ? 'border-primary bg-muted/30' : ''
+                                        className={`group p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                                            selectedReviewId === review.id 
+                                                ? 'border-primary bg-primary/5 shadow-sm' 
+                                                : 'border-gray-200 hover:border-primary/50 hover:shadow-sm hover:bg-gray-50'
                                         }`}
                                     >
                                         <div className="flex justify-between items-start gap-2">
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-medium text-sm truncate">{review.topic}</p>
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                    <Badge variant="secondary" className={`text-xs ${styleColors[review.review_style]}`}>
+                                                    <Badge variant="secondary" className={`text-xs border ${styleColors[review.review_style]}`}>
                                                         {review.review_style}
                                                     </Badge>
                                                     <span className="text-xs text-muted-foreground">
@@ -126,10 +136,10 @@ export default function LiteratureReviewPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 shrink-0"
+                                                className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600"
                                                 onClick={(e) => handleDeleteClick(e, review)}
                                             >
-                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>
                                     </div>
@@ -144,12 +154,19 @@ export default function LiteratureReviewPage() {
                     {currentReview ? (
                         <ReviewDisplay review={currentReview} />
                     ) : (
-                        <Card className="h-full min-h-[500px] flex items-center justify-center">
-                            <div className="text-center space-y-3">
-                                <BookOpen className="h-12 w-12 mx-auto text-muted-foreground" />
-                                <p className="text-muted-foreground">
-                                    Select papers and generate a literature review
-                                </p>
+                        <Card className="h-full min-h-[600px] flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-transparent">
+                            <div className="text-center space-y-4 p-8">
+                                <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl inline-block">
+                                    <BookOpen className="h-12 w-12 mx-auto text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-lg font-medium text-gray-700 mb-2">
+                                        No Review Selected
+                                    </p>
+                                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                                        Select papers from the panel, enter your topic, and generate a comprehensive literature review
+                                    </p>
+                                </div>
                             </div>
                         </Card>
                     )}

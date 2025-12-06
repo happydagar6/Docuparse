@@ -2,11 +2,12 @@ import json
 import uuid
 import asyncio
 from datetime import datetime
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, Tuple
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+from flashrank import Ranker, RerankRequest
 from models.literature_review import (
     LiteratureReviewRequest,
     LiteratureReviewResponse,
@@ -87,30 +88,79 @@ class LiteratureReviewService:
         # Initialize embeddings for semantic search
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
+        # Initialize FlashRank reranker for cross-encoder reranking
+        # Using nano model for speed, can upgrade to "ms-marco-MiniLM-L-12-v2" for quality
+        print("🔄 Initializing FlashRank reranker...")
+        self.reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="/tmp/flashrank_cache")
+        print("✅ FlashRank reranker initialized")
+        
     async def decompose_topic(self, topic: str) -> List[str]:
         """
         Decompose a broad topic into specific sub-queries for better retrieval.
         This prevents semantic dilution by searching for each concept individually.
         """
-        decomposition_prompt = f"""Decompose the following research topic into 3-6 specific sub-queries that would help retrieve diverse, relevant information from academic papers.
+        decomposition_prompt = f"""You are a Legal Document Search Query Generator. Your task is to decompose a user's topic into 4-6 highly targeted search queries optimized for retrieving specific clauses from legal/regulatory documents.
 
-TOPIC: {topic}
+USER TOPIC: {topic}
 
-Rules:
-1. Each sub-query should focus on a distinct aspect/concept
-2. Include the main topic keywords in each sub-query for context
-3. Make sub-queries specific enough to retrieve targeted content
-4. Cover different angles: definitions, methods, applications, comparisons, etc.
+## ANALYSIS INSTRUCTIONS
 
-Return ONLY a JSON array of strings, no explanation:
-["sub-query 1", "sub-query 2", "sub-query 3", ...]"""
+1. **Detect Query Intent**: Analyze the topic for intent signals:
+   - RESTRICTION intent: words like "restrictions", "limits", "cannot", "prohibited", "blocked"
+   - CONDITION intent: words like "conditions", "requirements", "eligibility", "criteria"
+   - PROCEDURE intent: words like "how to", "process", "steps", "claim", "apply"
+   - EXCEPTION intent: words like "exceptions", "exempt", "exclusions", "unless"
+   - PENALTY intent: words like "penalty", "fine", "consequence", "violation"
+
+2. **Generate Query Spectrum**: Create queries ranging from broad to specific:
+   
+   a) **Conceptual Query** (Broad): Natural language describing the general topic
+   
+   b) **Procedural Query** (Process-focused): How the mechanism works, steps involved
+   
+   c) **Keyword Sniper Query** (Specific): Combine topic terms with HIGH-SIGNAL legal keywords:
+      - For restrictions: "prohibited", "not allowed", "blocked", "cap", "ceiling", "maximum", "limit", "threshold", "exceeding", "ineligible"
+      - For conditions: "provided that", "subject to", "where", "if", "shall", "must", "mandatory", "required"
+      - For exceptions: "except", "unless", "notwithstanding", "exemption", "exclusion"
+      - For amounts: "percentage", "ratio", "amount", "value", "quantum", "proportion"
+   
+   d) **Negative/Inverse Query**: Search for what is NOT allowed or disqualified
+   
+   e) **Clause-Targeting Query**: Include terms like "rule", "section", "clause", "provision", "regulation", "subsection" combined with topic keywords
+
+3. **Query Construction Rules**:
+   - Each query should contain 4-8 words
+   - Include core topic keywords in EVERY query for context
+   - Use specific legal/regulatory vocabulary, not conversational language
+   - Avoid questions - use declarative keyword phrases
+   - Target exact phrases that would appear in legal text
+
+## EXAMPLES (Abstract - DO NOT copy these literally)
+
+Topic: "restrictions on X"
+→ "restrictions on X general provisions"
+→ "conditions eligibility X requirements"  
+→ "X blocked limit maximum percentage threshold"
+→ "X ineligible disqualified prohibited"
+→ "X rule provision restriction clause"
+
+Topic: "conditions for claiming Y"
+→ "conditions claiming Y eligibility"
+→ "Y claim requirements mandatory criteria"
+→ "Y entitled claim provided that subject to"
+→ "Y claim disallowed ineligible conditions"
+→ "Y section clause conditions provisions"
+
+## OUTPUT FORMAT
+Return ONLY a JSON array of 4-6 search query strings. No explanations.
+["query 1", "query 2", "query 3", "query 4", ...]"""
 
         try:
             response = self.client.chat.completions.create(
                 model="grok-3-fast",
                 messages=[{"role": "user", "content": decomposition_prompt}],
-                temperature=0.3,
-                max_tokens=500,
+                temperature=0.4,  # Slightly higher for query variety
+                max_tokens=600,
             )
             
             result = response.choices[0].message.content.strip()
@@ -172,42 +222,103 @@ Return ONLY a JSON array of strings, no explanation:
             print(f"⚠️ Semantic search failed for query '{query[:50]}...': {e}")
             return []
 
+    def rerank_chunks(
+        self, chunks: List[Dict], query: str, top_k: int = 50
+    ) -> List[Dict]:
+        """
+        Rerank chunks using FlashRank cross-encoder against the original query.
+        This ensures chunks that specifically match the query get boosted,
+        even if they had lower vector similarity scores.
+        """
+        if not chunks:
+            return []
+        
+        try:
+            # Prepare passages for reranking
+            passages = [
+                {"id": i, "text": chunk["content"], "meta": chunk}
+                for i, chunk in enumerate(chunks)
+            ]
+            
+            # Create rerank request
+            rerank_request = RerankRequest(query=query, passages=passages)
+            
+            # Rerank using FlashRank
+            reranked_results = self.reranker.rerank(rerank_request)
+            
+            # Extract reranked chunks with new scores
+            reranked_chunks = []
+            for result in reranked_results[:top_k]:
+                chunk = result["meta"].copy()
+                chunk["rerank_score"] = result["score"]
+                chunk["original_score"] = chunk.get("score", 0)
+                reranked_chunks.append(chunk)
+            
+            print(f"   🔄 Reranked {len(chunks)} chunks → top {len(reranked_chunks)}")
+            return reranked_chunks
+            
+        except Exception as e:
+            print(f"⚠️ Reranking failed: {e}, using original order")
+            return chunks[:top_k]
+
     async def get_paper_context(
         self, paper_ids: List[str], topic: str, chunks_per_paper: int = 50
     ) -> dict:
         """
-        Retrieve diverse, relevant content from papers using Query Decomposition.
+        Retrieve diverse, relevant content using:
+        1. Query Decomposition - breaks topic into sub-queries
+        2. Quota-Based Balancing - guarantees each sub-query gets representation
+        3. FlashRank Reranking - reranks final pool against original query
         
-        This solves Semantic Dilution by:
-        1. Breaking the topic into sub-queries
-        2. Searching for each sub-query separately
-        3. Combining and deduplicating results
+        This solves both Semantic Dilution AND Context Window Overflow.
         """
         paper_content = {}
         
         # Decompose topic into sub-queries
         sub_queries = await self.decompose_topic(topic)
+        num_queries = len(sub_queries)
+        
+        # Calculate quota per sub-query (ensure each gets fair representation)
+        # Reserve some slots for full-topic search and reranking flexibility
+        # Minimum 10 chunks per query for better coverage
+        quota_per_query = max(12, chunks_per_paper // (num_queries + 1))
+        
+        print(f"\n📊 Retrieval Strategy:")
+        print(f"   Sub-queries: {num_queries}")
+        print(f"   Quota per query: {quota_per_query} chunks")
+        print(f"   Target per paper: {chunks_per_paper} chunks")
         
         for paper_id in paper_ids:
             print(f"\n📄 Retrieving context for paper: {paper_id}")
             
-            all_chunks: Dict[int, Dict] = {}  # chunk_id -> chunk data (for deduplication)
+            # PHASE 1: Quota-Based Collection (guarantees diversity)
+            quota_chunks: List[Dict] = []  # Chunks with guaranteed slots
+            all_chunks: Dict[int, Dict] = {}  # All chunks for deduplication
             
-            # Search for each sub-query
-            for query in sub_queries:
+            for query_idx, query in enumerate(sub_queries):
                 results = await self.semantic_search_chunks(
                     paper_id=paper_id,
                     query=query,
-                    top_k=15  # Get top 15 per sub-query
+                    top_k=quota_per_query + 5  # Get extra for dedup buffer
                 )
                 
-                # Add to collection (dedup by chunk_id, keep highest score)
+                # Add quota chunks (guaranteed representation)
+                added_for_query = 0
                 for chunk in results:
                     chunk_id = chunk["chunk_id"]
-                    if chunk_id not in all_chunks or chunk["score"] > all_chunks[chunk_id]["score"]:
+                    chunk["source_query"] = query_idx  # Track which query found it
+                    
+                    if chunk_id not in all_chunks:
                         all_chunks[chunk_id] = chunk
+                        if added_for_query < quota_per_query:
+                            quota_chunks.append(chunk)
+                            added_for_query += 1
+                    elif chunk["score"] > all_chunks[chunk_id]["score"]:
+                        all_chunks[chunk_id] = chunk
+                
+                print(f"   Query {query_idx + 1}: '{query[:40]}...' → {added_for_query} quota chunks")
             
-            # Also do a search for the full topic to catch any missed content
+            # PHASE 2: Full Topic Search (catch any missed content)
             full_topic_results = await self.semantic_search_chunks(
                 paper_id=paper_id,
                 query=topic,
@@ -215,24 +326,50 @@ Return ONLY a JSON array of strings, no explanation:
             )
             for chunk in full_topic_results:
                 chunk_id = chunk["chunk_id"]
-                if chunk_id not in all_chunks or chunk["score"] > all_chunks[chunk_id]["score"]:
+                chunk["source_query"] = -1  # Mark as from full topic
+                if chunk_id not in all_chunks:
                     all_chunks[chunk_id] = chunk
             
-            # Sort by score and take top chunks
-            sorted_chunks = sorted(
-                all_chunks.values(), 
-                key=lambda x: x["score"], 
-                reverse=True
-            )[:chunks_per_paper]
+            print(f"   Full topic search added {len([c for c in all_chunks.values() if c.get('source_query') == -1])} more chunks")
             
-            # Sort by page/chunk_id for coherent reading order
-            sorted_chunks.sort(key=lambda x: (x.get("page", 0), x.get("chunk_id", 0)))
+            # PHASE 3: Combine quota chunks with remaining top chunks
+            # Quota chunks are guaranteed, fill remaining slots with best from pool
+            quota_chunk_ids = {c["chunk_id"] for c in quota_chunks}
+            remaining_chunks = [
+                c for c in all_chunks.values() 
+                if c["chunk_id"] not in quota_chunk_ids
+            ]
+            remaining_chunks.sort(key=lambda x: x["score"], reverse=True)
+            
+            # Combine: quota chunks + top remaining chunks
+            combined_pool = quota_chunks + remaining_chunks
+            
+            # PHASE 4: FlashRank Reranking against original query
+            # This re-scores ALL chunks against the full original topic
+            # Specific mentions like "Rule 86B" get boosted if they match the query
+            print(f"   📦 Combined pool: {len(combined_pool)} chunks before reranking")
+            
+            reranked_chunks = self.rerank_chunks(
+                chunks=combined_pool,
+                query=topic,  # Rerank against ORIGINAL full query
+                top_k=chunks_per_paper
+            )
+            
+            # PHASE 5: Sort by page order for coherent reading
+            reranked_chunks.sort(key=lambda x: (x.get("page", 0), x.get("chunk_id", 0)))
             
             # Join chunks into paper content
-            chunk_texts = [chunk["content"] for chunk in sorted_chunks]
+            chunk_texts = [chunk["content"] for chunk in reranked_chunks]
             paper_content[paper_id] = "\n\n".join(chunk_texts)
             
-            print(f"   ✅ Retrieved {len(sorted_chunks)} diverse chunks (from {len(all_chunks)} unique)")
+            # Log coverage statistics
+            query_coverage = {}
+            for chunk in reranked_chunks:
+                sq = chunk.get("source_query", -1)
+                query_coverage[sq] = query_coverage.get(sq, 0) + 1
+            
+            print(f"   ✅ Final: {len(reranked_chunks)} chunks")
+            print(f"   📊 Coverage by sub-query: {dict(sorted(query_coverage.items()))}")
 
         return paper_content
 
