@@ -6,7 +6,11 @@ import os
 load_dotenv()
 
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
-qdrant = QdrantClient(os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
+qdrant = QdrantClient(
+    os.getenv("QDRANT_URL"), 
+    api_key=os.getenv("QDRANT_API_KEY"),
+    timeout=120  # 2 minutes timeout for large uploads
+)
 
 # Create Qdrant collection if it doesn't exist
 try:

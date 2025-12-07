@@ -316,7 +316,7 @@ export async function deleteSynthesis(synthesisId) {
 
 
 export function validatePDFFile(file){
-    const maxSize = 10 * 1024 * 1024; // 10MB limit
+    const maxSize = 35 * 1024 * 1024; // 35MB limit
     const allowedTypes = ['application/pdf'];
 
     if(!file){
@@ -328,7 +328,7 @@ export function validatePDFFile(file){
     }
 
     if(file.size > maxSize){
-        throw new Error("File size exceeds 10MB limit");
+        throw new Error("File size exceeds 35MB limit");
     }
     return true;
 };

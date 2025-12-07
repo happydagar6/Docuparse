@@ -34,8 +34,8 @@ export default function UploadForm() {
         toast.error('Please select a PDF file only');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast.error('File size must be less than 10MB');
+      if (file.size > 35 * 1024 * 1024) { // 35MB limit
+        toast.error('File size must be less than 35MB');
         return;
       }
       setSelectedFile(file);
@@ -125,7 +125,7 @@ export default function UploadForm() {
                   Click to select a PDF file or drag and drop
                 </span>
                 <span className="text-xs text-gray-500">
-                  Maximum file size: 10MB
+                  Maximum file size: 35MB
                 </span>
               </label>
             </div>

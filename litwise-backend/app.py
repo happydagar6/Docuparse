@@ -12,7 +12,7 @@ from models import (
     UpdateSynthesisTagsRequest,
 )
 from pipeline import workflow as graph_app
-from workflow.utils import extract_text_from_pdf, store_embedding
+from workflow.utils import extract_text_from_pdf, store_embedding, extract_multimodal_from_pdf, store_multimodal_embeddings
 from workflow.db import supabase
 from async_pipeline import get_async_pipeline
 from typing import Optional
@@ -33,7 +33,12 @@ from routes.literature_review import router as literature_review_router
 from workflow.synthesis_service import synthesis_service
 
 
-app = FastAPI(title="Litwise API", version="1.0.0")
+app = FastAPI(
+    title="Litwise API", 
+    version="1.0.0",
+    # Increase max request body size to 40MB (to handle 35MB PDFs with multipart overhead)
+    max_request_size=40 * 1024 * 1024
+)
 
 
 @app.get("/health")
@@ -101,8 +106,8 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             tmp_path = tmp.name
 
         try:
-            # Extract text and page info
-            text, page_info = extract_text_from_pdf(tmp_path)
+            # Extract text, page info, and multi-modal content (images, tables)
+            text, page_info, multimodal_content = extract_multimodal_from_pdf(tmp_path)
             if not text or len(text.strip()) < 10:
                 raise HTTPException(
                     status_code=400, detail="Could not extract meaningful text from PDF"
@@ -161,7 +166,41 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             print(f"❌ Database insertion error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-        # Note: Embeddings will be generated during processing stage for efficiency
+        # Store multi-modal embeddings (text + images + tables) for immediate chat functionality
+        try:
+            print(f"🚀 Storing multi-modal embeddings for paper: {paper_id}")
+            
+            paper_metadata_for_embedding = {
+                "id": paper_id,
+                "title": final_title,
+                "created_at": datetime.utcnow().isoformat(),
+                "authors": paper_metadata.get("authors", []),
+                "publication_year": paper_metadata.get("publication_year"),
+            }
+            
+            store_multimodal_embeddings(
+                text=text,
+                multimodal_content=multimodal_content,
+                metadata=paper_metadata_for_embedding,
+                paper_id=paper_id,
+                page_info=page_info
+            )
+            
+            print(f"✅ Multi-modal embeddings stored successfully")
+            print(f"   📝 Text chunks: processed")
+            print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
+            print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
+            
+        except Exception as e:
+            print(f"⚠️  Multi-modal embedding storage failed: {e}")
+            print(f"   Falling back to text-only embeddings...")
+            # Fallback to text-only if multimodal fails
+            try:
+                store_embedding(text, paper_metadata_for_embedding, paper_id, "basic", page_info)
+                print(f"✅ Fallback: Text-only embeddings stored")
+            except Exception as fallback_e:
+                print(f"❌ Even text-only embedding failed: {fallback_e}")
+                # Don't fail the upload if embeddings fail - user can retry processing
 
         return {
             "id": paper_id,
@@ -349,23 +388,16 @@ async def process_paper_ai(paper_id: str):
                     "created_at": datetime.utcnow().isoformat(),
                 }
 
-                # Store enhanced embeddings for optimal chat functionality
-                store_embedding(
-                    enhanced_text,
-                    enhanced_metadata,
-                    paper_id=paper_id,
-                    embedding_type="enhanced",
-                    page_info=page_info,
-                )
-                print(
-                    f"Successfully enhanced embeddings with AI insights for paper: {paper_id}"
-                )
+                # SKIP embedding re-storage - multimodal embeddings already stored during upload
+                # Re-storing would DELETE multimodal content (images/tables)
+                print(f"✅ Skipping embedding re-storage (multimodal content preserved)")
+                print(f"Successfully enhanced paper metadata with AI insights for: {paper_id}")
 
             except Exception as e:
-                print(f"Embedding enhancement error: {e}")
-                # Don't fail processing if embedding generation fails
+                print(f"AI insight metadata error: {e}")
+                # Don't fail processing if metadata update fails
                 print(
-                    f"WARNING: AI processing completed but embedding enhancement failed for {paper_id}"
+                    f"WARNING: AI processing completed but metadata update failed for {paper_id}"
                 )
 
             return ProcessingResponse(
@@ -1071,6 +1103,65 @@ def get_paper(paper_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch paper: {str(e)}")
+
+
+@app.get("/papers/{paper_id}/multimodal")
+async def get_paper_multimodal_content(paper_id: str):
+    """Get multi-modal content (images, tables) for a paper"""
+    try:
+        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+        from workflow.db import qdrant
+        
+        # Retrieve all chunks for this paper
+        results = qdrant.scroll(
+            collection_name="litwise_collection",
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(key="paper_id", match=MatchValue(value=paper_id))
+                ]
+            ),
+            limit=1000,  # Adjust if needed
+            with_payload=True
+        )
+        
+        chunks = results[0]
+        
+        # Separate by type
+        images = []
+        tables = []
+        
+        for chunk in chunks:
+            payload = chunk.payload
+            chunk_type = payload.get('type', 'text')
+            
+            if chunk_type == 'image':
+                images.append({
+                    'page': payload.get('page'),
+                    'caption': payload.get('content'),
+                    'width': payload.get('image_width'),
+                    'height': payload.get('image_height'),
+                    'format': payload.get('image_format'),
+                    'image_base64': payload.get('image_base64')  # Truncated
+                })
+            elif chunk_type == 'table':
+                tables.append({
+                    'page': payload.get('page'),
+                    'headers': payload.get('table_headers', []),
+                    'rows': payload.get('table_rows_data', []),
+                    'row_count': payload.get('table_rows'),
+                    'col_count': payload.get('table_cols')
+                })
+        
+        return {
+            "paper_id": paper_id,
+            "images": images,
+            "tables": tables,
+            "total_images": len(images),
+            "total_tables": len(tables)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve multi-modal content: {str(e)}")
 
 
 @app.delete("/papers/{paper_id}", response_model=dict)

@@ -93,7 +93,7 @@ export default function ReviewDisplay({ review }) {
 
     return (
         <Card className="border-2 shadow-md">
-            <CardHeader className="pb-4 bg-gradient-to-br from-gray-50 to-transparent border-b">
+            <CardHeader className="pb-4 bg-linear-to-br from-gray-50 to-transparent border-b">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div className="flex-1">
                         <CardTitle className="text-xl font-bold mb-2">{review.topic}</CardTitle>
@@ -165,7 +165,7 @@ export default function ReviewDisplay({ review }) {
                             <Section title="Thematic Analysis" icon={Lightbulb}>
                                 <div className="space-y-5">
                                     {content.thematic_analysis.map((theme, i) => (
-                                        <div key={i} className="border-l-4 border-primary/40 pl-4 py-2 bg-gradient-to-r from-primary/5 to-transparent rounded-r-lg">
+                                        <div key={i} className="border-l-4 border-primary/40 pl-4 py-2 bg-linear-to-r from-primary/5 to-transparent rounded-r-lg">
                                             <h4 className="font-semibold text-base mb-2 text-gray-800">{theme.theme_name}</h4>
                                             <p className="text-sm text-gray-600 leading-relaxed mb-3">
                                                 {theme.description}
@@ -204,7 +204,7 @@ export default function ReviewDisplay({ review }) {
 
                         {/* Source Coverage Note - Transparency about grounding */}
                         {content.source_coverage_note && (
-                            <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl">
+                            <div className="mt-6 p-4 bg-linear-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl">
                                 <div className="flex items-start gap-3">
                                     <div className="p-1.5 bg-amber-100 rounded-lg">
                                         <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
@@ -223,7 +223,7 @@ export default function ReviewDisplay({ review }) {
                     <TabsContent value="themes" className="space-y-4 max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pr-2">
                         {content.thematic_analysis?.map((theme, i) => (
                             <Card key={i} className="border-2 hover:shadow-md transition-shadow">
-                                <CardHeader className="pb-3 bg-gradient-to-br from-primary/5 to-transparent">
+                                <CardHeader className="pb-3 bg-linear-to-br from-primary/5 to-transparent">
                                     <CardTitle className="text-base flex items-start gap-2">
                                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                                             {i + 1}

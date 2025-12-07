@@ -87,7 +87,7 @@ export default function ReviewGenerator({ onReviewGenerated }) {
 
     return (
         <Card className="border-2 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3 bg-gradient-to-br from-pink-50 to-transparent">
+            <CardHeader className="pb-3 bg-linear-to-br from-pink-50 to-transparent">
                 <CardTitle className="text-base flex items-center gap-2">
                     <div className="p-1.5 bg-pink-100 rounded-lg">
                         <Sparkles className="h-4 w-4 text-pink-600" />
@@ -223,7 +223,7 @@ export default function ReviewGenerator({ onReviewGenerated }) {
 
                 {/* Generate Button */}
                 <Button
-                    className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium shadow-md hover:shadow-lg transition-all h-11"
+                    className="w-full bg-linear-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium shadow-md hover:shadow-lg transition-all h-11"
                     onClick={handleGenerate}
                     disabled={generateMutation.isPending || selectedPapers.length === 0 || !topic.trim()}
                 >

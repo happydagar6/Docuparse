@@ -159,10 +159,14 @@ class MetadataExtractor:
     
     def _get_first_pages_text(self, doc, num_pages: int = 3) -> str:
         """Extract text from first N pages"""
+        from workflow.utils import sanitize_text
+        
         text_parts = []
         for page_num in range(min(num_pages, len(doc))):
             page = doc[page_num]
-            text_parts.append(page.get_text())
+            page_text = page.get_text()
+            # Sanitize to remove null bytes and control characters
+            text_parts.append(sanitize_text(page_text))
         return '\n'.join(text_parts)
     
     def _extract_from_text(self, text: str) -> Dict:

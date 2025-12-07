@@ -34,6 +34,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormattedContent, FormattedSummary } from '@/components/ui/formatted-content';
 import { usePaperStore } from '@/lib/stores';
 import {
@@ -45,7 +46,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-
+import MultiModalContent from './MultiModalContent';
+import { Image as ImageIcon } from 'lucide-react';
 export function PaperReader({ paper, onBack }) {
   // Local state
   const [isLoading, setIsLoading] = useState(true);
@@ -444,70 +446,92 @@ export function PaperReader({ paper, onBack }) {
             ref={contentRef}
             className="w-full max-w-4xl mx-auto px-2 py-3 sm:px-4 sm:py-4 md:p-8 pb-8 md:pb-16"
           >
-            {/* Page indicator */}
-            <div className="mb-2 sm:mb-3 md:mb-4 text-center">
-              <span className="inline-flex items-center px-2 md:px-3 py-1 bg-primary/10 text-primary text-[10px] sm:text-xs md:text-sm rounded-full">
-                Page {optimisticPage} of {totalPages}
-              </span>
-            </div>
+            {/* Tabs for Paper Text and Multimodal Content */}
+            <Tabs defaultValue="text" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="text" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Paper Text
+                </TabsTrigger>
+                <TabsTrigger value="multimodal" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Images & Tables
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Page content */}
-            <motion.div
-              key={optimisticPage}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`prose prose-sm max-w-none ${getFontSizeClass()}`}
-            >
-              <div className="min-h-[300px] sm:min-h-[400px] md:min-h-[600px] p-2 sm:p-3 md:p-6 bg-white rounded-lg shadow-sm border overflow-x-hidden">
-                <div className="wrap-break-word overflow-wrap-anywhere">
-                  <FormattedContent content={currentPageData.content} />
+              {/* Paper Text Tab */}
+              <TabsContent value="text" className="space-y-4">
+                {/* Page indicator */}
+                <div className="mb-2 sm:mb-3 md:mb-4 text-center">
+                  <span className="inline-flex items-center px-2 md:px-3 py-1 bg-primary/10 text-primary text-[10px] sm:text-xs md:text-sm rounded-full">
+                    Page {optimisticPage} of {totalPages}
+                  </span>
                 </div>
-              </div>
-            </motion.div>
 
-            {/* Page navigation footer */}
-            <div className="mt-3 sm:mt-4 md:mt-8 flex justify-between items-center gap-1 sm:gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const prevPage = Math.max(1, currentPage - 1);
-                  startTransition(() => {
-                    setOptimisticPage(prevPage);
-                    goToPreviousPage();
-                  });
-                }}
-                disabled={currentPage <= 1}
-                className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
-              >
-                <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline sm:hidden">Prev</span>
-                <span className="hidden sm:inline">Previous</span>
-              </Button>
-              
-              <span className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
-                {optimisticPage} / {totalPages}
-              </span>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const nextPage = Math.min(totalPages, currentPage + 1);
-                  startTransition(() => {
-                    setOptimisticPage(nextPage);
-                    goToNextPage();
-                  });
-                }}
-                disabled={currentPage >= totalPages}
-                className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
-              >
-                <span className="hidden xs:inline sm:hidden">Next</span>
-                <span className="hidden sm:inline">Next</span>
-                <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-              </Button>
-            </div>
+                {/* Page content */}
+                <motion.div
+                  key={optimisticPage}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`prose prose-sm max-w-none ${getFontSizeClass()}`}
+                >
+                  <div className="min-h-[300px] sm:min-h-[400px] md:min-h-[600px] p-2 sm:p-3 md:p-6 bg-white rounded-lg shadow-sm border overflow-x-hidden">
+                    <div className="wrap-break-word overflow-wrap-anywhere">
+                      <FormattedContent content={currentPageData.content} />
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Page navigation footer */}
+                <div className="mt-3 sm:mt-4 md:mt-8 flex justify-between items-center gap-1 sm:gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const prevPage = Math.max(1, currentPage - 1);
+                      startTransition(() => {
+                        setOptimisticPage(prevPage);
+                        goToPreviousPage();
+                      });
+                    }}
+                    disabled={currentPage <= 1}
+                    className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline sm:hidden">Prev</span>
+                    <span className="hidden sm:inline">Previous</span>
+                  </Button>
+                  
+                  <span className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
+                    {optimisticPage} / {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const nextPage = Math.min(totalPages, currentPage + 1);
+                      startTransition(() => {
+                        setOptimisticPage(nextPage);
+                        goToNextPage();
+                      });
+                    }}
+                    disabled={currentPage >= totalPages}
+                    className="flex items-center gap-1 text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden xs:inline sm:hidden">Next</span>
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Multimodal Content Tab */}
+              <TabsContent value="multimodal" className="space-y-4">
+                <MultiModalContent paperId={paper.paper_id} />
+              </TabsContent>
+            </Tabs>
           </div>
         </SidebarInset>
         

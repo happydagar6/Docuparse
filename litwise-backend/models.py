@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, validator
-from typing import List, TypedDict, Optional, Dict, Any
-from fastapi import UploadFile
+from typing import List, Optional, Dict, Any, Literal
+from enum import Enum
 
 class AuthorInfo(BaseModel):
     """Author information structure"""
@@ -113,3 +113,49 @@ class SynthesisResponse(BaseModel):
     top_papers: List[TopPaper] = Field(default_factory=list, description="Most relevant papers")
     generated_at: str = Field(..., description="ISO timestamp of synthesis generation")
     
+    
+class ImageContent(BaseModel):
+    """Extracted image with metadata"""
+    page: int
+    image_index: int
+    width: int
+    height: int
+    format: str
+    caption: Optional[str] = None
+    image_base64: Optional[str] = None  # Only sent when needed
+    hash: str
+    size_kb: float
+
+class TableContent(BaseModel):
+    """Extracted table with metadata"""
+    page: int
+    table_index: int
+    headers: List[str]
+    rows: List[List[str]]
+    row_count: int
+    col_count: int
+    text_representation: str
+    hash: str
+    
+class MultiModalContent(BaseModel):
+    """Complete multi-modal extraction result"""
+    images: List[ImageContent] = Field(default_factory=list)
+    tables: List[TableContent] = Field(default_factory=list)
+    total_items: int = 0
+    
+class ChunkType(str, Enum):
+    """Type of content chunk"""
+    TEXT = "text"
+    IMAGE = "image"
+    TABLE = "table"
+    
+class MultiModalChunk(BaseModel):
+    """Unified chunk that can be text, image, or table"""
+    chunk_id: str
+    type: ChunkType
+    content: str  # Text content or caption
+    page: int
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    # Type-specific fields
+    image_data: Optional[ImageContent] = None
+    table_data: Optional[TableContent] = None

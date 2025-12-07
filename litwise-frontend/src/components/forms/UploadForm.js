@@ -265,7 +265,7 @@ export function UploadForm({ onUploadSuccess }) {
                   </p>
                   <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/40 max-w-md mx-auto">
                     <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
-                      <strong>Supported:</strong> PDF files up to 10MB
+                      <strong>Supported:</strong> PDF files up to 35MB
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[10px] sm:text-xs text-gray-500">
                       <div className="flex items-center gap-1">

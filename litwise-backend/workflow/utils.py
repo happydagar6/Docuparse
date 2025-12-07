@@ -14,6 +14,27 @@ model = OpenAIEmbeddings(model="text-embedding-3-small")
 # Also initialize direct OpenAI client for guaranteed batching
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+def sanitize_text(text: str) -> str:
+    """
+    Remove null bytes and other problematic Unicode characters that PostgreSQL doesn't accept.
+    
+    Args:
+        text: Raw text that may contain null bytes
+        
+    Returns:
+        Sanitized text safe for database storage
+    """
+    if not text:
+        return ""
+    
+    # Remove null bytes (U+0000)
+    text = text.replace('\x00', '')
+    
+    # Remove other control characters except newlines, tabs, and carriage returns
+    text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+    
+    return text
+
 def extract_text_from_pdf(file_path: str) -> tuple[str, list[dict]]:
     """
     Extract text from PDF with accurate page tracking.
@@ -23,32 +44,77 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, list[dict]]:
         - full_text: Complete document text
         - page_info_list: List of {"page_num": int, "start_pos": int, "end_pos": int, "text": str}
     """
-    with open(file_path, "rb") as f:
-        reader = PyPDF2.PdfReader(f)
-        full_text = ""
-        page_info = []
-        
-        print(f"📖 PDF contains {len(reader.pages)} pages")
-        
-        for page_num, page in enumerate(reader.pages, 1):
-            page_text = page.extract_text()
-            start_pos = len(full_text)
-            full_text += page_text + "\n"  # Add page break
-            end_pos = len(full_text) - 1  # Don't include the newline in range
+    try:
+        with open(file_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
             
-            page_info.append({
-                "page_num": page_num,
-                "start_pos": start_pos,
-                "end_pos": end_pos,
-                "text": page_text
-            })
+            # Check if PDF is encrypted
+            if reader.is_encrypted:
+                print("⚠️  PDF is encrypted, attempting to decrypt...")
+                try:
+                    # Try to decrypt with empty password (common for PDFs with restrictions but no password)
+                    reader.decrypt('')
+                except Exception as decrypt_error:
+                    raise Exception(f"PDF is encrypted and cannot be decrypted. Please use an unencrypted PDF. Error: {decrypt_error}")
             
-            if page_num <= 3 or page_num > len(reader.pages) - 3:  # Debug first/last few pages
-                print(f"📄 Page {page_num}: pos {start_pos}-{end_pos} ({len(page_text)} chars)")
-        
-        print(f"✅ PDF extraction complete: {len(page_info)} pages, {len(full_text)} total chars")
-        return full_text, page_info
+            full_text = ""
+            page_info = []
+            
+            print(f"📖 PDF contains {len(reader.pages)} pages")
+            
+            for page_num, page in enumerate(reader.pages, 1):
+                page_text = page.extract_text()
+                # Sanitize text to remove null bytes and control characters
+                page_text = sanitize_text(page_text)
+                
+                start_pos = len(full_text)
+                full_text += page_text + "\n"  # Add page break
+                end_pos = len(full_text) - 1  # Don't include the newline in range
+                
+                page_info.append({
+                    "page_num": page_num,
+                    "start_pos": start_pos,
+                    "end_pos": end_pos,
+                    "text": page_text
+                })
+                
+                if page_num <= 3 or page_num > len(reader.pages) - 3:  # Debug first/last few pages
+                    print(f"📄 Page {page_num}: pos {start_pos}-{end_pos} ({len(page_text)} chars)")
+            
+            print(f"✅ PDF extraction complete: {len(page_info)} pages, {len(full_text)} total chars")
+            return full_text, page_info
     
+    except Exception as e:
+        print(f"❌ PDF extraction failed: {e}")
+        raise
+    
+
+def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
+    """
+    Extract text AND multi-modal content from PDF
+    
+    Returns:
+        tuple: (full_text, page_info_list, multimodal_content)
+        - full_text: Complete document text
+        - page_info_list: List of page information
+        - multimodal_content: Dict with 'images' and 'tables'
+    """
+    print(f"🚀 Starting full multi-modal extraction from: {file_path}")
+    
+    # Exrtact text (existing function)
+    full_text, page_info = extract_text_from_pdf(file_path)
+    
+    # Extact multi-modal content
+    from workflow.multimodal_extractor import multimodal_extractor
+    multimodal_content = multimodal_extractor.extract_all(file_path)
+    
+    print(f"✅ Multi-modal extraction complete")
+    print(f"   Text: {len(full_text)} chars")
+    print(f"   Images: {len(multimodal_content['images'])}")
+    print(f"   Tables: {len(multimodal_content['tables'])}")
+    
+    return full_text, page_info, multimodal_content
+
 
 def calculate_semantic_similarity(text1: str, text2: str) -> float:
     """
@@ -510,3 +576,210 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
         except Exception as e:
             print(f"Warning: Failed to build BM25 index: {e}")
             # Don't fail the entire operation if BM25 indexing fails
+
+
+def store_multimodal_embeddings(
+    text: str,
+    multimodal_content: dict,
+    metadata: dict,
+    paper_id: str,
+    page_info: list[dict]
+):
+    """
+    Store text + image + table embeddings in Qdrant
+    Uses same collection with 'type' field to distinguish content types
+    
+    Args:
+        text: Full document text
+        multimodal_content: Dict with 'images' and 'tables'
+        metadata: Base metadata
+        paper_id: Paper ID
+        page_info: Page information
+    """
+    print(f"🎯 [MULTIMODAL STORE] Starting for paper: {paper_id}")
+    
+    from workflow.db import qdrant
+    from workflow.vision_service import vision_service
+    from workflow.enhanced_search import enhanced_search
+    from qdrant_client.http.models import PointStruct
+    
+    # Step 1: Store TEXT embeddings (existing logic)
+    print("📝 Step 1: Storing text embeddings...")
+    chunks_with_positions = chunk_text(text, chunk_size=1000, chunk_overlap=250)
+    chunk_texts = [chunk[0] for chunk in chunks_with_positions]
+    deduplicated_texts = deduplicate_chunks(chunk_texts)
+    
+    # Filter to keep only deduplicated
+    deduplicated_chunks_with_positions = []
+    for dedup_text in deduplicated_texts:
+        for original_chunk, start_pos, end_pos in chunks_with_positions:
+            if original_chunk == dedup_text:
+                deduplicated_chunks_with_positions.append((original_chunk, start_pos, end_pos))
+                break
+    
+    valid_chunks = [(c, s, e) for c, s, e in deduplicated_chunks_with_positions if c.strip()]
+    chunk_texts = [c for c, _, _ in valid_chunks]
+    
+    # Generate text embeddings in batch
+    print(f"🔄 Generating embeddings for {len(chunk_texts)} text chunks...")
+    text_embeddings = generate_embeddings_batch(chunk_texts, batch_size=100)
+    
+    points = []
+    documents_for_bm25 = []
+    
+    # Create text points
+    for i, ((chunk, start_pos, end_pos), vector) in enumerate(zip(valid_chunks, text_embeddings)):
+        actual_page = find_chunk_page(start_pos, end_pos, page_info) if page_info else 1
+        
+        chunk_metadata = metadata.copy()
+        chunk_metadata.update({
+            "content": chunk,
+            "chunk_id": f"text_{i}",
+            "type": "text",  # IMPORTANT: Mark as text
+            "page": actual_page,
+            "paper_id": paper_id,
+            "start_position": start_pos,
+            "end_position": end_pos
+        })
+        
+        points.append(PointStruct(
+            id=str(uuid.uuid4()),
+            vector=vector,
+            payload=chunk_metadata
+        ))
+        
+        documents_for_bm25.append({
+            'content': chunk,
+            'metadata': chunk_metadata,
+            'chunk_id': f"text_{i}",
+            'page': actual_page
+        })
+    
+    print(f"✅ Prepared {len(points)} text chunks")
+    
+    # Step 2: Process IMAGES with Vision API
+    images = multimodal_content.get('images', [])
+    if images:
+        print(f"🖼️  Step 2: Processing {len(images)} images...")
+        
+        # Generate captions using GPT-4 Vision
+        captioned_images = vision_service.caption_batch(images)
+        
+        # Generate embeddings for image captions
+        image_captions = [img['caption'] for img in captioned_images]
+        print(f"🔄 Generating embeddings for {len(image_captions)} image captions...")
+        image_embeddings = generate_embeddings_batch(image_captions, batch_size=50)
+        
+        # Create image points
+        for i, (img, vector) in enumerate(zip(captioned_images, image_embeddings)):
+            chunk_metadata = metadata.copy()
+            chunk_metadata.update({
+                "content": img['caption'],
+                "chunk_id": f"image_{i}",
+                "type": "image",  # IMPORTANT: Mark as image
+                "page": img['page'],
+                "paper_id": paper_id,
+                "image_hash": img['hash'],
+                "image_width": img['width'],
+                "image_height": img['height'],
+                "image_format": img['format'],
+                # Store base64 for retrieval (can be large!)
+                "image_base64": img['image_base64'][:5000]  # Store truncated for size
+            })
+            
+            points.append(PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload=chunk_metadata
+            ))
+            
+            documents_for_bm25.append({
+                'content': img['caption'],
+                'metadata': chunk_metadata,
+                'chunk_id': f"image_{i}",
+                'page': img['page']
+            })
+        
+        print(f"✅ Prepared {len(captioned_images)} image chunks")
+    
+    # Step 3: Process TABLES
+    tables = multimodal_content.get('tables', [])
+    if tables:
+        print(f"📊 Step 3: Processing {len(tables)} tables...")
+        
+        # Generate embeddings for table text representations
+        table_texts = [t['text_representation'] for t in tables]
+        print(f"🔄 Generating embeddings for {len(table_texts)} tables...")
+        table_embeddings = generate_embeddings_batch(table_texts, batch_size=50)
+        
+        # Create table points
+        for i, (table, vector) in enumerate(zip(tables, table_embeddings)):
+            chunk_metadata = metadata.copy()
+            chunk_metadata.update({
+                "content": table['text_representation'],
+                "chunk_id": f"table_{i}",
+                "type": "table",  # IMPORTANT: Mark as table
+                "page": table['page'],
+                "paper_id": paper_id,
+                "table_hash": table['hash'],
+                "table_rows": table['row_count'],
+                "table_cols": table['col_count'],
+                # Store structured data
+                "table_headers": table['headers'],
+                "table_rows_data": table['rows'][:20]  # Limit stored rows
+            })
+            
+            points.append(PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload=chunk_metadata
+            ))
+            
+            documents_for_bm25.append({
+                'content': table['text_representation'],
+                'metadata': chunk_metadata,
+                'chunk_id': f"table_{i}",
+                'page': table['page']
+            })
+        
+        print(f"✅ Prepared {len(tables)} table chunks")
+    
+    # Step 4: Upsert all points to Qdrant in batches to avoid timeout
+    print(f"💾 Step 4: Storing {len(points)} total chunks (text + images + tables) to Qdrant...")
+    
+    try:
+        # Use batching for large uploads to avoid timeout
+        batch_size = 50
+        total_points = len(points)
+        
+        for i in range(0, total_points, batch_size):
+            batch = points[i:i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (total_points + batch_size - 1) // batch_size
+            
+            print(f"   Uploading batch {batch_num}/{total_batches} ({len(batch)} points)...")
+            
+            qdrant.upsert(
+                collection_name="litwise_collection",
+                points=batch,
+                wait=True  # Wait for operation to complete
+            )
+        
+        print(f"✅ Successfully stored all multi-modal embeddings")
+    except Exception as e:
+        print(f"❌ Failed to store embeddings: {e}")
+        raise
+    
+    # Step 5: Build BM25 index
+    if documents_for_bm25:
+        try:
+            print(f"📚 Step 5: Building BM25 index for {len(documents_for_bm25)} documents...")
+            enhanced_search.build_bm25_index(paper_id, documents_for_bm25)
+            print(f"✅ BM25 index built successfully")
+        except Exception as e:
+            print(f"⚠️  BM25 indexing failed: {e}")
+    
+    print(f"🎉 Multi-modal embedding storage complete!")
+    print(f"   Text chunks: {len([p for p in points if p.payload.get('type') == 'text'])}")
+    print(f"   Image chunks: {len([p for p in points if p.payload.get('type') == 'image'])}")
+    print(f"   Table chunks: {len([p for p in points if p.payload.get('type') == 'table'])}")

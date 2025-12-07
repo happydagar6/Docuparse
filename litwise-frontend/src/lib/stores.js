@@ -82,104 +82,80 @@ export const usePaperStore = create(
       
       // UI state
       showSidebar: true,
-      highlightedSections: new Set(),
-      activeSection: null,
+      showHighlights: false,
+      fontSize: 'medium', // 'small', 'medium', 'large'
       
       // Pagination state
       currentPage: 1,
       totalPages: 0,
-      pagesPerView: 1, // pages to show at once
-      pageContent: [], // array of page content
+      pageContent: [], // Array of {pageNumber, content, startPos, endPos}
       pageError: null,
-      
-      // Reader settings
-      fontSize: 'medium', // 'small', 'medium', 'large'
-      theme: 'light', // 'light', 'dark'
       
       // Actions
       setCurrentPaper: (paper) => 
-        set({ currentPaper: paper }),
-
-      toggleSidebar: () => 
-        set((state) => ({ showSidebar: !state.showSidebar })),
-
-      highlightSection: (sectionId) => 
-        set((state) => ({
-          highlightedSections: new Set([...state.highlightedSections, sectionId])
-        })),
-
-      unhighlightSection: (sectionId) => 
-        set((state) => {
-          const newHighlights = new Set(state.highlightedSections);
-          newHighlights.delete(sectionId);
-          return { highlightedSections: newHighlights };
+        set({ 
+          currentPaper: paper,
+          currentPage: 1
         }),
 
-      setActiveSection: (sectionId) => 
-        set({ activeSection: sectionId }),
+      toggleSidebar: () => 
+        set((state) => ({ 
+          showSidebar: !state.showSidebar 
+        })),
+
+      toggleHighlights: () => 
+        set((state) => ({ 
+          showHighlights: !state.showHighlights 
+        })),
 
       setFontSize: (size) => 
         set({ fontSize: size }),
 
-      setTheme: (theme) => 
-        set({ theme }),
-
-      clearHighlights: () => 
-        set({ highlightedSections: new Set() }),
-
       // Pagination actions
-      setCurrentPage: (pageNumber) => {
-        const state = get();
-        const validPage = Math.max(1, Math.min(pageNumber, state.totalPages));
+      goToPage: (pageNumber) => {
+        const { totalPages } = get();
+        const validPage = Math.max(1, Math.min(pageNumber, totalPages));
         set({ currentPage: validPage });
+        return validPage;
       },
 
       goToNextPage: () => {
-        const state = get();
-        if (state.currentPage < state.totalPages) {
-          set({ currentPage: state.currentPage + 1 });
-        }
+        const { currentPage, totalPages } = get();
+        const nextPage = Math.min(currentPage + 1, totalPages);
+        set({ currentPage: nextPage });
+        return nextPage;
       },
 
       goToPreviousPage: () => {
-        const state = get();
-        if (state.currentPage > 1) {
-          set({ currentPage: state.currentPage - 1 });
-        }
+        const { currentPage } = get();
+        const prevPage = Math.max(currentPage - 1, 1);
+        set({ currentPage: prevPage });
+        return prevPage;
       },
 
-      initializePagination: (content, pageInfo = null) => {
+      initializePagination: (content) => {
         try {
-          let pageContent = [];
-          let totalPages = 1;
-
-          if (pageInfo && Array.isArray(pageInfo) && pageInfo.length > 0) {
-            // Use page info from PDF extraction
-            pageContent = pageInfo.map((page, index) => ({
-              pageNumber: index + 1,
-              content: page.text || '',
-              startPos: page.start_pos || 0,
-              endPos: page.end_pos || 0
-            }));
-            totalPages = pageContent.length;
-          } else if (content) {
-            // Fallback: split content into estimated pages (every 2000 characters)
-            const charsPerPage = 2000;
-            const totalChars = content.length;
-            totalPages = Math.ceil(totalChars / charsPerPage);
-            
-            for (let i = 0; i < totalPages; i++) {
-              const start = i * charsPerPage;
-              const end = Math.min((i + 1) * charsPerPage, totalChars);
-              pageContent.push({
-                pageNumber: i + 1,
-                content: content.slice(start, end),
-                startPos: start,
-                endPos: end
-              });
-            }
+          if (!content || typeof content !== 'string') {
+            throw new Error('Invalid content for pagination');
           }
 
+          // Create pagination based on content chunks
+          const CHARS_PER_PAGE = 3000; // ~1 page of academic text
+          const totalChars = content.length;
+          const totalPages = Math.max(1, Math.ceil(totalChars / CHARS_PER_PAGE));
+          
+          const pageContent = [];
+          for (let i = 0; i < totalPages; i++) {
+            const startPos = i * CHARS_PER_PAGE;
+            const endPos = Math.min(startPos + CHARS_PER_PAGE, totalChars);
+            pageContent.push({
+              pageNumber: i + 1,
+              content: content.slice(startPos, endPos),
+              startPos,
+              endPos
+            });
+          }
+          
           set({ 
             pageContent, 
             totalPages, 
@@ -318,7 +294,7 @@ export const useUIStore = create(
         set((state) => ({
           notifications: [...state.notifications, {
             id: Date.now(),
-            type: 'info', // 'success', 'error', 'warning', 'info'
+            timestamp: new Date(),
             ...notification
           }]
         })),
@@ -328,17 +304,165 @@ export const useUIStore = create(
           notifications: state.notifications.filter(n => n.id !== id)
         })),
 
-      setGlobalLoading: (isLoading, message = '') => 
+      clearNotifications: () => 
+        set({ notifications: [] }),
+
+      setLoading: (isLoading, message = '') => 
         set({ isLoading, loadingMessage: message }),
 
       setIsMobile: (isMobile) => 
         set({ isMobile }),
-
-      clearNotifications: () => 
-        set({ notifications: [] }),
     }),
     {
       name: 'ui-store',
+    }
+  )
+);
+
+/**
+ * Multi-Modal Content Store
+ * Manages images and tables for papers
+ */
+export const useMultiModalStore = create(
+  devtools(
+    (set, get) => ({
+      // Content cache: { paperId: { images: [], tables: [], ... } }
+      contentCache: new Map(),
+      
+      // Loading states: { paperId: boolean }
+      loadingStates: new Map(),
+      
+      // Error states: { paperId: string }
+      errorStates: new Map(),
+      
+      // UI state
+      selectedImage: null, // Currently viewed image
+      selectedTable: null, // Currently viewed table
+      zoomLevel: 1.0,
+      
+      // Actions
+      
+      /**
+       * Set multimodal content for a paper (caches it)
+       */
+      setContent: (paperId, content) => {
+        const cache = new Map(get().contentCache);
+        cache.set(paperId, {
+          images: content.images || [],
+          tables: content.tables || [],
+          total_images: content.total_images || 0,
+          total_tables: content.total_tables || 0,
+          loadedAt: Date.now(),
+        });
+        set({ contentCache: cache });
+      },
+      
+      /**
+       * Get cached content for a paper
+       */
+      getContent: (paperId) => {
+        return get().contentCache.get(paperId) || null;
+      },
+      
+      /**
+       * Check if content is cached
+       */
+      isCached: (paperId) => {
+        return get().contentCache.has(paperId);
+      },
+      
+      /**
+       * Set loading state
+       */
+      setLoading: (paperId, isLoading) => {
+        const states = new Map(get().loadingStates);
+        states.set(paperId, isLoading);
+        set({ loadingStates: states });
+      },
+      
+      /**
+       * Get loading state
+       */
+      isLoading: (paperId) => {
+        return get().loadingStates.get(paperId) || false;
+      },
+      
+      /**
+       * Set error state
+       */
+      setError: (paperId, error) => {
+        const states = new Map(get().errorStates);
+        if (error) {
+          states.set(paperId, error);
+        } else {
+          states.delete(paperId);
+        }
+        set({ errorStates: states });
+      },
+      
+      /**
+       * Get error state
+       */
+      getError: (paperId) => {
+        return get().errorStates.get(paperId) || null;
+      },
+      
+      /**
+       * Select an image for viewing
+       */
+      selectImage: (image) => set({ selectedImage: image, selectedTable: null }),
+      
+      /**
+       * Select a table for viewing
+       */
+      selectTable: (table) => set({ selectedTable: table, selectedImage: null }),
+      
+      /**
+       * Close selected content
+       */
+      closeSelected: () => set({ selectedImage: null, selectedTable: null }),
+      
+      /**
+       * Set zoom level
+       */
+      setZoomLevel: (level) => set({ zoomLevel: Math.max(0.5, Math.min(3.0, level)) }),
+      
+      /**
+       * Reset zoom
+       */
+      resetZoom: () => set({ zoomLevel: 1.0 }),
+      
+      /**
+       * Clear cache for a paper
+       */
+      clearCache: (paperId) => {
+        const cache = new Map(get().contentCache);
+        cache.delete(paperId);
+        const loading = new Map(get().loadingStates);
+        loading.delete(paperId);
+        const errors = new Map(get().errorStates);
+        errors.delete(paperId);
+        set({ 
+          contentCache: cache, 
+          loadingStates: loading, 
+          errorStates: errors 
+        });
+      },
+      
+      /**
+       * Clear all caches
+       */
+      clearAllCaches: () => set({ 
+        contentCache: new Map(), 
+        loadingStates: new Map(), 
+        errorStates: new Map(),
+        selectedImage: null,
+        selectedTable: null,
+        zoomLevel: 1.0,
+      }),
+    }),
+    {
+      name: 'multimodal-store',
     }
   )
 );

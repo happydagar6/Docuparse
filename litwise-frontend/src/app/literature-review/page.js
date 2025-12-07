@@ -83,7 +83,7 @@ export default function LiteratureReviewPage() {
 
                     {/* History */}
                     <Card className="border-2 shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader className="pb-3 bg-gradient-to-br from-gray-50 to-transparent">
+                        <CardHeader className="pb-3 bg-linear-to-br from-gray-50 to-transparent">
                             <CardTitle className="text-base flex items-center gap-2">
                                 <div className="p-1.5 bg-blue-100 rounded-lg">
                                     <Clock className="h-4 w-4 text-blue-600" />
@@ -154,9 +154,9 @@ export default function LiteratureReviewPage() {
                     {currentReview ? (
                         <ReviewDisplay review={currentReview} />
                     ) : (
-                        <Card className="h-full min-h-[600px] flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-transparent">
+                        <Card className="h-full min-h-[600px] flex items-center justify-center border-2 border-dashed border-gray-300 bg-linear-to-br from-gray-50 to-transparent">
                             <div className="text-center space-y-4 p-8">
-                                <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl inline-block">
+                                <div className="p-4 bg-linear-to-br from-blue-50 to-purple-50 rounded-2xl inline-block">
                                     <BookOpen className="h-12 w-12 mx-auto text-blue-600" />
                                 </div>
                                 <div>
