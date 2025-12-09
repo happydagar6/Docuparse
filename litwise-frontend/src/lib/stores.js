@@ -466,3 +466,101 @@ export const useMultiModalStore = create(
     }
   )
 );
+
+
+
+
+/**
+ * Citation Store
+ * 
+ * Manages citation extraction and display state
+ */
+export const useCitationStore = create(
+  devtools(
+    (set, get) => ({
+      // Citation data
+      citations: {}, // { paperId: [citations] }
+      citationStats: {}, // { paperId: stats }
+      
+      // UI state
+      isExtracting: false,
+      extractionProgress: 0,
+      extractionError: null,
+      selectedCitations: [],
+      filterType: 'all', // 'all', 'background', 'method', 'comparison', 'data'
+      sortBy: 'importance', // 'importance', 'year', 'mentions'
+      
+      // Actions
+      setCitations: (paperId, citations) =>
+        set((state) => ({
+          citations: {
+            ...state.citations,
+            [paperId]: citations
+          }
+        })),
+      
+      setCitationStats: (paperId, stats) =>
+        set((state) => ({
+          citationStats: {
+            ...state.citationStats,
+            [paperId]: stats
+          }
+        })),
+      
+      startExtraction: () =>
+        set({
+          isExtracting: true,
+          extractionProgress: 0,
+          extractionError: null
+        }),
+      
+      finishExtraction: () =>
+        set({
+          isExtracting: false,
+          extractionProgress: 100,
+          extractionError: null
+        }),
+      
+      failExtraction: (error) =>
+        set({
+          isExtracting: false,
+          extractionError: error.message || 'Extraction failed'
+        }),
+      
+      toggleCitationSelection: (citationId) =>
+        set((state) => {
+          const selected = state.selectedCitations.includes(citationId)
+            ? state.selectedCitations.filter(id => id !== citationId)
+            : [...state.selectedCitations, citationId];
+          return { selectedCitations: selected };
+        }),
+      
+      selectAllCitations: (citationIds) =>
+        set({ selectedCitations: citationIds }),
+      
+      clearSelection: () =>
+        set({ selectedCitations: [] }),
+      
+      setFilterType: (type) =>
+        set({ filterType: type }),
+      
+      setSortBy: (sortBy) =>
+        set({ sortBy }),
+      
+      resetCitationStore: () =>
+        set({
+          citations: {},
+          citationStats: {},
+          isExtracting: false,
+          extractionProgress: 0,
+          extractionError: null,
+          selectedCitations: [],
+          filterType: 'all',
+          sortBy: 'importance'
+        })
+    }),
+    {
+      name: 'citation-store'
+    }
+  )
+);

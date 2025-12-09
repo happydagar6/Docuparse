@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
 
@@ -40,6 +40,14 @@ class SearchFilters(BaseModel):
     year_to: Optional[int] = Field(None, ge=1900, le=2100, description="Filter by publication year (to)")
     keywords: Optional[List[str]] = Field(default_factory=list, description="Filter by keywords")
     paper_ids: Optional[List[str]] = Field(default_factory=list, description="Filter by specific paper IDs")
+    
+    # Phase 1.1: Content filters
+    has_images: Optional[bool] = Field(None, description="Filter papers with extracted images")
+    has_tables: Optional[bool] = Field(None, description="Filter papers with extracted tables")
+    has_equations: Optional[bool] = Field(None, description="Filter papers with equations/formulas")
+    
+    # Phase 1.2: Venue filter
+    venue: Optional[str] = Field(None, description="Filter by conference or journal name")
 
     @validator('year_to')
     def validate_year_range(cls, v, values):
@@ -49,10 +57,21 @@ class SearchFilters(BaseModel):
         return v
     
 class SearchQuery(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)  # Accept both snake_case and camelCase
+    
     query: str = Field(..., min_length=1, description="Search query text")
     limit: int = Field(default=10, ge=1, le=100, description="Maximum number of results")
     debug: Optional[bool] = Field(default=False, description="Enable debug mode for diagnostics")
     filters: Optional[SearchFilters] = Field(None, description="Advanced search filters")
+    use_nl_parsing: Optional[bool] = Field(default=True, description="Enable natural language query parsing")
+
+class ParsedQueryInfo(BaseModel):
+    """Information about parsed natural language query"""
+    original_query: str = Field(..., description="Original user query")
+    semantic_query: str = Field(..., description="Cleaned query for semantic search")
+    parsed_filters: SearchFilters = Field(..., description="Extracted filters")
+    parsed_elements: List[str] = Field(default_factory=list, description="Human-readable parsed elements")
+    confidence: float = Field(..., ge=0, le=1, description="Parsing confidence (0-1)")
 
 class ProcessingRequest(BaseModel):
     paper_id: str = Field(..., description="ID of the paper to process")

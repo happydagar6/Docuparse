@@ -334,6 +334,155 @@ export function validatePDFFile(file){
 };
 
 
+
+/**
+ * ==========================================
+ * ENHANCED CITATION MANAGER API
+ * ==========================================
+ */
+
+/**
+ * Extract citations from a paper
+ * @param {string} paperId - Paper ID
+ * @param {boolean} useAiEnrichment - Whether to use AI for enrichment
+ */ 
+
+export async function extractCitations(paperId, useAiEnrichment = true){
+    return apiRequest("/api/citations/extract", {
+        method: "POST",
+        body: JSON.stringify({
+            paper_id: paperId,
+            use_ai_enrichment: useAiEnrichment
+        })
+    });
+}
+
+
+/**
+* Get extracted citations for a paper
+* @param {string} paperId - Paper ID
+*/
+
+export async function getPaperCitations(paperId){
+    return apiRequest(`/api/citations/paper/${paperId}`);
+}
+
+
+/**
+ * Get citation statistics for a paper
+ * @param {string} paperId - Paper ID
+ */
+export async function getCitationStats(paperId) {
+  return apiRequest(`/api/citations/stats/${paperId}`);
+}
+
+
+/**
+ * Generate citation in specific format
+ * @param {string} paperId - Paper ID
+ * @param {string} format - Citation format (apa, ieee, bibtex, etc.)
+ */
+
+export async function generateCitation(paperId, format = "apa"){
+    return apiRequest("/api/citations/generate", {
+        method: "POST",
+        body: JSON.stringify({
+            paper_id: paperId,
+            format: format
+        })
+    });
+}
+
+
+
+/**
+ * Generate batch citations
+ * @param {array} paperIds - Array of paper IDs
+ * @param {string} format - Citation format
+ */
+export async function generateBatchCitations(paperIds, format = 'apa') {
+  return apiRequest('/api/citations/batch', {
+    method: 'POST',
+    body: JSON.stringify({
+      paper_ids: paperIds,
+      format: format
+    })
+  });
+}
+
+
+/**
+ * Export citations as BibTeX
+ * @param {array} paperIds - Array of paper IDs
+ */
+
+export async function exportBibTeX(paperIds) {
+    const url = `${API_BASE_URL}/api/citations/export/bibtex`;
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            paper_ids: paperIds,
+            format: "bibtex"
+        })
+    });
+
+    if(!response.ok){
+        throw new Error(`Error exporting BibTeX: ${response.statusText}`);
+    }
+    return response.text();
+}
+
+
+/**
+ * Delete all citations for a paper
+ * @param {string} paperId - Paper ID
+ */
+export async function deletePaperCitations(paperId) {
+  return apiRequest(`/api/citations/paper/${paperId}/citations`, {
+    method: 'DELETE'
+  });
+}
+
+/**
+ * Get available citation formats
+ */
+export async function getCitationFormats() {
+  return apiRequest('/api/citations/formats');
+}
+
+/**
+ * Verify a citation (mark as trusted)
+ * @param {string} citationId - Citation ID
+ */
+export async function verifyCitation(citationId) {
+  return apiRequest(`/api/citations/${citationId}/verify`, {
+    method: 'PATCH'
+  });
+}
+
+/**
+ * Unverify a citation (remove trust mark)
+ * @param {string} citationId - Citation ID
+ */
+export async function unverifyCitation(citationId) {
+  return apiRequest(`/api/citations/${citationId}/unverify`, {
+    method: 'PATCH'
+  });
+}
+
+/**
+ * Get verified citations for a paper
+ * @param {string} paperId - Paper ID
+ */
+export async function getVerifiedCitations(paperId) {
+  return apiRequest(`/api/citations/verified/${paperId}`);
+}
+
+
 // Export API configuration for use in other files
 export const API_CONFIG = {
     BASE_URL: API_BASE_URL,
@@ -342,5 +491,9 @@ export const API_CONFIG = {
         SEARCH: '/search',
         PAPERS: '/papers',
         DIAGNOSTICS: '/qdrant/diagnostics',
+        SYNTHESIS: '/synthesis',
+        CITATIONS: '/api/citations',
     },
 };
+
+

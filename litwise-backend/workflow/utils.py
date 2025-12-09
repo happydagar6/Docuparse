@@ -290,7 +290,7 @@ def find_chunk_page(chunk_start_pos: int, chunk_end_pos: int, page_info: list[di
     
     return closest_page
 
-def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 250) -> list[tuple[str, int, int]]:
+def chunk_text(text: str, chunk_size: int = 1800, chunk_overlap: int = 350) -> list[tuple[str, int, int]]:
     """
     Split text into chunks with position tracking.
     
@@ -386,7 +386,7 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
             # If collection doesn't exist, that's fine - we'll create it
     
     # Chunk the text with position tracking
-    chunks_with_positions = chunk_text(text, chunk_size=1000, chunk_overlap=250)
+    chunks_with_positions = chunk_text(text, chunk_size=1800, chunk_overlap=350)
     print(f"Created {len(chunks_with_positions)} chunks for paper: {paper_id}")
     
     try:
@@ -668,7 +668,7 @@ def store_multimodal_embeddings(
         # Generate embeddings for image captions
         image_captions = [img['caption'] for img in captioned_images]
         print(f"🔄 Generating embeddings for {len(image_captions)} image captions...")
-        image_embeddings = generate_embeddings_batch(image_captions, batch_size=50)
+        image_embeddings = generate_embeddings_batch(image_captions, batch_size=100)
         
         # Create image points
         for i, (img, vector) in enumerate(zip(captioned_images, image_embeddings)):
@@ -710,7 +710,7 @@ def store_multimodal_embeddings(
         # Generate embeddings for table text representations
         table_texts = [t['text_representation'] for t in tables]
         print(f"🔄 Generating embeddings for {len(table_texts)} tables...")
-        table_embeddings = generate_embeddings_batch(table_texts, batch_size=50)
+        table_embeddings = generate_embeddings_batch(table_texts, batch_size=100)
         
         # Create table points
         for i, (table, vector) in enumerate(zip(tables, table_embeddings)):
@@ -749,7 +749,7 @@ def store_multimodal_embeddings(
     
     try:
         # Use batching for large uploads to avoid timeout
-        batch_size = 50
+        batch_size = 150
         total_points = len(points)
         
         for i in range(0, total_points, batch_size):
@@ -762,7 +762,7 @@ def store_multimodal_embeddings(
             qdrant.upsert(
                 collection_name="litwise_collection",
                 points=batch,
-                wait=True  # Wait for operation to complete
+                wait=False  # Don't wait - let Qdrant index asynchronously
             )
         
         print(f"✅ Successfully stored all multi-modal embeddings")

@@ -19,7 +19,7 @@ export async function getMultiModalContent(paperId) {
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/papers/${paperId}/multimodal`,
+      `${API_BASE_URL}/papers/${paperId}/multimodal`,
       {
         method: "GET",
         headers: {

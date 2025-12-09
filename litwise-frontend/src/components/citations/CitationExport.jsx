@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { batchCitations, exportBibtex } from "@/app/api/citations";
+import { generateBatchCitations, exportBibTeX } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { FileText } from "lucide-react";
@@ -27,7 +27,7 @@ export default function CitationExport({ paperIds, trigger }) {
     const [citations, setCitations] = useState([]);
 
     const batchMutation = useMutation({
-        mutationFn: () => batchCitations(paperIds, format),
+        mutationFn: () => generateBatchCitations(paperIds, format),
         onSuccess: (data) => {
             setCitations(data.citations);
             toast.success(`Generated ${data.citations.length} citations`);
@@ -36,7 +36,7 @@ export default function CitationExport({ paperIds, trigger }) {
     });
 
     const bibtexMutation = useMutation({
-        mutationFn: () => exportBibtex(paperIds),
+        mutationFn: () => exportBibTeX(paperIds),
         onSuccess: (data) => {
             const blob = new Blob([data], { type: "text/plain" });
             const url = URL.createObjectURL(blob);

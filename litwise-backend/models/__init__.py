@@ -3,7 +3,8 @@
 # Import paper models
 from .paper import (
     PaperUpload, 
-    PaperSummary, 
+    PaperSummary,
+    SearchFilters,
     SearchQuery, 
     ProcessingRequest, 
     ProcessingResponse,
@@ -25,7 +26,8 @@ from .chat import ChatMessage, ChatSession, ChatRequest, ChatResponse, Streaming
 # Export all models
 __all__ = [
     'PaperUpload', 
-    'PaperSummary', 
+    'PaperSummary',
+    'SearchFilters',
     'SearchQuery', 
     'ProcessingRequest', 
     'ProcessingResponse',

@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useCallback, useMemo, memo } from 'react';
+import { useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getMultiModalContent } from '@/lib/multimodal-api';
-import { useMultiModalStore } from '@/lib/stores';
 import { ImageContent } from './ImageContent';
 import { TableContent } from './TableContent';
 import { Badge } from '@/components/ui/badge';
@@ -60,8 +59,6 @@ EmptyState.displayName = 'EmptyState';
  * Fetches and displays images and tables from backend
  */
 export default function MultiModalContent({ paperId }) {
-  const store = useMultiModalStore();
-
   // Use React Query for data fetching with caching
   const { 
     data, 
@@ -78,21 +75,6 @@ export default function MultiModalContent({ paperId }) {
     retry: 2,
     refetchOnWindowFocus: false,
   });
-
-  // Sync React Query data with Zustand store for global access
-  useEffect(() => {
-    if (data && paperId) {
-      store.setContent(paperId, data);
-      store.setError(paperId, null);
-    }
-  }, [data, paperId, store]);
-
-  // Sync error state
-  useEffect(() => {
-    if (error && paperId) {
-      store.setError(paperId, error.message);
-    }
-  }, [error, paperId, store]);
 
   // Memoize content arrays
   const images = useMemo(() => data?.images || [], [data?.images]);

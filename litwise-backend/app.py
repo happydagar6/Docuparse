@@ -40,6 +40,20 @@ app = FastAPI(
     max_request_size=40 * 1024 * 1024
 )
 
+# CORS configuration - MUST be added before routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Next.js dev server
+        "http://127.0.0.1:3000",  # Alternative localhost
+        "https://localhost:3000",  # HTTPS variant
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 
 @app.get("/health")
 def health_check():
@@ -69,21 +83,6 @@ async def root():
 def options_handler():
     """Handle CORS preflight requests."""
     return {"message": "OK"}
-
-
-# CORS configuration - more permissive for development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev server
-        "http://127.0.0.1:3000",  # Alternative localhost
-        "https://localhost:3000",  # HTTPS variant
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
 
 
 @app.post("/upload", response_model=dict)
@@ -153,6 +152,10 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             "keywords": paper_metadata.get("keywords", []),
             "journal_or_conference": paper_metadata.get("journal_or_conference"),
             "abstract": paper_metadata.get("abstract"),
+            # Phase 1.1: Content type flags for filtering
+            "has_images": len(multimodal_content.get("images", [])) > 0,
+            "has_tables": len(multimodal_content.get("tables", [])) > 0,
+            "has_equations": False,  # TODO: Add equation detection
         }
 
         # Insert into Supabase
@@ -202,6 +205,47 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
                 print(f"❌ Even text-only embedding failed: {fallback_e}")
                 # Don't fail the upload if embeddings fail - user can retry processing
 
+        # AUTO-EXTRACT CITATIONS (Enhanced Citation Manager Feature)
+        citations_extracted = 0
+        try:
+            from services.citation_extraction_service import citation_extraction_service
+            
+            print(f"📚 Auto-extracting citations from paper...")
+            
+            # Extract bibliography section
+            bib_text = citation_extraction_service.extract_bibliography_section(text)
+            if bib_text:
+                raw_citations = citation_extraction_service.parse_bibliography_entries(bib_text)
+                print(f"   Found {len(raw_citations)} citations in bibliography")
+                
+                # Store basic citations (no AI enrichment on upload for speed)
+                for raw_cit in raw_citations[:50]:  # Limit to 50 citations to avoid timeout
+                    metadata = citation_extraction_service.extract_metadata_from_citation(raw_cit['raw_text'])
+                    
+                    try:
+                        supabase.table("paper_citations").insert({
+                            "paper_id": paper_id,
+                            "citation_text": raw_cit['raw_text'][:2000],  # Truncate if too long
+                            "in_text_refs": raw_cit.get('in_text_refs', []),
+                            "title": metadata.get('title'),
+                            "authors": metadata.get('authors', []),
+                            "year": metadata.get('year'),
+                            "doi": metadata.get('doi'),
+                            "venue": metadata.get('venue'),
+                            "extraction_method": "auto"
+                        }).execute()
+                        citations_extracted += 1
+                    except Exception as insert_error:
+                        # Skip duplicates or invalid citations
+                        pass
+                
+                print(f"✅ Auto-extracted {citations_extracted} citations")
+            else:
+                print(f"   No bibliography section found")
+        except Exception as e:
+            print(f"⚠️  Citation auto-extraction failed: {e}")
+            # Don't fail upload if citation extraction fails
+
         return {
             "id": paper_id,
             "title": paper_data["title"],
@@ -213,6 +257,7 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
                 "doi": paper_metadata.get("doi"),
                 "keywords": paper_metadata.get("keywords", []),
             },
+            "citations_extracted": citations_extracted,
         }
 
     except HTTPException:
@@ -431,10 +476,11 @@ async def search_papers(query: SearchQuery):
     Advanced semantic search across all papers using hybrid search
 
     Features:
+    - Natural language query parsing (Stage 1: years, venues, content flags)
     - Vector similarity search (semantic understanding)
     - BM25 keyword search (lexical matching) when available
     - Query expansion (acronyms + synonyms)
-    - Metadata filtering (author, year, keywords)
+    - Metadata filtering (author, year, keywords, venue, content)
     - Result diversity scoring (prefer results from different papers)
 
     Args:
@@ -448,8 +494,41 @@ async def search_papers(query: SearchQuery):
     from workflow.enhanced_search import enhanced_search
     from langchain_openai import OpenAIEmbeddings
     from fastapi import HTTPException
+    from services.nl_query_parser import nl_query_parser
 
     try:
+        # Phase 2 Stage 1: Natural Language Query Parsing
+        parsed_query_info = None
+        search_query_text = query.query
+        
+        if query.use_nl_parsing:
+            print(f"🧠 Parsing natural language query: '{query.query}'")
+            parsed = await nl_query_parser.parse_query(query.query, enable_ai=False)  # Regex-only for speed
+            
+            if parsed.get('parsed_elements'):
+                print(f"✅ Parsed filters: {', '.join(parsed['parsed_elements'])}")
+                search_query_text = parsed['semantic_query']
+                
+                # Merge parsed filters with existing filters
+                if not query.filters:
+                    from models import SearchFilters
+                    query.filters = SearchFilters()
+                
+                # Apply parsed filters (don't override manually set filters)
+                for key, value in parsed['filters'].items():
+                    if not getattr(query.filters, key, None):
+                        setattr(query.filters, key, value)
+                
+                # Store parsed info for response
+                parsed_query_info = {
+                    'original_query': query.query,
+                    'semantic_query': search_query_text,
+                    'parsed_elements': parsed['parsed_elements'],
+                    'confidence': parsed['confidence']
+                }
+            else:
+                print(f"ℹ️ No filters detected in query, using as-is")
+        
         # Initialize embeddings model
         embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small", openai_api_key=os.getenv("OPENAI_API_KEY")
@@ -462,7 +541,7 @@ async def search_papers(query: SearchQuery):
         if filters and getattr(filters, "paper_ids", None):
             filtered_paper_ids = filters.paper_ids
 
-        # Apply database-level metadata filters (author, year, keywords)
+        # Apply database-level metadata filters (author, year, keywords, content, venue)
         db_filters = []
         if filters:
             if getattr(filters, "author", None):
@@ -482,6 +561,22 @@ async def search_papers(query: SearchQuery):
                 # Match any of the provided keywords
                 for keyword in filters.keywords:
                     db_filters.append(f"'{keyword}' = ANY(keywords)")
+            
+            # Phase 1.1: Content filters - use boolean columns
+            if getattr(filters, "has_images", None) is True:
+                db_filters.append("has_images = TRUE")
+            
+            if getattr(filters, "has_tables", None) is True:
+                db_filters.append("has_tables = TRUE")
+            
+            if getattr(filters, "has_equations", None) is True:
+                db_filters.append("has_equations = TRUE")
+            
+            # Phase 1.2: Venue filter - filter by conference or journal name
+            if getattr(filters, "venue", None):
+                # Case-insensitive partial match on journal_or_conference field
+                venue_filter = f"LOWER(journal_or_conference) LIKE LOWER('%{filters.venue}%')"
+                db_filters.append(venue_filter)
 
         # Fetch filtered papers from database if filters applied
         if db_filters and not filtered_paper_ids:
@@ -506,7 +601,7 @@ async def search_papers(query: SearchQuery):
             qdrant_client=qdrant,
             embeddings_model=embeddings,
             paper_id=None,  # Cross-paper search
-            query=query.query,
+            query=search_query_text,  # Use cleaned query from NL parsing
             top_k=query.limit,
             use_query_expansion=True,
         )
@@ -570,20 +665,13 @@ async def search_papers(query: SearchQuery):
             enriched_results.append(result)
 
         print(f"✅ Search complete: {len(enriched_results)} results returned")
-        return enriched_results
-
-    except Exception as e:
-        print(f"❌ Search failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-
-        if query.debug:
-            return {"results": [], "error": str(e), "traceback": traceback.format_exc()}
-
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
-        print(f"✅ Search complete: {len(enriched_results)} results returned")
+        
+        # Return results with optional parsed query info
+        if parsed_query_info:
+            return {
+                "results": enriched_results,
+                "parsed_query": parsed_query_info
+            }
         return enriched_results
 
     except Exception as e:

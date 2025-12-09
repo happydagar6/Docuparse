@@ -121,6 +121,8 @@ export const ImageContent = memo(function ImageContent({ image, index }) {
               <Image
                 src={imageSrc}
                 alt={image.caption || `Figure ${index + 1}`}
+                width={image.width || 800}
+                height={image.height || 600}
                 className={`
                   w-full h-auto transition-transform duration-300
                   ${zoomed ? 'scale-150' : 'scale-100'}
@@ -129,6 +131,7 @@ export const ImageContent = memo(function ImageContent({ image, index }) {
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 loading="lazy"
+                unoptimized
               />
             </div>
           )}
@@ -163,7 +166,10 @@ export const ImageContent = memo(function ImageContent({ image, index }) {
                 <Image
                   src={imageSrc}
                   alt={image.caption || `Figure ${index + 1}`}
+                  width={image.width || 800}
+                  height={image.height || 600}
                   className="max-w-full h-auto"
+                  unoptimized
                 />
               </div>
             )}

@@ -80,15 +80,15 @@ export const TableContent = memo(function TableContent({ table, index }) {
 
           {/* Table */}
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full text-sm">
+            <table className="w-full border-collapse">
               {/* Headers */}
               {table.headers && table.headers.length > 0 && (
-                <thead className="bg-muted/50 border-b">
+                <thead className="bg-muted/50 border-b sticky top-0">
                   <tr>
                     {table.headers.map((header, i) => (
                       <th
                         key={i}
-                        className="px-3 py-2 text-left font-medium text-xs whitespace-nowrap"
+                        className="px-2 py-1.5 text-left font-medium text-sm wrap-break-word"
                       >
                         {header || `Column ${i + 1}`}
                       </th>
@@ -104,7 +104,7 @@ export const TableContent = memo(function TableContent({ table, index }) {
                     {row.map((cell, cellIndex) => (
                       <td
                         key={cellIndex}
-                        className="px-3 py-2 text-xs"
+                        className="px-2 py-1.5 text-sm wrap-break-word"
                       >
                         {cell || '-'}
                       </td>
@@ -156,14 +156,14 @@ export const TableContent = memo(function TableContent({ table, index }) {
             <DialogTitle>Table {index + 1} - Page {table.page}</DialogTitle>
           </DialogHeader>
           <div className="overflow-auto max-h-[70vh]">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full border-collapse">
               {table.headers && table.headers.length > 0 && (
                 <thead className="bg-muted/50 border-b sticky top-0">
                   <tr>
                     {table.headers.map((header, i) => (
                       <th
                         key={i}
-                        className="px-4 py-3 text-left font-medium"
+                        className="px-3 py-2 text-left font-medium text-sm wrap-break-word"
                       >
                         {header || `Column ${i + 1}`}
                       </th>
@@ -175,7 +175,7 @@ export const TableContent = memo(function TableContent({ table, index }) {
                 {table.rows?.map((row, rowIndex) => (
                   <tr key={rowIndex} className="border-b hover:bg-muted/30">
                     {row.map((cell, cellIndex) => (
-                      <td key={cellIndex} className="px-4 py-3">
+                      <td key={cellIndex} className="px-3 py-2 text-sm wrap-break-word">
                         {cell || '-'}
                       </td>
                     ))}

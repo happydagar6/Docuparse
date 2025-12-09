@@ -49,6 +49,10 @@ export function SearchForm({ onResultClick }) {
   // Local state for search input
   const [searchInput, setSearchInput] = useState('');
   
+  // Phase 2 Stage 1: NL parsing state
+  const [useNLParsing, setUseNLParsing] = useState(true);
+  const [parsedQuery, setParsedQuery] = useState(null);
+  
   // Phase 1: Synthesis state
   const [synthesis, setSynthesis] = useState(null);
   const [showSynthesis, setShowSynthesis] = useState(true);
@@ -60,7 +64,13 @@ export function SearchForm({ onResultClick }) {
     author: '',
     yearFrom: null,
     yearTo: null,
-    keywords: []
+    keywords: [],
+    // Phase 1.1: Content filters
+    hasImages: false,
+    hasTables: false,
+    hasEquations: false,
+    // Phase 1.2: Venue filter
+    venue: ''
   });
   
   // Zustand store for search state
@@ -122,17 +132,42 @@ export function SearchForm({ onResultClick }) {
         if (filters.keywords?.length > 0) {
           searchFilters.keywords = filters.keywords;
         }
+        // Phase 1.1: Content filters
+        if (filters.hasImages) {
+          searchFilters.has_images = true;
+        }
+        if (filters.hasTables) {
+          searchFilters.has_tables = true;
+        }
+        if (filters.hasEquations) {
+          searchFilters.has_equations = true;
+        }
+        // Phase 1.2: Venue filter
+        if (filters.venue?.trim()) {
+          searchFilters.venue = filters.venue.trim();
+        }
         
-        // Execute search mutation with filters
+        // Execute search mutation with filters + NL parsing flag
         const result = await searchMutation.mutateAsync({ 
           query: searchQuery,
           filters: Object.keys(searchFilters).length > 0 ? searchFilters : undefined,
+          use_nl_parsing: useNLParsing,  // Phase 2 Stage 1
           debug: process.env.NODE_ENV === 'development' 
         });
         
+        // Phase 2 Stage 1: Extract parsed query info from response
+        let searchResults = result;
+        if (result && typeof result === 'object' && result.parsed_query) {
+          setParsedQuery(result.parsed_query);
+          searchResults = result.results || [];
+        } else {
+          setParsedQuery(null);
+          searchResults = Array.isArray(result) ? result : [];
+        }
+        
         // Phase 1: Auto-select all papers after search (manual synthesis trigger)
-        if (result && result.length > 0) {
-          const allIds = result.map((r, index) => 
+        if (searchResults && searchResults.length > 0) {
+          const allIds = searchResults.map((r, index) => 
             r.chunk_id || r.id || `result-${index}`
           ).filter(Boolean);
           setSelectedPapers(allIds);
@@ -145,7 +180,7 @@ export function SearchForm({ onResultClick }) {
         return { 
           success: true, 
           query: searchQuery,
-          resultCount: result?.length || 0,
+          resultCount: searchResults?.length || 0,
           filtersApplied: Object.keys(searchFilters).length > 0
         };
       } catch (error) {
@@ -352,20 +387,124 @@ export function SearchForm({ onResultClick }) {
                         />
                       </div>
                     </div>
+                    
+                    {/* Phase 1.2: Venue Filter */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1">
+                        Conference or Journal
+                      </label>
+                      <Input 
+                        placeholder="e.g., NeurIPS, ICML, ICLR, CVPR, ACL, Nature..." 
+                        size="sm"
+                        value={filters.venue}
+                        onChange={(e) => setFilters(prev => ({ ...prev, venue: e.target.value }))}
+                      />
+                    </div>
+                    
+                    {/* Phase 1.1: Content Filters */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-600 mb-2">
+                        Content Type
+                      </label>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={filters.hasImages}
+                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasImages: checked }))}
+                          />
+                          <span className="text-sm">Has Images</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={filters.hasTables}
+                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasTables: checked }))}
+                          />
+                          <span className="text-sm">Has Tables</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox 
+                            checked={filters.hasEquations}
+                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasEquations: checked }))}
+                          />
+                          <span className="text-sm">Has Equations</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   {/* Clear filters button */}
-                  {(filters.author || filters.yearFrom || filters.yearTo) && (
+                  {(filters.author || filters.yearFrom || filters.yearTo || filters.venue || filters.hasImages || filters.hasTables || filters.hasEquations) && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setFilters({ author: '', yearFrom: null, yearTo: null, keywords: [] })}
+                      onClick={() => setFilters({ author: '', yearFrom: null, yearTo: null, keywords: [], hasImages: false, hasTables: false, hasEquations: false, venue: '' })}
                       className="text-xs"
                     >
                       <X className="h-3 w-3 mr-1" />
                       Clear Filters
                     </Button>
                   )}
+                  
+                  {/* Phase 2 Stage 1: NL Parsing Toggle */}
+                  <div className="pt-2 border-t">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox 
+                        checked={useNLParsing}
+                        onCheckedChange={setUseNLParsing}
+                      />
+                      <span className="text-sm text-gray-700">
+                        🧠 Auto-detect filters from query
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        (e.g., &ldquo;NeurIPS 2020 with tables&rdquo;)
+                      </span>
+                    </label>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Phase 2 Stage 1: Parsed Query Display */}
+            <AnimatePresence>
+              {parsedQuery && parsedQuery.parsed_elements && parsedQuery.parsed_elements.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                >
+                  <div className="flex items-start gap-2">
+                    <Brain className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-blue-900 mb-1">
+                        Auto-detected filters from your query:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {parsedQuery.parsed_elements.map((element, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {element}
+                          </span>
+                        ))}
+                      </div>
+                      {parsedQuery.semantic_query !== parsedQuery.original_query && (
+                        <p className="text-xs text-blue-700 mt-1.5">
+                          Searching for: <span className="font-medium">{parsedQuery.semantic_query}</span>
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setParsedQuery(null)}
+                      className="h-6 w-6 p-0 shrink-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

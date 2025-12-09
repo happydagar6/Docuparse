@@ -102,16 +102,318 @@ async def get_formats():
 
 @router.post("/export/bibtex", response_class=PlainTextResponse)
 async def export_bibtex(request: BatchCitationRequest):
-    """Export multiple papers as .bib file content"""
-    result = supabase.table("papers").select("*").in_("id", request.paper_ids).execute()
+    """Export extracted citations as BibTeX format (.bib file content)"""
+    
+    # Get all extracted citations for the papers
+    result = supabase.table("paper_citations").select("*").in_("paper_id", request.paper_ids).execute()
     
     if not result.data:
-        raise HTTPException(status_code=404, detail="No papers found")
+        raise HTTPException(status_code=404, detail="No citations found for export")
     
+    citations = result.data
     entries = []
-    for paper in result.data:
-        metadata = extract_metadata(paper)
-        entry = citation_service.generate(metadata, CitationFormat.BIBTEX)
-        entries.append(entry)
+    
+    # Generate BibTeX entry for each citation
+    for cit in citations:
+        try:
+            # Create metadata from citation data
+            metadata = PaperMetadata(
+                id=cit.get("id", "unknown"),
+                title=cit.get("title", cit.get("citation_text", "Untitled")),
+                authors=cit.get("authors", []),
+                year=cit.get("year"),
+                journal=cit.get("venue"),
+                doi=cit.get("doi")
+            )
+            
+            # Generate BibTeX entry
+            entry = citation_service.generate(metadata, CitationFormat.BIBTEX)
+            entries.append(entry)
+        except Exception as e:
+            print(f"⚠️ Failed to generate BibTeX for citation {cit.get('id')}: {e}")
+            continue
+    
+    if not entries:
+        raise HTTPException(status_code=500, detail="Failed to generate BibTeX entries")
     
     return "\n\n".join(entries)
+
+
+
+from models.citation import ExtractCitationsRequest, ExtractCitationsResponse, ExtractedCitation, CitationStatsResponse
+from services.citation_extraction_service import citation_extraction_service
+import time
+
+@router.post("/extract", response_model=ExtractCitationsResponse)
+async def extract_citations_from_paper(request: ExtractCitationsRequest):
+    """Auto-extract citations from paper text"""
+    start_time = time.time()
+    
+    # Get paper
+    result = supabase.table("papers").select("*").eq("id", request.paper_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    
+    paper = result.data
+    full_text = paper.get("content_text", "")
+    
+    # Delete existing citations for this paper to avoid duplicate key violations
+    # This ensures a fresh extraction when user clicks "AI Enrich" again
+    try:
+        supabase.table("paper_citations").delete().eq("paper_id", request.paper_id).execute()
+        print(f"✅ Cleared existing citations for paper: {request.paper_id}")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not clear existing citations: {e}")
+    
+    if not full_text:
+        raise HTTPException(status_code=400, detail="Paper has no full text available for extraction")
+    
+    # Extract bibliographic sections
+    bib_text = citation_extraction_service.extract_bibliography_section(full_text)
+    if not bib_text:
+        return ExtractCitationsResponse(
+            paper_id=request.paper_id,
+            citations_extracted=0,
+            citations=[],
+            extraction_time=time.time() - start_time
+        )
+        
+    # Parse bibliography entries
+    raw_citations = citation_extraction_service.parse_bibliography_entries(bib_text)
+    
+    # Detect and merge duplicate citations (same paper cited multiple times with slight variations)
+    duplicates = citation_extraction_service.detect_duplicate_citations(raw_citations, similarity_threshold=0.85)
+    if duplicates:
+        print(f"⚠️ Found {len(duplicates)} duplicate citation(s), merging...")
+        raw_citations = citation_extraction_service.merge_duplicate_citations(raw_citations, duplicates)
+        print(f"✅ After deduplication: {len(raw_citations)} unique citations")
+    
+    # Find in-text contexts (increased limit from 3 to 10 for better context)
+    citation_contexts = citation_extraction_service.find_in_text_citations(full_text, raw_citations)
+    
+    # Prepare for AI enrichment batching if requested
+    extracted_citations = []
+    
+    if request.use_ai_enrichment and raw_citations:
+        print(f"🚀 Starting batch AI enrichment for {len(raw_citations)} citations...")
+        # Use batch enrichment to reduce API calls by 80%
+        ai_metadata_results = await citation_extraction_service.enrich_citations_batch(
+            raw_citations, 
+            full_text[:1000],  # Pass paper context for better understanding
+            batch_size=5  # Process 5 citations per API call
+        )
+    else:
+        ai_metadata_results = []
+    
+    # Process each citation with metadata (now includes AI enriched results)
+    for idx, raw_cit in enumerate(raw_citations):
+        # Extract basic metadata
+        metadata = citation_extraction_service.extract_metadata_from_citation(raw_cit['raw_text'])
+        
+        # Apply AI enrichment if available
+        if request.use_ai_enrichment and idx < len(ai_metadata_results):
+            ai_metadata = ai_metadata_results[idx]
+            # Merge metadata, preferring AI results
+            metadata.update({k: v for k, v in ai_metadata.items() if v})
+            
+        # Calculate importance (increase context limit from 3 to 10)
+        contexts = citation_contexts.get(raw_cit.get("ref_number", ""), [])[:10]
+        importance = await citation_extraction_service.calculate_importance_score(raw_cit, contexts)
+        
+        # Create citation object
+        citation = ExtractedCitation(
+            paper_id=request.paper_id,
+            citation_text=raw_cit['raw_text'],
+            in_text_refs=raw_cit.get('in_text_refs', []),
+            title=metadata.get('title'),
+            authors=metadata.get('authors', []),
+            year=metadata.get('year'),
+            doi=metadata.get('doi'),
+            venue=metadata.get('venue'),
+            relevance_summary=metadata.get('relevance_summary'),
+            citation_context=contexts,
+            mention_count=len(contexts),
+            importance_score=importance,
+            citation_type=metadata.get('citation_type'),
+            verified=False
+        )
+        
+        extracted_citations.append(citation)
+        
+        # Store in database (duplicates won't occur now since we cleared old citations)
+        try:
+            # Truncate long fields to prevent index size errors (PostgreSQL limit: 8191 bytes)
+            # GIN index on title field causes "index row requires X bytes, maximum size is 8191" error
+            truncated_title = citation.title[:500] if citation.title else None
+            truncated_relevance = citation.relevance_summary[:1000] if citation.relevance_summary else None
+            truncated_contexts = [ctx[:500] for ctx in citation.citation_context[:10]] if citation.citation_context else []
+            
+            supabase.table("paper_citations").insert({
+                "paper_id": request.paper_id,
+                "citation_text": citation.citation_text[:2000],  # Truncate raw citation text
+                "in_text_refs": citation.in_text_refs[:20],  # Limit array size
+                "title": truncated_title,
+                "authors": citation.authors[:10] if citation.authors else [],  # Limit author array
+                "year": citation.year,
+                "doi": citation.doi[:200] if citation.doi else None,
+                "venue": citation.venue[:300] if citation.venue else None,
+                "relevance_summary": truncated_relevance,
+                "citation_context": truncated_contexts,
+                "mention_count": citation.mention_count,
+                "importance_score": citation.importance_score,
+                "citation_type": citation.citation_type[:50] if citation.citation_type else None,
+                "extraction_method": "auto" if not request.use_ai_enrichment else "ai-enhanced"
+            }).execute()
+        except Exception as e:
+            print(f"❌ Failed to store citation: {e}")
+            # Continue processing other citations even if one fails
+        
+    return ExtractCitationsResponse(
+        paper_id=request.paper_id,
+        citations_extracted=len(extracted_citations),
+        citations=extracted_citations,
+        extraction_time=time.time() - start_time
+    )
+    
+    
+@router.get("/paper/{paper_id}", response_model=List[ExtractedCitation])
+async def get_paper_citations(paper_id: str):
+    """Get all extracted citations for a paper"""
+    result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).order("importance_score", desc=True).execute()
+    
+    if not result.data:
+        return []
+    
+    # Process citations to ensure proper data types
+    citations = []
+    for cit in result.data:
+        # Ensure arrays are not None
+        if cit.get('in_text_refs') is None:
+            cit['in_text_refs'] = []
+        if cit.get('citation_context') is None:
+            cit['citation_context'] = []
+        if cit.get('authors') is None:
+            cit['authors'] = []
+        
+        try:
+            citations.append(ExtractedCitation(**cit))
+        except Exception as e:
+            print(f"Failed to parse citation: {e}")
+            print(f"Citation data: {cit}")
+            continue
+    
+    return citations
+
+
+@router.get("/stats/{paper_id}", response_model=CitationStatsResponse)
+async def get_citation_stats(paper_id: str):
+    """Get citation statistics for a paper"""
+    result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).execute()
+    
+    if not result.data:
+        return CitationStatsResponse(
+            paper_id=paper_id,
+            total_citations=0,
+            citations_by_type={},
+            top_cited_works=[],
+            average_citation_year=None
+        )
+        
+    citations = result.data
+    
+    # Calculate stats
+    citations_by_type = {}
+    years = []
+    top_works = []
+    
+    for cit in citations:
+        cit_type = cit.get("citation_type") or "unknown"  # Ensure never None
+        citations_by_type[cit_type] = citations_by_type.get(cit_type, 0) + 1
+        
+        if cit.get("year"):
+            years.append(cit["year"])
+            
+        if cit.get('importance_score', 0) > 0.5:
+            top_works.append({
+                'title': cit.get('title'),
+                'authors': cit.get('authors'),
+                'year': cit.get('year'),
+                'importance_score': cit.get('importance_score')
+            })
+    
+    top_works.sort(key=lambda x: x['importance_score'], reverse=True)
+    return CitationStatsResponse(
+        paper_id=paper_id,
+        total_citations=len(citations),
+        citations_by_type=citations_by_type,
+        top_cited_works=top_works[:10],
+        average_citation_year=sum(years) / len(years) if years else None
+    )
+    
+
+@router.delete("/paper/{paper_id}/citations")
+async def delete_paper_citations(paper_id: str):
+    """Delete all extracted citations for a paper"""
+    supabase.table("paper_citations").delete().eq("paper_id", paper_id).execute()
+    return {"success": True, "message": f"Deleted citations for paper {paper_id}"}
+
+
+@router.patch("/{citation_id}/verify")
+async def verify_citation(citation_id: str):
+    """Mark a citation as verified/trusted"""
+    try:
+        result = supabase.table("paper_citations").update({
+            "verified": True
+        }).eq("id", citation_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Citation not found")
+        
+        return {"success": True, "message": "Citation marked as verified"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to verify citation: {str(e)}")
+
+
+@router.patch("/{citation_id}/unverify")
+async def unverify_citation(citation_id: str):
+    """Unmark a citation as verified"""
+    try:
+        result = supabase.table("paper_citations").update({
+            "verified": False
+        }).eq("id", citation_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Citation not found")
+        
+        return {"success": True, "message": "Citation unmarked as verified"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to unverify citation: {str(e)}")
+
+
+@router.get("/verified/{paper_id}")
+async def get_verified_citations(paper_id: str):
+    """Get only verified citations for a paper"""
+    try:
+        result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).eq("verified", True).order("importance_score", desc=True).execute()
+        
+        if not result.data:
+            return []
+        
+        citations = []
+        for cit in result.data:
+            if cit.get('in_text_refs') is None:
+                cit['in_text_refs'] = []
+            if cit.get('citation_context') is None:
+                cit['citation_context'] = []
+            if cit.get('authors') is None:
+                cit['authors'] = []
+            
+            try:
+                citations.append(ExtractedCitation(**cit))
+            except Exception as e:
+                print(f"Failed to parse citation: {e}")
+                continue
+        
+        return citations
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch verified citations: {str(e)}")

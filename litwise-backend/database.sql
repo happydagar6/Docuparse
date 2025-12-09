@@ -372,3 +372,198 @@ CREATE TRIGGER trigger_update_literature_reviews_updated_at
     BEFORE UPDATE ON literature_reviews
     FOR EACH ROW
     EXECUTE FUNCTION update_literature_reviews_updated_at();
+
+
+
+-- -- ============================================
+-- -- ZOTERO INTEGRATION SCHEMA
+-- -- Date: 2025-12-07
+-- -- Purpose: Support Zotero import/export functionality
+-- -- ============================================
+
+-- -- Add zotero_id column to papers table for linking
+-- ALTER TABLE papers 
+-- ADD COLUMN IF NOT EXISTS zotero_id TEXT UNIQUE;
+
+-- -- Add zotero_metadata column for storing original Zotero data
+-- ALTER TABLE papers 
+-- ADD COLUMN IF NOT EXISTS zotero_metadata JSONB;
+
+-- -- Add zotero_sync_status for tracking sync state
+-- ALTER TABLE papers 
+-- ADD COLUMN IF NOT EXISTS zotero_sync_status TEXT DEFAULT 'not_synced' 
+-- CHECK (zotero_sync_status IN ('not_synced', 'synced', 'sync_failed', 'modified'));
+
+-- -- Add zotero_last_sync timestamp
+-- ALTER TABLE papers 
+-- ADD COLUMN IF NOT EXISTS zotero_last_sync TIMESTAMP WITH TIME ZONE;
+
+-- -- Create index for fast Zotero lookups
+-- CREATE INDEX IF NOT EXISTS idx_papers_zotero_id ON papers(zotero_id);
+-- CREATE INDEX IF NOT EXISTS idx_papers_zotero_sync_status ON papers(zotero_sync_status);
+
+-- -- Create zotero_connections table for storing user credentials
+-- CREATE TABLE IF NOT EXISTS zotero_connections (
+--     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+--     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+--     library_id TEXT NOT NULL,
+--     library_type TEXT NOT NULL CHECK (library_type IN ('user', 'group')),
+--     api_key_encrypted TEXT NOT NULL,  -- Store encrypted
+--     connection_name TEXT DEFAULT 'My Zotero Library',
+--     is_active BOOLEAN DEFAULT true,
+--     last_sync TIMESTAMP WITH TIME ZONE,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+--     UNIQUE(user_id, library_id)
+-- );
+
+-- -- Enable RLS for zotero_connections
+-- ALTER TABLE zotero_connections ENABLE ROW LEVEL SECURITY;
+
+-- CREATE POLICY "Users can manage own Zotero connections" ON zotero_connections
+--     FOR ALL USING (auth.uid()::uuid = user_id OR user_id IS NULL);
+
+-- -- Create zotero_sync_log table for debugging
+-- CREATE TABLE IF NOT EXISTS zotero_sync_log (
+--     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+--     connection_id UUID REFERENCES zotero_connections(id) ON DELETE CASCADE,
+--     operation TEXT NOT NULL,  -- 'import', 'export', 'sync'
+--     status TEXT NOT NULL,  -- 'success', 'failed', 'partial'
+--     items_processed INTEGER DEFAULT 0,
+--     items_failed INTEGER DEFAULT 0,
+--     error_message TEXT,
+--     details JSONB,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+-- );
+
+-- -- Add trigger for zotero_connections updated_at
+-- CREATE TRIGGER update_zotero_connections_updated_at BEFORE UPDATE
+--     ON zotero_connections FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- -- Comments for documentation
+-- COMMENT ON COLUMN papers.zotero_id IS 'Zotero item key for bidirectional sync';
+-- COMMENT ON COLUMN papers.zotero_metadata IS 'Original Zotero item data (creators, dateAdded, tags, collections, etc.)';
+-- COMMENT ON COLUMN papers.zotero_sync_status IS 'Sync state: not_synced, synced, sync_failed, modified';
+-- COMMENT ON TABLE zotero_connections IS 'Stores user Zotero library connections (credentials)';
+-- COMMENT ON TABLE zotero_sync_log IS 'Audit log for Zotero sync operations';
+
+
+
+
+
+
+
+-- Enhanced Citation Management Tables
+-- Purpose: Store extracted citations from papers with AI context
+
+-- Table to store citations extracted from papers
+CREATE TABLE IF NOT EXISTS paper_citations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    paper_id UUID NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    
+    -- Citation identification
+    citation_text TEXT NOT NULL,  -- Raw citation text from bibliography
+    in_text_refs TEXT[],  -- In-text references like ["[15]", "Smith et al. (2020)"]
+    
+    -- Extracted metadata
+    title TEXT,
+    authors JSONB DEFAULT '[]'::jsonb,
+    year INTEGER,
+    doi TEXT,
+    venue TEXT,  -- Journal/Conference
+    
+    -- AI-generated context
+    relevance_summary TEXT,  -- AI summary of why this citation is relevant
+    citation_context TEXT[],  -- Surrounding text where citation appears
+    
+    -- Citation counts and importance
+    mention_count INTEGER DEFAULT 1,  -- How many times cited in the paper
+    importance_score FLOAT DEFAULT 0.0,  -- AI-calculated importance (0-1)
+    
+    -- Metadata
+    extraction_method TEXT DEFAULT 'auto',  -- 'auto', 'manual', 'ai-enhanced'
+    citation_type TEXT,  -- 'background', 'method', 'comparison', 'data'
+    verified BOOLEAN DEFAULT false,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    
+    UNIQUE(paper_id, citation_text)
+);
+
+-- Indexes for fast lookups
+CREATE INDEX IF NOT EXISTS idx_paper_citations_paper_id ON paper_citations(paper_id);
+CREATE INDEX IF NOT EXISTS idx_paper_citations_doi ON paper_citations(doi) WHERE doi IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_paper_citations_title ON paper_citations USING GIN (to_tsvector('english', title));
+CREATE INDEX IF NOT EXISTS idx_paper_citations_authors ON paper_citations USING GIN(authors);
+CREATE INDEX IF NOT EXISTS idx_paper_citations_importance ON paper_citations(importance_score DESC);
+
+-- Table for citation network analysis
+CREATE TABLE IF NOT EXISTS citation_relationships (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    citing_paper_id UUID NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    cited_paper_id UUID REFERENCES papers(id) ON DELETE SET NULL,  -- Nullable if cited paper not in library
+    citation_id UUID NOT NULL REFERENCES paper_citations(id) ON DELETE CASCADE,
+    
+    relationship_type TEXT DEFAULT 'cites',  -- 'cites', 'extends', 'contradicts', 'supports'
+    confidence_score FLOAT DEFAULT 1.0,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    
+    UNIQUE(citing_paper_id, citation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_citation_relationships_citing ON citation_relationships(citing_paper_id);
+CREATE INDEX IF NOT EXISTS idx_citation_relationships_cited ON citation_relationships(cited_paper_id);
+
+-- Enable RLS
+ALTER TABLE paper_citations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE citation_relationships ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view own paper citations" ON paper_citations
+    FOR SELECT USING (
+        paper_id IN (SELECT id FROM papers WHERE auth.uid()::uuid = user_id OR user_id IS NULL)
+    );
+
+CREATE POLICY "Users can manage own paper citations" ON paper_citations
+    FOR ALL USING (
+        paper_id IN (SELECT id FROM papers WHERE auth.uid()::uuid = user_id OR user_id IS NULL)
+    );
+
+-- Trigger for updated_at
+CREATE TRIGGER update_paper_citations_updated_at BEFORE UPDATE
+    ON paper_citations FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- Comments
+COMMENT ON TABLE paper_citations IS 'Stores citations extracted from papers with AI-generated context';
+COMMENT ON COLUMN paper_citations.relevance_summary IS 'AI-generated summary explaining why this citation is relevant';
+COMMENT ON COLUMN paper_citations.importance_score IS 'AI-calculated importance score (0-1) based on mention frequency and context';
+COMMENT ON TABLE citation_relationships IS 'Tracks citation relationships between papers in the library';
+
+
+
+
+
+-- Migration: Add content type filters (has_images, has_tables, has_equations)
+-- Purpose: Enable Phase 1.1 filters for searching papers by content type
+
+-- Add boolean columns for content type filtering
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS has_images BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS has_tables BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE papers 
+ADD COLUMN IF NOT EXISTS has_equations BOOLEAN DEFAULT FALSE;
+
+-- Create indexes for efficient filtering
+CREATE INDEX IF NOT EXISTS idx_papers_has_images ON papers(has_images) WHERE has_images = TRUE;
+CREATE INDEX IF NOT EXISTS idx_papers_has_tables ON papers(has_tables) WHERE has_tables = TRUE;
+CREATE INDEX IF NOT EXISTS idx_papers_has_equations ON papers(has_equations) WHERE has_equations = TRUE;
+
+-- Add comments for documentation
+COMMENT ON COLUMN papers.has_images IS 'Paper contains extracted images';
+COMMENT ON COLUMN papers.has_tables IS 'Paper contains extracted tables';
+COMMENT ON COLUMN papers.has_equations IS 'Paper contains mathematical equations/formulas';

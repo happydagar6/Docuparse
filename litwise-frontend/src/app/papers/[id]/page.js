@@ -8,12 +8,13 @@
 
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen } from 'lucide-react';
+import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen, Link2, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { usePaper } from '@/lib/react-query';
@@ -65,222 +66,277 @@ export default function PaperPage() {
   }
 
   return (
-    <div className="container mx-auto py-4 md:py-8 px-4 space-y-4 md:space-y-6">
+    <div className="min-h-screen bg-linear-to-b from-white via-slate-50 to-white">
+      <div className="container mx-auto py-4 md:py-6 px-3 sm:px-4 md:px-6 space-y-4 md:space-y-6">
       {/* Back Button */}
-      <Button onClick={handleBack} variant="outline" size="sm">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Papers
-      </Button>
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Button onClick={handleBack} variant="ghost" size="sm" className="hover:bg-slate-100">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Papers
+        </Button>
+      </motion.div>
 
       {/* Header */}
-      <Card>
-        <CardHeader className="p-4 md:p-6">
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div className="space-y-2 flex-1">
-              <CardTitle className="text-lg md:text-2xl">{paper.title}</CardTitle>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {format(new Date(paper.created_at), 'MMM d, yyyy')}
-                </div>
-                {paper.updated_at && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    {format(new Date(paper.updated_at), 'h:mm a')}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.05 }}
+      >
+        <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+              <div className="space-y-3 flex-1 min-w-0">
+                <CardTitle className="text-lg sm:text-xl md:text-3xl text-slate-900 wrap-break-word">
+                  {paper.title}
+                </CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    <span>{format(new Date(paper.created_at), 'MMM d, yyyy')}</span>
                   </div>
-                )}
+                  {paper.updated_at && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-blue-600" />
+                      <span>{format(new Date(paper.updated_at), 'h:mm a')}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <CitationButton paperId={paper.id} />
+                <ProcessingStatus paper={paper} />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <CitationButton paperId={paper.id} />
-              <ProcessingStatus paper={paper} />
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+          </CardHeader>
+        </Card>
+      </motion.div>
 
       {/* Processing Banner - informational only, button is in header */}
-      {(paper.processing_status === 'uploaded' || paper.processing_status === 'failed') && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <Brain className="h-5 w-5 text-blue-600" />
-              <div>
-                <h3 className="font-medium text-blue-900">AI Summary Available</h3>
-                <p className="text-sm text-blue-700">Use the button above to generate AI insights for this paper</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Main Content */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="w-full grid grid-cols-4 h-auto">
-          <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
-            <FileText className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
-            <span className="hidden sm:inline">Overview</span>
-            <span className="sm:hidden">Info</span>
-          </TabsTrigger>
-          <TabsTrigger value="content" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
-            <Brain className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
-            <span className="hidden sm:inline">AI Analysis</span>
-            <span className="sm:hidden">AI</span>
-          </TabsTrigger>
-          <TabsTrigger value="reader" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
-            <BookOpen className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
-            <span className="hidden sm:inline">Reader</span>
-            <span className="sm:hidden">Read</span>
-          </TabsTrigger>
-          <TabsTrigger value="chat" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm">
-            <MessageCircle className="h-3 w-3 md:h-4 md:w-4 shrink-0" />
-            <span className="hidden sm:inline">Chat</span>
-            <span className="sm:hidden">Chat</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <Card>
-            <CardHeader className="p-4 md:p-6">
-              <CardTitle className="text-base md:text-lg">Document Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 md:p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Processing Status
-                  </label>
-                  <div className="mt-1">
-                    <ProcessingStatus paper={paper} showButton={false} />
+      <AnimatePresence>
+        {(paper.processing_status === 'uploaded' || paper.processing_status === 'failed') && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="bg-linear-to-r from-blue-50 to-cyan-50 border-blue-200/60">
+              <CardContent className="py-4 px-4 md:px-6">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900 text-sm md:text-base">AI Analysis Available</h3>
+                    <p className="text-xs md:text-sm text-blue-700 mt-1">Use the button above to generate AI insights for this paper</p>
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    File Size
-                  </label>
-                  <p className="mt-1">
-                    {paper.file_size 
-                      ? `${(paper.file_size / (1024 * 1024)).toFixed(2)} MB` 
-                      : 'Unknown'
-                    }
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Original Filename
-                  </label>
-                  <p className="mt-1 text-sm truncate" title={paper.filename}>
-                    {paper.filename || 'Unknown'}
-                  </p>
-                </div>
-              </div>
-              
-              {(paper.content || paper.content_text) && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Content Preview
-                  </label>
-                  <div className="mt-1 p-3 bg-muted rounded-lg max-h-64 overflow-y-auto">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {(paper.content || paper.content_text)?.slice(0, 1000)}
-                      {(paper.content || paper.content_text)?.length > 1000 && '...'}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Tabs defaultValue="overview" className="space-y-4">
+          <div className="bg-white border-b border-slate-200/50 rounded-t-lg p-1 md:p-2">
+            <TabsList className="w-full grid grid-cols-2 md:grid-cols-4 h-auto bg-slate-100/50 p-1 rounded-lg border border-slate-200/50">
+              <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
+                <FileText className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" />
+                <span className="hidden sm:inline">Overview</span>
+                <span className="sm:hidden">Info</span>
+              </TabsTrigger>
+              <TabsTrigger value="content" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
+                <Brain className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" />
+                <span className="hidden sm:inline">AI Analysis</span>
+                <span className="sm:hidden">AI</span>
+              </TabsTrigger>
+              <TabsTrigger value="reader" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
+                <BookOpen className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" />
+                <span className="hidden sm:inline">Reader</span>
+                <span className="sm:hidden">Read</span>
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
+                <MessageCircle className="h-3.5 w-3.5 md:h-4 md:w-4 shrink-0" />
+                <span className="hidden sm:inline">Chat</span>
+                <span className="sm:hidden">Chat</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="space-y-4 mt-0">
+            <Card className="border-slate-200/60">
+              <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                <CardTitle className="text-base md:text-lg flex items-center gap-2 text-slate-900">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  Document Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs md:text-sm font-semibold text-muted-foreground block">
+                      Processing Status
+                    </label>
+                    <div>
+                      <ProcessingStatus paper={paper} showButton={false} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs md:text-sm font-semibold text-muted-foreground block">
+                      File Size
+                    </label>
+                    <p className="text-sm md:text-base text-slate-900 font-medium">
+                      {paper.file_size 
+                        ? `${(paper.file_size / (1024 * 1024)).toFixed(2)} MB` 
+                        : 'Unknown'
+                      }
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs md:text-sm font-semibold text-muted-foreground block">
+                      Filename
+                    </label>
+                    <p className="text-sm md:text-base text-slate-900 font-medium truncate" title={paper.filename}>
+                      {paper.filename || 'Unknown'}
                     </p>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="content" className="space-y-4">
-          {paper.processing_status === 'completed' && paper.summary ? (
-            <div className="grid gap-4">
-              {/* Key Points */}
-              <Card>
-                <CardHeader className="p-4 md:p-6">
-                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                    <Brain className="h-4 w-4 md:h-5 md:w-5" />
-                    Key Points
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 md:p-6">
-                  {paper.summary.key_points && paper.summary.key_points.length > 0 ? (
-                    <div className="space-y-4">
-                      {paper.summary.key_points.map((point, index) => (
-                        <div key={index} className="prose prose-sm max-w-none">
-                          <FormattedContent content={point} />
-                        </div>
-                      ))}
+                
+                {(paper.content || paper.content_text) && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200/50">
+                    <label className="text-xs md:text-sm font-semibold text-muted-foreground block">
+                      Content Preview
+                    </label>
+                    <div className="p-3 md:p-4 bg-slate-50 rounded-lg max-h-48 md:max-h-64 overflow-y-auto border border-slate-200/50">
+                      <p className="text-xs md:text-sm whitespace-pre-wrap text-slate-700 leading-relaxed">
+                        {(paper.content || paper.content_text)?.slice(0, 1000)}
+                        {(paper.content || paper.content_text)?.length > 1000 && '...'}
+                      </p>
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground">No key points extracted.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Citations */}
-              {paper.summary.citations && paper.summary.citations.length > 0 && (
-                <Card>
-                  <CardHeader className="p-4 md:p-6">
-                    <CardTitle className="text-base md:text-lg">Citations</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 md:p-6">
-                    <div className="space-y-2">
-                      {paper.summary.citations.map((citation, index) => (
-                        <div key={index} className="text-sm bg-muted p-3 rounded prose prose-sm max-w-none">
-                          <FormattedContent content={citation} />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Related Works */}
-              {paper.summary.related_works && paper.summary.related_works.length > 0 && (
-                <Card>
-                  <CardHeader className="p-4 md:p-6">
-                    <CardTitle className="text-base md:text-lg">Related Works</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 md:p-6">
-                    <div className="flex flex-wrap gap-2">
-                      {paper.summary.related_works.map((work, index) => (
-                        <Badge key={index} variant="secondary">
-                          {work}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          ) : (
-            <Card className="text-center py-12">
-              <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">AI Analysis Not Available</h3>
-              <p className="text-muted-foreground mb-4">
-                This document hasn&apos;t been processed by AI yet.
-              </p>
-              <ProcessingStatus paper={paper} />
+                  </div>
+                )}
+              </CardContent>
             </Card>
-          )}
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="reader" className="space-y-4">
-          <div className="h-[calc(100vh-14rem)] sm:h-[calc(100vh-16rem)] md:h-[800px] min-h-[350px] sm:min-h-[400px] rounded-lg border overflow-hidden">
-            <PaperReader 
-              paper={paper} 
-              onBack={handleBack} 
-            />
-          </div>
-        </TabsContent>
+          <TabsContent value="content" className="space-y-4 mt-0">
+            {paper.processing_status === 'completed' && paper.summary ? (
+              <div className="space-y-4">
+                {/* Key Points */}
+                <Card className="border-slate-200/60 overflow-hidden hover:shadow-md transition-shadow">
+                  <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                    <CardTitle className="flex items-center gap-2 text-base md:text-lg text-slate-900">
+                      <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                      Key Points
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 md:p-6 pt-0 space-y-3">
+                    {paper.summary.key_points && paper.summary.key_points.length > 0 ? (
+                      <div className="space-y-3">
+                        {paper.summary.key_points.map((point, index) => (
+                          <div key={index} className="prose prose-sm max-w-none text-xs md:text-sm bg-slate-50 p-3 rounded-lg border border-slate-200/30">
+                            <div className="flex gap-2">
+                              <span className="text-blue-600 font-bold shrink-0">·</span>
+                              <div className="flex-1">
+                                <FormattedContent content={point} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm italic">No key points extracted.</p>
+                    )}
+                  </CardContent>
+                </Card>
 
-        <TabsContent value="chat" className="space-y-4">
-          <div className="h-[calc(100vh-12rem)] md:h-[600px] lg:h-[700px] min-h-[450px]">
-            <ChatInterface paper={paper} />
-          </div>
-        </TabsContent>
-      </Tabs>
+                {/* Citations */}
+                {paper.summary.citations && paper.summary.citations.length > 0 && (
+                  <Card className="border-slate-200/60 overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base md:text-lg text-slate-900">
+                        <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                        Related Citations
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 md:p-6 pt-0">
+                      <div className="space-y-2">
+                        {paper.summary.citations.map((citation, index) => (
+                          <div key={index} className="text-xs md:text-sm bg-slate-50 p-3 rounded-lg prose prose-sm max-w-none border border-slate-200/30">
+                            <FormattedContent content={citation} />
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Related Works */}
+                {paper.summary.related_works && paper.summary.related_works.length > 0 && (
+                  <Card className="border-slate-200/60 overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                      <CardTitle className="flex items-center gap-2 text-base md:text-lg text-slate-900">
+                        <Link2 className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                        Related Works
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 md:p-6 pt-0">
+                      <div className="flex flex-wrap gap-2">
+                        {paper.summary.related_works.map((work, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs md:text-sm">
+                            {work}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            ) : (
+              <Card className="border-slate-200/60 text-center py-12 md:py-16">
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <Brain className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-base md:text-lg font-semibold text-slate-900">AI Analysis Not Available</h3>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      This document hasn&apos;t been processed by AI yet.
+                    </p>
+                  </div>
+                  <div>
+                    <ProcessingStatus paper={paper} />
+                  </div>
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="reader" className="space-y-4 mt-0">
+            <div className="h-[calc(100vh-12rem)] sm:h-[calc(100vh-14rem)] md:h-[800px] min-h-[350px] sm:min-h-[400px] rounded-lg border border-slate-200/60 overflow-hidden bg-white shadow-sm">
+              <PaperReader 
+                paper={paper} 
+                onBack={handleBack} 
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="chat" className="space-y-4 mt-0">
+            <div className="h-[calc(100vh-12rem)] md:h-[600px] lg:h-[700px] min-h-[450px] rounded-lg border border-slate-200/60 overflow-hidden bg-white shadow-sm">
+              <ChatInterface paper={paper} />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
+    </div>
     </div>
   );
 }

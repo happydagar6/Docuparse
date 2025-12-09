@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from fastapi import UploadFile
 
@@ -11,11 +11,34 @@ class PaperSummary(BaseModel):
     key_points: List[str]
     citations: List[str]
     related_works: List[str]
+
+class SearchFilters(BaseModel):
+    """Advanced search filters"""
+    author: Optional[str] = Field(None, description="Filter by author name (partial match)")
+    year_from: Optional[int] = Field(None, ge=1900, le=2100, description="Filter by publication year (from)")
+    year_to: Optional[int] = Field(None, ge=1900, le=2100, description="Filter by publication year (to)")
+    keywords: Optional[List[str]] = Field(default_factory=list, description="Filter by keywords")
+    paper_ids: Optional[List[str]] = Field(default_factory=list, description="Filter by specific paper IDs")
+    has_images: Optional[bool] = Field(None, description="Filter papers with extracted images")
+    has_tables: Optional[bool] = Field(None, description="Filter papers with extracted tables")
+    has_equations: Optional[bool] = Field(None, description="Filter papers with equations/formulas")
+    venue: Optional[str] = Field(None, description="Filter by conference or journal name")
+
+    @validator('year_to')
+    def validate_year_range(cls, v, values):
+        if v is not None and 'year_from' in values and values['year_from'] is not None:
+            if v < values['year_from']:
+                raise ValueError('year_to must be greater than or equal to year_from')
+        return v
     
 class SearchQuery(BaseModel):
-    query: str
-    limit: int = 5
-    debug: Optional[bool] = False
+    model_config = ConfigDict(populate_by_name=True)
+    
+    query: str = Field(..., min_length=1, description="Search query text")
+    limit: int = Field(default=10, ge=1, le=100, description="Maximum number of results")
+    debug: Optional[bool] = Field(default=False, description="Enable debug mode for diagnostics")
+    filters: Optional[SearchFilters] = Field(None, description="Advanced search filters")
+    use_nl_parsing: Optional[bool] = Field(default=True, description="Enable natural language query parsing")
 
 class ProcessingRequest(BaseModel):
     paper_id: str = Field(..., description="ID of the paper to process")
