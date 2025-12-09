@@ -96,4 +96,6 @@ const ChatSessions = memo(({
   );
 });
 
+ChatSessions.displayName = 'ChatSessions';
+
 export default ChatSessions;
