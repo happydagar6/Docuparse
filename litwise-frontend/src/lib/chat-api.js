@@ -75,7 +75,6 @@ export const chatApi = {
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
       method: 'POST',
       headers,
-      },
       body: JSON.stringify({
         session_id: sessionId,
         message: message,
