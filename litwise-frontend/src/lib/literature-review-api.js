@@ -4,17 +4,33 @@
  * Client-side API functions for interacting with the Literature Review backend endpoints.
  */
 
+import { getSupabaseClient } from './supabase/client';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Get JWT token from Supabase session
+async function getAuthToken() {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+    return null;
+  }
+}
 
 /**
  * Generate a new literature review
  */
 export async function generateLiteratureReview(data) {
+    const token = await getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
     const res = await fetch(`${API_URL}/api/literature-review/generate`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(data),
     });
     if (!res.ok) {
@@ -29,7 +45,11 @@ export async function generateLiteratureReview(data) {
  * Note: When called by React Query, no arguments are passed, so we use a fixed limit
  */
 export async function getLiteratureReviews() {
-    const res = await fetch(`${API_URL}/api/literature-review/list?limit=20`);
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const res = await fetch(`${API_URL}/api/literature-review/list?limit=20`, { headers });
     if (!res.ok) throw new Error('Failed to fetch literature reviews');
     return res.json();
 }
@@ -38,7 +58,11 @@ export async function getLiteratureReviews() {
  * Get a specific literature review by ID
  */
 export async function getLiteratureReview(reviewId) {
-    const res = await fetch(`${API_URL}/api/literature-review/${reviewId}`);
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const res = await fetch(`${API_URL}/api/literature-review/${reviewId}`, { headers });
     if (!res.ok) throw new Error('Failed to fetch literature review');
     return res.json();
 }
@@ -47,7 +71,12 @@ export async function getLiteratureReview(reviewId) {
  * Delete a literature review
  */
 export async function deleteLiteratureReview(reviewId) {
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
     const res = await fetch(`${API_URL}/api/literature-review/${reviewId}`, {
+        headers,
         method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete literature review');

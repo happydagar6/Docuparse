@@ -7,14 +7,32 @@
  * - Response formatting
  * - Environment configuration
  * - Request/response interceptors
+ * - JWT authentication
  */
+
+import { getSupabaseClient } from './supabase/client';
 
 // API base configuration
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 /**
- * Generic API request handler
+ * Get the current JWT token from Supabase session
+ * @returns {Promise<string|null>} - JWT access token or null if not authenticated
+ */
+async function getAuthToken() {
+    try {
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || null;
+    } catch (error) {
+        console.error('Error getting auth token:', error);
+        return null;
+    }
+}
+
+/**
+ * Generic API request handler with authentication
  * @param {string} endpoint - API endpoint path
  * @param {object} options - Fetch options (method, body, headers, etc.)
  * @returns {Promise} - API response data
@@ -22,13 +40,24 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8
 
 async function apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    
+    // Get auth token
+    const token = await getAuthToken();
+    
+    // Build headers
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+    
+    // Add Authorization header if token exists
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
     try {
         const response = await fetch(url, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers,
-            },
+            headers,
             ...options,
         });
 
@@ -84,11 +113,20 @@ export async function uploadPaper(file, onProgress){
     }
 
     try {
+        // Get auth token
+        const token = await getAuthToken();
+        
+        // Build headers
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         const response = await fetch(`${API_BASE_URL}/upload`, {
             method: "POST",
+            headers,
             body: formData,
-
-            // Note: Dont set Content-Type header for FormData, browser sets it automatically
+            // Note: Don't set Content-Type header for FormData, browser sets it automatically
         });
 
         if(!response.ok){

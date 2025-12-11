@@ -116,7 +116,7 @@ export function AuthProvider({ children }) {
     signOut: async () => {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      router.push('/auth/login')
+      router.push('/auth')
     },
     resetPassword: async (email) => {
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {

@@ -8,7 +8,6 @@
 
 import { useLayoutEffect, useEffectEvent, startTransition } from 'react';
 import { Navigation } from './Navigation';
-import { QueryProvider } from '@/lib/react-query';
 import { NotificationSystem } from '@/components/ui/notification';
 import { useUIStore } from '@/lib/stores';
 import InteractiveFooter from './MinimalFooter';
@@ -34,25 +33,23 @@ export function RootLayout({ children }) {
   }, []); // 🎉 No dependencies needed!
 
   return (
-    <QueryProvider>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Navigation />
-        
-        {/* Main Content Area with sidebar margin */}
-        <main className="lg:ml-64 flex-1">
-          {children}
-        </main>
-        
-        {/* Footer - positioned after main content, before mobile nav padding */}
-        <InteractiveFooter />
-        
-        {/* Mobile padding for bottom navigation */}
-        <div className="lg:hidden h-16" />
-        
-        {/* Notification System */}
-        <NotificationSystem />
-      </div>
-    </QueryProvider>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Navigation />
+      
+      {/* Main Content Area with sidebar margin */}
+      <main className="lg:ml-64 flex-1">
+        {children}
+      </main>
+      
+      {/* Footer - positioned after main content, before mobile nav padding */}
+      <InteractiveFooter />
+      
+      {/* Mobile padding for bottom navigation */}
+      <div className="lg:hidden h-16" />
+      
+      {/* Notification System */}
+      <NotificationSystem />
+    </div>
   );
 }
 

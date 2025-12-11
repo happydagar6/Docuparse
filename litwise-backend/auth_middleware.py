@@ -13,8 +13,9 @@ import requests
 
 load_dotenv()
 
-# Security scheme
+# Security schemes
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -117,7 +118,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
 
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security, auto_error=False)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(optional_security)
 ) -> Optional[AuthUser]:
     """
     Get the current user if authenticated, otherwise return None
@@ -128,14 +129,28 @@ async def get_optional_user(
         async def optional_route(user: Optional[AuthUser] = Depends(get_optional_user)):
             if user:
                 return {"message": f"Hello {user.email}"}
-            return {"message": "Hello guest"}
+            return {"message": "Hello anonymous user"}
     """
     if not credentials:
         return None
     
     try:
-        return await get_current_user(credentials)
+        payload = await verify_token(credentials)
+        
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        user_metadata = payload.get("user_metadata", {})
+        
+        if not user_id:
+            return None
+        
+        return AuthUser(
+            user_id=user_id,
+            email=email,
+            metadata=user_metadata
+        )
     except HTTPException:
+        # If token is invalid, just return None instead of raising error
         return None
 
 

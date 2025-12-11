@@ -3,7 +3,21 @@
  * Handles fetching images and tables from backend
  */
 
+import { getSupabaseClient } from './supabase/client';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Get JWT token from Supabase session
+async function getAuthToken() {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+    return null;
+  }
+}
 
 /**
  * Fetch multi-modal content (images + tables) for a paper
@@ -18,13 +32,15 @@ export async function getMultiModalContent(paperId) {
   }
 
   try {
+    const token = await getAuthToken();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
     const response = await fetch(
       `${API_BASE_URL}/papers/${paperId}/multimodal`,
       {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         // Add timeout
         signal: AbortSignal.timeout(20000), // 20 seconds timeout
       }

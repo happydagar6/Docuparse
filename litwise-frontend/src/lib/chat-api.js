@@ -1,13 +1,29 @@
+import { getSupabaseClient } from './supabase/client';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+// Get JWT token from Supabase session
+async function getAuthToken() {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+    return null;
+  }
+}
 
 export const chatApi = {
   // Create a new chat session
   createSession: async (paperId, title) => {
+    const token = await getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
     const response = await fetch(`${API_BASE_URL}/api/chat/sessions?paper_id=${paperId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ title }),
     });
 
@@ -20,7 +36,11 @@ export const chatApi = {
 
   // Get chat sessions for a paper
   getPaperSessions: async (paperId) => {
-    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${paperId}`);
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${paperId}`, { headers });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -31,7 +51,11 @@ export const chatApi = {
 
   // Get messages for a session
   getSessionMessages: async (sessionId) => {
-    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`);
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`, { headers });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: {response.status}`);
@@ -44,10 +68,13 @@ export const chatApi = {
   streamChat: async (sessionId, message, onChunk, abortSignal = null) => {
     console.log('Starting chat stream for session:', sessionId, 'message:', message);
     
+    const token = await getAuthToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+      headers,
       },
       body: JSON.stringify({
         session_id: sessionId,

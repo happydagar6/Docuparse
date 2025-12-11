@@ -54,7 +54,7 @@ export default function SignupForm() {
       
       // Redirect to login after 2 seconds
       setTimeout(() => {
-        router.push('/auth/login')
+        router.push('/auth')
       }, 2000)
     } catch (err) {
       console.error('Signup error:', err)
@@ -263,7 +263,7 @@ export default function SignupForm() {
       <CardFooter className="flex flex-col space-y-2">
         <div className="text-sm text-center text-muted-foreground">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-primary hover:underline font-medium">
+          <Link href="/auth" className="text-primary hover:underline font-medium">
             Sign in
           </Link>
         </div>

@@ -1,9 +1,11 @@
+'use client';
+
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { RootLayout } from "@/components/layout/Layout";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueryProvider as ReactQueryProvider} from "@/lib/react-query"
+import { AppShell } from "@/components/layout/AppShell"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,22 +17,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: "Litwise - AI-Powered Research Companion",
-  description: "Upload, analyze, and discover insights from research papers using AI",
-};
-
 export default function Layout({ children }) {
   return (
     <html lang="en">
+      <head>
+        <title>Litwise - AI-Powered Research Companion</title>
+        <meta name="description" content="Upload, analyze, and discover insights from research papers using AI" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ReactQueryProvider>
-          <AuthProvider> {/* ADD THIS WRAPPER */}
-            {children}
+          <AuthProvider>
+            <AppShell>
+              {children}
+            </AppShell>
             <Toaster position="top-right" richColors />
-          </AuthProvider> {/* ADD THIS CLOSING TAG */}
+          </AuthProvider>
         </ReactQueryProvider>
       </body>
     </html>

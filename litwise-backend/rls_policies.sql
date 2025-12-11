@@ -363,8 +363,8 @@ CREATE POLICY "Users can view their citation relationships"
   USING (
     EXISTS (
       SELECT 1 FROM public.papers
-      WHERE (papers.id = citation_relationships.source_citation_id
-         OR papers.id = citation_relationships.target_citation_id)
+      WHERE (papers.id = citation_relationships.citing_paper_id
+         OR papers.id = citation_relationships.cited_paper_id)
       AND papers.user_id = auth.uid()
     )
   );
@@ -376,8 +376,7 @@ CREATE POLICY "Users can create citation relationships"
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.papers
-      WHERE (papers.id = citation_relationships.source_citation_id
-         OR papers.id = citation_relationships.target_citation_id)
+      WHERE papers.id = citation_relationships.citing_paper_id
       AND papers.user_id = auth.uid()
     )
   );
@@ -389,8 +388,7 @@ CREATE POLICY "Users can delete citation relationships"
   USING (
     EXISTS (
       SELECT 1 FROM public.papers
-      WHERE (papers.id = citation_relationships.source_citation_id
-         OR papers.id = citation_relationships.target_citation_id)
+      WHERE papers.id = citation_relationships.citing_paper_id
       AND papers.user_id = auth.uid()
     )
   );
