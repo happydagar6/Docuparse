@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from models import (
     PaperUpload,
@@ -22,6 +22,9 @@ import uuid
 import asyncio
 import json
 from datetime import datetime
+
+# Import authentication middleware
+from auth_middleware import get_current_user, get_optional_user, AuthUser
 
 # Import chat and study plan routes and other routes
 from routes.chat import router as chat_router
@@ -86,8 +89,12 @@ def options_handler():
 
 
 @app.post("/upload", response_model=dict)
-async def upload_paper(file: UploadFile = File(...), title: str = None):
-    """Upload and extract text and metadata from PDF (without AI processing)."""
+async def upload_paper(
+    file: UploadFile = File(...), 
+    title: str = None,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    """Upload and extract text and metadata from PDF (without AI processing). Requires authentication."""
     try:
         # Generate unique ID for paper
         paper_id = str(uuid.uuid4())
@@ -140,7 +147,7 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             "content_text": text,
             "page_info": json.dumps(page_info),
             "embedding_id": paper_id,
-            "user_id": None,
+            "user_id": current_user.id,  # Set authenticated user ID
             "file_size": file_size,
             "filename": file.filename,
             "processing_status": "uploaded",
@@ -155,7 +162,7 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
             # Phase 1.1: Content type flags for filtering
             "has_images": len(multimodal_content.get("images", [])) > 0,
             "has_tables": len(multimodal_content.get("tables", [])) > 0,
-            "has_equations": False,  # TODO: Add equation detection
+            "has_equations": multimodal_content.get("has_equations", False),
         }
 
         # Insert into Supabase
@@ -271,19 +278,20 @@ async def upload_paper(file: UploadFile = File(...), title: str = None):
 
 
 @app.post("/papers/{paper_id}/process", response_model=ProcessingResponse)
-async def process_paper_ai(paper_id: str):
-    """Generate AI summary for an uploaded paper."""
+async def process_paper_ai(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Generate AI summary for an uploaded paper. User must own the paper."""
     try:
-        # Get paper from database
+        # Get paper from database and verify ownership
         result = (
             supabase.table("papers")
             .select("id, title, content_text, page_info, processing_status")
             .eq("id", paper_id)
+            .eq("user_id", current_user.id)
             .execute()
         )
 
         if not result.data:
-            raise HTTPException(status_code=404, detail="Paper not found")
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
 
         paper = result.data[0]
 
@@ -471,9 +479,11 @@ async def process_paper_ai(paper_id: str):
 
 
 @app.post("/search")
-async def search_papers(query: SearchQuery):
+async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get_current_user)):
     """
-    Advanced semantic search across all papers using hybrid search
+    Advanced semantic search across user's papers using hybrid search
+    
+    Only searches papers owned by the authenticated user.
 
     Features:
     - Natural language query parsing (Stage 1: years, venues, content flags)
@@ -485,6 +495,7 @@ async def search_papers(query: SearchQuery):
 
     Args:
         query: SearchQuery with query text, filters, and options
+        current_user: Authenticated user (from JWT)
 
     Returns:
         List of search results with relevance scores and metadata
@@ -579,11 +590,16 @@ async def search_papers(query: SearchQuery):
                 db_filters.append(venue_filter)
 
         # Fetch filtered papers from database if filters applied
+        # Always filter by user_id for data isolation
         if db_filters and not filtered_paper_ids:
             try:
                 where_clause = " AND ".join(db_filters)
                 result = (
-                    supabase.table("papers").select("id").filter(where_clause).execute()
+                    supabase.table("papers")
+                    .select("id")
+                    .filter(where_clause)
+                    .eq("user_id", current_user.id)
+                    .execute()
                 )
                 filtered_paper_ids = [paper["id"] for paper in result.data]
 
@@ -595,6 +611,20 @@ async def search_papers(query: SearchQuery):
             except Exception as e:
                 print(f"⚠️ Metadata filtering failed: {e}, proceeding without filters")
                 filtered_paper_ids = None
+        elif not filtered_paper_ids:
+            # No specific filters, but still need to limit to user's papers
+            try:
+                result = supabase.table("papers").select("id").eq("user_id", current_user.id).execute()
+                filtered_paper_ids = [paper["id"] for paper in result.data]
+                
+                if not filtered_paper_ids:
+                    print(f"ℹ️ User has no papers uploaded yet")
+                    return []
+                
+                print(f"📋 Searching across {len(filtered_paper_ids)} papers owned by user")
+            except Exception as e:
+                print(f"⚠️ Failed to fetch user's papers: {e}")
+                raise HTTPException(status_code=500, detail="Failed to fetch user's papers")
 
         # Perform hybrid search across all papers (or filtered subset)
         results = await enhanced_search.hybrid_search(
@@ -687,9 +717,9 @@ async def search_papers(query: SearchQuery):
 
 
 @app.post("/search/synthesize", response_model=SynthesisResponse)
-async def synthesize_search_results(request: SynthesisRequest):
+async def synthesize_search_results(request: SynthesisRequest, current_user: AuthUser = Depends(get_current_user)):
     """
-    Generate AI-powered research synthesis from search results.
+    Generate AI-powered research synthesis from search results. Requires authentication.
 
     This endpoint:
     1. Takes search results from the /search endpoint
@@ -700,6 +730,7 @@ async def synthesize_search_results(request: SynthesisRequest):
 
     Args:
         request: SynthesisRequest with query and search_results
+        current_user: Authenticated user (automatically injected)
 
     Returns:
         SynthesisResponse with themes, findings, gaps, trends
@@ -792,9 +823,9 @@ async def synthesize_search_results(request: SynthesisRequest):
 # ============================================
 
 @app.post("/synthesis/save")
-async def save_synthesis(request: SaveSynthesisRequest):
+async def save_synthesis(request: SaveSynthesisRequest, current_user: AuthUser = Depends(get_current_user)):
     """
-    Save a synthesis to history for future reference.
+    Save a synthesis to history for future reference. Requires authentication.
     
     This endpoint stores the complete synthesis result including:
     - Query and settings used
@@ -804,6 +835,7 @@ async def save_synthesis(request: SaveSynthesisRequest):
     
     Args:
         request: SaveSynthesisRequest with synthesis data
+        current_user: Authenticated user (automatically injected)
         
     Returns:
         Saved synthesis with ID and timestamps
@@ -844,7 +876,8 @@ async def save_synthesis(request: SaveSynthesisRequest):
             "top_papers": [paper.model_dump() for paper in synthesis.top_papers],
             "paper_ids": paper_ids,
             "search_results": request.search_results,
-            "tags": request.tags
+            "tags": request.tags,
+            "user_id": current_user.id  # Set authenticated user ID
         }
         
         # Insert into Supabase
@@ -872,17 +905,19 @@ async def save_synthesis(request: SaveSynthesisRequest):
 
 @app.get("/synthesis/history")
 async def get_synthesis_history(
+    current_user: AuthUser = Depends(get_current_user),
     limit: int = 20,
     offset: int = 0,
     tag: Optional[str] = None
 ):
     """
-    Get list of saved syntheses from history.
+    Get list of saved syntheses from history for the authenticated user.
     
     Returns lightweight list items with essential information.
     Use GET /synthesis/history/{id} to get full synthesis details.
     
     Args:
+        current_user: Authenticated user (automatically injected)
         limit: Maximum number of items to return (default: 20)
         offset: Number of items to skip (for pagination, default: 0)
         tag: Optional tag filter (returns only syntheses with this tag)
@@ -894,10 +929,10 @@ async def get_synthesis_history(
         GET /synthesis/history?limit=10&tag=literature-review
     """
     try:
-        # Build query
+        # Build query for user's synthesis history
         query = supabase.table("synthesis_history").select(
             "id, query, paper_count, themes, tags, created_at"
-        )
+        ).eq("user_id", current_user.id)
         
         # Apply tag filter if provided
         if tag:
@@ -937,14 +972,15 @@ async def get_synthesis_history(
 
 
 @app.get("/synthesis/history/{synthesis_id}")
-async def get_synthesis_by_id(synthesis_id: str):
+async def get_synthesis_by_id(synthesis_id: str, current_user: AuthUser = Depends(get_current_user)):
     """
-    Get full details of a specific saved synthesis.
+    Get full details of a specific saved synthesis. User must own the synthesis.
     
     Returns complete synthesis data including all themes, findings, gaps, and trends.
     
     Args:
         synthesis_id: UUID of the saved synthesis
+        current_user: Authenticated user (automatically injected)
         
     Returns:
         Complete synthesis object
@@ -953,10 +989,10 @@ async def get_synthesis_by_id(synthesis_id: str):
         GET /synthesis/history/123e4567-e89b-12d3-a456-426614174000
     """
     try:
-        result = supabase.table("synthesis_history").select("*").eq("id", synthesis_id).execute()
+        result = supabase.table("synthesis_history").select("*").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
         
         if not result.data or len(result.data) == 0:
-            raise HTTPException(status_code=404, detail=f"Synthesis not found: {synthesis_id}")
+            raise HTTPException(status_code=404, detail=f"Synthesis not found or access denied")
         
         return result.data[0]
         
@@ -970,15 +1006,17 @@ async def get_synthesis_by_id(synthesis_id: str):
 
 
 @app.patch("/synthesis/history/{synthesis_id}/tags")
-async def update_synthesis_tags(synthesis_id: str, request: UpdateSynthesisTagsRequest):
+async def update_synthesis_tags(synthesis_id: str, request: UpdateSynthesisTagsRequest, current_user: AuthUser = Depends(get_current_user)):
     """
     Update tags on a saved synthesis.
     
     Allows users to organize their saved syntheses with custom tags.
+    Only the owner can update tags.
     
     Args:
         synthesis_id: UUID of the saved synthesis
         request: UpdateSynthesisTagsRequest with new tags
+        current_user: Authenticated user (from JWT)
         
     Returns:
         Updated synthesis
@@ -992,15 +1030,15 @@ async def update_synthesis_tags(synthesis_id: str, request: UpdateSynthesisTagsR
     try:
         from models import UpdateSynthesisTagsRequest
         
-        # Check if synthesis exists
-        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).execute()
+        # Check if synthesis exists and user owns it
+        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
         if not check_result.data:
-            raise HTTPException(status_code=404, detail=f"Synthesis not found: {synthesis_id}")
+            raise HTTPException(status_code=404, detail="Synthesis not found or access denied")
         
         # Update tags
         result = supabase.table("synthesis_history").update(
             {"tags": request.tags}
-        ).eq("id", synthesis_id).execute()
+        ).eq("id", synthesis_id).eq("user_id", current_user.id).execute()
         
         if not result.data:
             raise HTTPException(status_code=500, detail="Failed to update tags")
@@ -1023,12 +1061,15 @@ async def update_synthesis_tags(synthesis_id: str, request: UpdateSynthesisTagsR
 
 
 @app.delete("/synthesis/history/{synthesis_id}")
-async def delete_synthesis(synthesis_id: str):
+async def delete_synthesis(synthesis_id: str, current_user: AuthUser = Depends(get_current_user)):
     """
     Delete a saved synthesis from history.
     
+    Only the owner of the synthesis can delete it.
+    
     Args:
         synthesis_id: UUID of the synthesis to delete
+        current_user: Authenticated user (from JWT)
         
     Returns:
         Success message
@@ -1037,13 +1078,13 @@ async def delete_synthesis(synthesis_id: str):
         DELETE /synthesis/history/123e4567-e89b-12d3-a456-426614174000
     """
     try:
-        # Check if synthesis exists
-        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).execute()
+        # Check if synthesis exists and user owns it
+        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
         if not check_result.data:
-            raise HTTPException(status_code=404, detail=f"Synthesis not found: {synthesis_id}")
+            raise HTTPException(status_code=404, detail="Synthesis not found or access denied")
         
         # Delete from database
-        supabase.table("synthesis_history").delete().eq("id", synthesis_id).execute()
+        supabase.table("synthesis_history").delete().eq("id", synthesis_id).eq("user_id", current_user.id).execute()
         
         print(f"🗑️ Synthesis deleted: {synthesis_id}")
         
@@ -1151,14 +1192,15 @@ def qdrant_diagnostics():
 
 
 @app.get("/papers", response_model=list)
-def get_papers():
-    """Get list of all uploaded papers with processing status."""
+def get_papers(current_user: AuthUser = Depends(get_current_user)):
+    """Get list of all uploaded papers with processing status for the authenticated user."""
     try:
         result = (
             supabase.table("papers")
             .select(
                 "id, title, summary, processing_status, ai_generated_at, created_at, updated_at, embedding_id, file_size, filename"
             )
+            .eq("user_id", current_user.id)
             .order("created_at", desc=True)
             .execute()
         )
@@ -1168,8 +1210,8 @@ def get_papers():
 
 
 @app.get("/papers/{paper_id}", response_model=dict)
-def get_paper(paper_id: str):
-    """Get specific paper by ID with processing status."""
+def get_paper(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get specific paper by ID with processing status. User must own the paper."""
     try:
         result = (
             supabase.table("papers")
@@ -1177,8 +1219,12 @@ def get_paper(paper_id: str):
                 "id, title, summary, content_text, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename"
             )
             .eq("id", paper_id)
+            .eq("user_id", current_user.id)
             .execute()
         )
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Paper not found")
@@ -1194,9 +1240,14 @@ def get_paper(paper_id: str):
 
 
 @app.get("/papers/{paper_id}/multimodal")
-async def get_paper_multimodal_content(paper_id: str):
-    """Get multi-modal content (images, tables) for a paper"""
+async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get multi-modal content (images, tables) for a paper. User must own the paper."""
     try:
+        # Verify paper ownership
+        paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
+        
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue
         from workflow.db import qdrant
         
@@ -1253,13 +1304,13 @@ async def get_paper_multimodal_content(paper_id: str):
 
 
 @app.delete("/papers/{paper_id}", response_model=dict)
-def delete_paper(paper_id: str):
-    """Delete paper and its embeddings."""
+def delete_paper(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Delete paper and its embeddings. User must own the paper."""
     try:
-        # First check if paper exists
-        result = supabase.table("papers").select("id").eq("id", paper_id).execute()
+        # Check if paper exists and user owns it
+        result = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
         if not result.data:
-            raise HTTPException(status_code=404, detail="Paper not found")
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
 
         # Delete from Supabase
         supabase.table("papers").delete().eq("id", paper_id).execute()

@@ -154,23 +154,108 @@ class MultiModalExtractor:
         
         return "\n".join(text_parts) # Join all parts into single string
     
+    def detect_equations(self, pdf_path: str) -> bool:
+        """
+        Detect if PDF contains mathematical equations or formulas.
+        Looks for LaTeX math delimiters, Unicode math symbols, and common equation patterns.
+        
+        Returns:
+            bool: True if equations/formulas are detected, False otherwise
+        """
+        print(f"🔢 Starting equation detection from: {pdf_path}")
+        
+        try:
+            import re
+            doc = fitz.open(pdf_path)
+            
+            # Patterns to detect equations
+            # 1. LaTeX math environments
+            latex_patterns = [
+                r'\\begin\{(equation|align|math|displaymath|eqnarray|gather)\}',
+                r'\\end\{(equation|align|math|displaymath|eqnarray|gather)\}',
+                r'\\\[.*?\\\]',  # Display math
+                r'\$\$.*?\$\$',  # Display math alternative
+                r'\$[^$]+\$',    # Inline math
+                r'\\frac\{',     # Fractions
+                r'\\int[_^]',    # Integrals
+                r'\\sum[_^]',    # Summations
+                r'\\prod[_^]',   # Products
+                r'\\sqrt\{',     # Square roots
+                r'\\alpha|\\beta|\\gamma|\\delta|\\theta|\\lambda|\\mu|\\sigma|\\pi',  # Greek letters
+            ]
+            
+            # 2. Unicode math symbols (common in modern PDFs)
+            # Mathematical Operators: ∀∂∃∅∇∈∉∋∏∑−∓∗∘∙√∝∞∟∠∧∨∩∪∫∬∭∮∴∵∼≃≅≈≉≠≡≤≥
+            # Greek letters: αβγδεζηθικλμνξοπρστυφχψω
+            unicode_math_ranges = [
+                (0x2200, 0x22FF),  # Mathematical Operators
+                (0x27C0, 0x27EF),  # Miscellaneous Mathematical Symbols-A
+                (0x2980, 0x29FF),  # Miscellaneous Mathematical Symbols-B
+                (0x2A00, 0x2AFF),  # Supplemental Mathematical Operators
+                (0x0391, 0x03A9),  # Greek uppercase
+                (0x03B1, 0x03C9),  # Greek lowercase
+            ]
+            
+            # Combine LaTeX patterns
+            combined_pattern = '|'.join(latex_patterns)
+            
+            # Check each page
+            for page_num in range(min(len(doc), 50)):  # Check first 50 pages max
+                page = doc[page_num]
+                text = page.get_text()
+                
+                # Check for LaTeX patterns
+                if re.search(combined_pattern, text):
+                    doc.close()
+                    print(f"✅ Equations detected (LaTeX pattern) on page {page_num + 1}")
+                    return True
+                
+                # Check for Unicode math symbols
+                for char in text:
+                    char_code = ord(char)
+                    for start, end in unicode_math_ranges:
+                        if start <= char_code <= end:
+                            doc.close()
+                            print(f"✅ Equations detected (Unicode math symbol) on page {page_num + 1}")
+                            return True
+                
+                # Check for common equation indicators
+                # Multiple equals signs, inequality symbols, etc.
+                if text.count('=') > 5 or text.count('≠') > 0 or text.count('≈') > 0:
+                    # Further validation: check if they're in a mathematical context
+                    equation_context = re.search(r'[a-zA-Z_][0-9]*\s*[=≠≈≤≥]\s*[0-9a-zA-Z_+\-*/()]+', text)
+                    if equation_context:
+                        doc.close()
+                        print(f"✅ Equations detected (equation pattern) on page {page_num + 1}")
+                        return True
+            
+            doc.close()
+            print(f"❌ No equations detected in {pdf_path}")
+            return False
+            
+        except Exception as e:
+            print(f"⚠️ Error during equation detection: {e}")
+            return False
+    
     def extract_all(self, pdf_path: str) -> Dict:
         """
         Extract all multi-modal content from PDF
         
         Returns:
-            Dict with 'images' and 'tables' keys
+            Dict with 'images', 'tables', and 'has_equations' keys
         """
         print(f"🚀 Starting multi-modal extraction from: {pdf_path}")
         
         images = self.extract_images(pdf_path)
         tables = self.extract_tables(pdf_path)
+        has_equations = self.detect_equations(pdf_path)
         
-        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables")
+        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, equations: {has_equations}")
         
         return {
             'images': images,
             'tables': tables,
+            'has_equations': has_equations,
             'total_items': len(images) + len(tables)
         }
 

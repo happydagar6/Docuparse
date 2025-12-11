@@ -290,13 +290,30 @@ The processing adds AI-powered summaries and enables detailed Q&A about the pape
             else:
                 context_text = "No relevant context found in this document."
             
-            # Prepare chat history
-            history_text = ""
-            if state.get("memory_summary"):
-                history_text = f"Previous conversation summary: {state['memory_summary']}\n\n"
+            # Get optimized history based on conversation length
+            chat_history = state.get("chat_history", [])
+            memory_summary = state.get("memory_summary", "")
+            recent_history, emphasize_summary = self._get_optimal_context(chat_history, memory_summary)
             
-            # Recent messages
-            recent_history = state.get("chat_history", [])[-10:]  # Last 10 messages
+            # Build history text with smart formatting
+            history_text = ""
+            history_length = len(chat_history)
+            
+            if memory_summary and emphasize_summary:
+                # Long conversation: Emphasize summary
+                history_text = f"""CONVERSATION SUMMARY (Based on {history_length} messages):
+{memory_summary}
+
+RECENT EXCHANGES (Last {len(recent_history)} messages):
+"""
+            elif memory_summary:
+                # Medium conversation: Include summary
+                history_text = f"Previous conversation summary: {memory_summary}\n\nRecent messages:\n"
+            else:
+                # Short conversation: Simple format
+                history_text = "Conversation history:\n"
+            
+            # Add recent messages
             for msg in recent_history:
                 role = "Human" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role}: {msg['content']}\n"
@@ -511,6 +528,24 @@ Answer based only on the context above."""),
             traceback.print_exc()
             yield {"type": "error", "error": f"Chat pipeline failed: {str(e)}"}
 
+    def _get_optimal_context(self, chat_history: List[Dict], memory_summary: str) -> tuple:
+        """Smart context selection based on conversation length
+        
+        Returns:
+            tuple: (recent_messages, should_emphasize_summary)
+        """
+        history_length = len(chat_history)
+        
+        if history_length <= 20:
+            # Short conversation: use last 10 messages, summary optional
+            return chat_history[-10:], False
+        elif history_length <= 50:
+            # Medium conversation: use last 7 messages, include summary
+            return chat_history[-7:], False
+        else:
+            # Long conversation: use last 5 messages, emphasize summary
+            return chat_history[-5:], True
+    
     async def _stream_response(self, state: Dict) -> AsyncGenerator[Dict, None]:
         """Stream the LLM response token by token"""
         try:
@@ -526,11 +561,30 @@ Answer based only on the context above."""),
             else:
                 context_text = "No relevant context found in this document."
             
-            history_text = ""
-            if state.get("memory_summary"):
-                history_text = f"Previous conversation summary: {state['memory_summary']}\n\n"
+            # Get optimized history based on conversation length
+            chat_history = state.get("chat_history", [])
+            memory_summary = state.get("memory_summary", "")
+            recent_history, emphasize_summary = self._get_optimal_context(chat_history, memory_summary)
             
-            recent_history = state.get("chat_history", [])[-10:]
+            # Build history text with smart formatting
+            history_text = ""
+            history_length = len(chat_history)
+            
+            if memory_summary and emphasize_summary:
+                # Long conversation: Emphasize summary
+                history_text = f"""CONVERSATION SUMMARY (Based on {history_length} messages):
+{memory_summary}
+
+RECENT EXCHANGES (Last {len(recent_history)} messages):
+"""
+            elif memory_summary:
+                # Medium conversation: Include summary
+                history_text = f"Previous conversation summary: {memory_summary}\n\nRecent messages:\n"
+            else:
+                # Short conversation: Simple format
+                history_text = "Conversation history:\n"
+            
+            # Add recent messages
             for msg in recent_history:
                 role = "Human" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role}: {msg['content']}\n"

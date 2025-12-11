@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
 from typing import List
 from models.citation import (
@@ -7,6 +7,7 @@ from models.citation import (
 )
 from services.citation_services import citation_service
 from workflow.db import supabase
+from auth_middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/citations", tags=["Citations"])
 
@@ -47,12 +48,12 @@ def extract_metadata(paper: dict) -> PaperMetadata:
     )
 
 @router.post("/generate", response_model=CitationResponse)
-async def generate_citation(request: CitationRequest):
-    """Generate citation for a single paper"""
-    result = supabase.table("papers").select("*").eq("id", request.paper_id).single().execute()
+async def generate_citation(request: CitationRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Generate citation for a single paper. User must own the paper."""
+    result = supabase.table("papers").select("*").eq("id", request.paper_id).eq("user_id", current_user.id).single().execute()
     
     if not result.data:
-        raise HTTPException(status_code=404, detail="Paper not found")
+        raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
     metadata = extract_metadata(result.data)
     citation = citation_service.generate(metadata, request.format)
@@ -65,15 +66,15 @@ async def generate_citation(request: CitationRequest):
     )
 
 @router.post("/batch")
-async def batch_citations(request: BatchCitationRequest):
-    """Generate citations for multiple papers"""
+async def batch_citations(request: BatchCitationRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Generate citations for multiple papers. User must own all papers."""
     if not request.paper_ids:
         raise HTTPException(status_code=400, detail="No paper IDs provided")
     
-    result = supabase.table("papers").select("*").in_("id", request.paper_ids).execute()
+    result = supabase.table("papers").select("*").eq("user_id", current_user.id).in_("id", request.paper_ids).execute()
     
     if not result.data:
-        raise HTTPException(status_code=404, detail="No papers found")
+        raise HTTPException(status_code=404, detail="No papers found or access denied")
     
     citations = []
     for paper in result.data:
@@ -101,8 +102,13 @@ async def get_formats():
     }
 
 @router.post("/export/bibtex", response_class=PlainTextResponse)
-async def export_bibtex(request: BatchCitationRequest):
-    """Export extracted citations as BibTeX format (.bib file content)"""
+async def export_bibtex(request: BatchCitationRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Export extracted citations as BibTeX format (.bib file content). User must own all papers."""
+    
+    # Verify user owns all papers first
+    papers_check = supabase.table("papers").select("id").eq("user_id", current_user.id).in_("id", request.paper_ids).execute()
+    if not papers_check.data or len(papers_check.data) != len(request.paper_ids):
+        raise HTTPException(status_code=404, detail="One or more papers not found or access denied")
     
     # Get all extracted citations for the papers
     result = supabase.table("paper_citations").select("*").in_("paper_id", request.paper_ids).execute()
@@ -145,14 +151,14 @@ from services.citation_extraction_service import citation_extraction_service
 import time
 
 @router.post("/extract", response_model=ExtractCitationsResponse)
-async def extract_citations_from_paper(request: ExtractCitationsRequest):
-    """Auto-extract citations from paper text"""
+async def extract_citations_from_paper(request: ExtractCitationsRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Auto-extract citations from paper text. User must own the paper."""
     start_time = time.time()
     
-    # Get paper
-    result = supabase.table("papers").select("*").eq("id", request.paper_id).single().execute()
+    # Get paper and verify ownership
+    result = supabase.table("papers").select("*").eq("id", request.paper_id).eq("user_id", current_user.id).single().execute()
     if not result.data:
-        raise HTTPException(status_code=404, detail="Paper not found")
+        raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
     paper = result.data
     full_text = paper.get("content_text", "")
@@ -277,8 +283,13 @@ async def extract_citations_from_paper(request: ExtractCitationsRequest):
     
     
 @router.get("/paper/{paper_id}", response_model=List[ExtractedCitation])
-async def get_paper_citations(paper_id: str):
-    """Get all extracted citations for a paper"""
+async def get_paper_citations(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get all extracted citations for a paper. User must own the paper."""
+    # Verify paper ownership
+    paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+    if not paper_check.data:
+        raise HTTPException(status_code=404, detail="Paper not found or access denied")
+    
     result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).order("importance_score", desc=True).execute()
     
     if not result.data:
@@ -306,8 +317,13 @@ async def get_paper_citations(paper_id: str):
 
 
 @router.get("/stats/{paper_id}", response_model=CitationStatsResponse)
-async def get_citation_stats(paper_id: str):
-    """Get citation statistics for a paper"""
+async def get_citation_stats(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get citation statistics for a paper. User must own the paper."""
+    # Verify paper ownership
+    paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+    if not paper_check.data:
+        raise HTTPException(status_code=404, detail="Paper not found or access denied")
+    
     result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).execute()
     
     if not result.data:
@@ -352,16 +368,30 @@ async def get_citation_stats(paper_id: str):
     
 
 @router.delete("/paper/{paper_id}/citations")
-async def delete_paper_citations(paper_id: str):
-    """Delete all extracted citations for a paper"""
+async def delete_paper_citations(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Delete all extracted citations for a paper. User must own the paper."""
+    # Verify paper ownership
+    paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+    if not paper_check.data:
+        raise HTTPException(status_code=404, detail="Paper not found or access denied")
+    
     supabase.table("paper_citations").delete().eq("paper_id", paper_id).execute()
     return {"success": True, "message": f"Deleted citations for paper {paper_id}"}
 
 
 @router.patch("/{citation_id}/verify")
-async def verify_citation(citation_id: str):
-    """Mark a citation as verified/trusted"""
+async def verify_citation(citation_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Mark a citation as verified/trusted. User must own the associated paper."""
     try:
+        # Get citation and verify paper ownership
+        citation = supabase.table("paper_citations").select("paper_id").eq("id", citation_id).single().execute()
+        if not citation.data:
+            raise HTTPException(status_code=404, detail="Citation not found")
+        
+        paper_check = supabase.table("papers").select("id").eq("id", citation.data["paper_id"]).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Citation not found or access denied")
+        
         result = supabase.table("paper_citations").update({
             "verified": True
         }).eq("id", citation_id).execute()
@@ -375,9 +405,18 @@ async def verify_citation(citation_id: str):
 
 
 @router.patch("/{citation_id}/unverify")
-async def unverify_citation(citation_id: str):
-    """Unmark a citation as verified"""
+async def unverify_citation(citation_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Unmark a citation as verified. User must own the associated paper."""
     try:
+        # Get citation and verify paper ownership
+        citation = supabase.table("paper_citations").select("paper_id").eq("id", citation_id).single().execute()
+        if not citation.data:
+            raise HTTPException(status_code=404, detail="Citation not found")
+        
+        paper_check = supabase.table("papers").select("id").eq("id", citation.data["paper_id"]).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Citation not found or access denied")
+        
         result = supabase.table("paper_citations").update({
             "verified": False
         }).eq("id", citation_id).execute()
@@ -391,9 +430,14 @@ async def unverify_citation(citation_id: str):
 
 
 @router.get("/verified/{paper_id}")
-async def get_verified_citations(paper_id: str):
-    """Get only verified citations for a paper"""
+async def get_verified_citations(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get only verified citations for a paper. User must own the paper."""
     try:
+        # Verify paper ownership
+        paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
+        
         result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).eq("verified", True).order("importance_score", desc=True).execute()
         
         if not result.data:

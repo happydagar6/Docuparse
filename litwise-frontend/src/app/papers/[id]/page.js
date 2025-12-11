@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen, Link2, Sparkles } from 'lucide-react';
+import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen, Link2, Sparkles, Users, Hash, Tag, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { usePaper } from '@/lib/react-query';
@@ -172,6 +172,121 @@ export default function PaperPage() {
           </div>
 
           <TabsContent value="overview" className="space-y-4 mt-0">
+            {/* Abstract Section - Prominent Display */}
+            {paper.abstract && (
+              <Card className="border-blue-200/60 bg-linear-to-br from-blue-50/30 to-cyan-50/30">
+                <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                  <CardTitle className="text-base md:text-lg flex items-center gap-2 text-slate-900">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    Abstract
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 pt-0">
+                  <div className="prose prose-sm md:prose-base max-w-none">
+                    <p className="text-sm md:text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {paper.abstract}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Research Metadata */}
+            {(paper.authors || paper.publication_year || paper.doi || paper.journal_or_conference || paper.keywords) && (
+              <Card className="border-slate-200/60">
+                <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
+                  <CardTitle className="text-base md:text-lg flex items-center gap-2 text-slate-900">
+                    <Brain className="h-5 w-5 text-blue-600" />
+                    Research Metadata
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Authors */}
+                    {paper.authors && paper.authors.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-xs md:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          Authors
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {paper.authors.map((author, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs md:text-sm bg-blue-50 text-blue-700 border-blue-200">
+                              {typeof author === 'string' ? author : author.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Publication Year & Venue */}
+                    <div className="space-y-3">
+                      {paper.publication_year && (
+                        <div className="space-y-2">
+                          <label className="text-xs md:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-blue-600" />
+                            Publication Year
+                          </label>
+                          <Badge variant="outline" className="text-xs md:text-sm bg-slate-50 text-slate-700 border-slate-300">
+                            {paper.publication_year}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {paper.journal_or_conference && (
+                        <div className="space-y-2">
+                          <label className="text-xs md:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-blue-600" />
+                            Published In
+                          </label>
+                          <Badge variant="outline" className="text-xs md:text-sm bg-purple-50 text-purple-700 border-purple-200">
+                            {paper.journal_or_conference}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* DOI */}
+                  {paper.doi && (
+                    <div className="space-y-2">
+                      <label className="text-xs md:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <Link2 className="h-4 w-4 text-blue-600" />
+                        DOI
+                      </label>
+                      <a 
+                        href={`https://doi.org/${paper.doi}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm md:text-base text-blue-600 hover:text-blue-800 hover:underline font-mono bg-blue-50 px-3 py-1.5 rounded border border-blue-200 transition-colors"
+                      >
+                        {paper.doi}
+                        <Link2 className="h-3 w-3" />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Keywords */}
+                  {paper.keywords && paper.keywords.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200/50">
+                      <label className="text-xs md:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-blue-600" />
+                        Keywords
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {paper.keywords.map((keyword, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs md:text-sm bg-slate-100 text-slate-700">
+                            {keyword}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Document Information */}
             <Card className="border-slate-200/60">
               <CardHeader className="p-4 md:p-6 pb-3 md:pb-4">
                 <CardTitle className="text-base md:text-lg flex items-center gap-2 text-slate-900">

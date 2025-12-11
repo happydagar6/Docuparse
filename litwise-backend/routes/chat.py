@@ -9,19 +9,20 @@ import uuid
 from models.chat import ChatSession, ChatRequest, ChatMessage, ChatResponse
 from chat_pipeline import rag_pipeline
 from workflow.db import supabase
+from auth_middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 @router.post("/sessions", response_model=ChatSession)
-async def create_chat_session(paper_id: str, title: Optional[str] = None):
-    """Create a new chat session for a paper"""
+async def create_chat_session(paper_id: str, current_user: AuthUser = Depends(get_current_user), title: Optional[str] = None):
+    """Create a new chat session for a paper. User must own the paper."""
     try:
         supabase_client = supabase
         
-        # Verify paper exists
-        paper_result = supabase_client.table("papers").select("id, title").eq("id", paper_id).execute()
+        # Verify paper exists and user owns it
+        paper_result = supabase_client.table("papers").select("id, title").eq("id", paper_id).eq("user_id", current_user.id).execute()
         if not paper_result.data:
-            raise HTTPException(status_code=404, detail="Paper not found")
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
         paper_title = paper_result.data[0]["title"]
         session_title = title or f"Chat with {paper_title}"
@@ -43,10 +44,15 @@ async def create_chat_session(paper_id: str, title: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Failed to create chat session: {str(e)}")
 
 @router.get("/sessions/{paper_id}", response_model=List[ChatSession])
-async def get_paper_chat_sessions(paper_id: str):
-    """Get all chat sessions for a paper"""
+async def get_paper_chat_sessions(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get all chat sessions for a paper. User must own the paper."""
     try:
         supabase_client = supabase
+        
+        # Verify paper ownership
+        paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
         result = supabase_client.table("chat_sessions").select("*").eq(
             "paper_id", paper_id
@@ -58,10 +64,19 @@ async def get_paper_chat_sessions(paper_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
 
 @router.get("/sessions/{session_id}/messages", response_model=List[ChatMessage])
-async def get_chat_messages(session_id: str):
-    """Get all messages in a chat session"""
+async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Get all messages in a chat session. User must own the associated paper."""
     try:
         supabase_client = supabase
+        
+        # Verify session exists and user owns the paper
+        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+        if not session_result.data:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        
+        paper_check = supabase_client.table("papers").select("id").eq("id", session_result.data[0]["paper_id"]).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         result = supabase_client.table("chat_messages").select("*").eq(
             "session_id", session_id
@@ -97,8 +112,8 @@ async def get_chat_messages(session_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat messages: {str(e)}")
 
 @router.post("/stream")
-async def stream_chat(request: ChatRequest):
-    """Stream chat response with real-time updates"""
+async def stream_chat(request: ChatRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Stream chat response with real-time updates. User must own the associated paper."""
     try:
         session_id = request.session_id
         if not session_id:
@@ -106,7 +121,7 @@ async def stream_chat(request: ChatRequest):
         
         print(f"Starting chat stream for session: {session_id}, message: {request.message}")
         
-        # Get session details
+        # Get session details and verify ownership
         supabase_client = supabase
         session_result = supabase_client.table("chat_sessions").select("*").eq(
             "id", session_id
@@ -117,6 +132,11 @@ async def stream_chat(request: ChatRequest):
         
         session = session_result.data[0]
         paper_id = session["paper_id"]
+        
+        # Verify paper ownership
+        paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         # Save user message
         user_message_data = {
@@ -200,10 +220,19 @@ async def stream_chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Failed to stream chat: {str(e)}")
 
 @router.delete("/sessions/{session_id}")
-async def delete_chat_session(session_id: str):
-    """Delete a chat session and all its messages"""
+async def delete_chat_session(session_id: str, current_user: AuthUser = Depends(get_current_user)):
+    """Delete a chat session and all its messages. User must own the associated paper."""
     try:
         supabase_client = supabase
+        
+        # Verify session exists and user owns the paper
+        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+        if not session_result.data:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        
+        paper_check = supabase_client.table("papers").select("id").eq("id", session_result.data[0]["paper_id"]).eq("user_id", current_user.id).execute()
+        if not paper_check.data:
+            raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         # Delete session (cascades to messages and memory)
         result = supabase_client.table("chat_sessions").delete().eq("id", session_id).execute()
