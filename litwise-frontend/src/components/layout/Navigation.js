@@ -270,25 +270,31 @@ export function Navigation() {
             </span>
           </Link>
           
-          <motion.div whileTap={{ scale: 0.95 }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 hover:bg-gray-100 rounded-xl"
-            >
-              <motion.div
-                animate={{ rotate: isMobileMenuOpen ? 90 : 0 }}
-                transition={{ duration: 0.3 }}
+          <div className="flex items-center gap-2">
+            {/* User Menu in Mobile */}
+            <UserMenu />
+            
+            {/* Mobile Menu Toggle */}
+            <motion.div whileTap={{ scale: 0.95 }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 hover:bg-gray-100 rounded-xl"
               >
-                {isMobileMenuOpen ? (
-                  <X className="h-6 w-6" />
-                ) : (
-                  <Menu className="h-6 w-6" />
-                )}
-              </motion.div>
-            </Button>
-          </motion.div>
+                <motion.div
+                  animate={{ rotate: isMobileMenuOpen ? 90 : 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {isMobileMenuOpen ? (
+                    <X className="h-6 w-6" />
+                  ) : (
+                    <Menu className="h-6 w-6" />
+                  )}
+                </motion.div>
+              </Button>
+            </motion.div>
+          </div>
         </motion.header>
 
         {/* Mobile Menu Overlay */}
