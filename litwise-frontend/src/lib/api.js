@@ -247,26 +247,14 @@ export async function getQdrantDiagnostics(){
  * @returns {Promise<object>} - Synthesis with themes, findings, gaps, trends
  */
 export async function synthesizeSearchResults(query, searchResults, maxPapers = 20) {
-    const response = await fetch(`${API_BASE_URL}/search/synthesize`, {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-        },
+    return apiRequest('/search/synthesize', {
+        method: 'POST',
         body: JSON.stringify({
             query,
             search_results: searchResults,
             max_papers: maxPapers,
         }),
     });
-    if(!response.ok){
-        const errorData = await response.json().catch(() => {
-            return {
-                detail: `Synthesis failed: ${response.statusText}`
-            }
-        })
-        throw new Error(errorData.detail || 'Synthesis failed');
-    }
-    return await response.json();
 }
 
 /**
@@ -455,13 +443,17 @@ export async function generateBatchCitations(paperIds, format = 'apa') {
  */
 
 export async function exportBibTeX(paperIds) {
-    const url = `${API_BASE_URL}/api/citations/export/bibtex`;
+    const token = await getAuthToken();
+    const headers = {
+        "Content-Type": "application/json",
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
 
-    const response = await fetch(url, {
+    const response = await fetch(`${API_BASE_URL}/api/citations/export/bibtex`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
             paper_ids: paperIds,
             format: "bibtex"
