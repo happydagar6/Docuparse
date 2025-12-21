@@ -38,7 +38,7 @@ async function getAuthToken() {
  * @returns {Promise} - API response data
  */
 
-async function apiRequest(endpoint, options = {}) {
+export async function apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     
     // Get auth token
@@ -368,17 +368,15 @@ export function validatePDFFile(file){
  */
 
 /**
- * Extract citations from a paper
+ * Extract citations from a paper using enhanced regex parsing
  * @param {string} paperId - Paper ID
- * @param {boolean} useAiEnrichment - Whether to use AI for enrichment
  */ 
 
-export async function extractCitations(paperId, useAiEnrichment = true){
+export async function extractCitations(paperId){
     return apiRequest("/api/citations/extract", {
         method: "POST",
         body: JSON.stringify({
-            paper_id: paperId,
-            use_ai_enrichment: useAiEnrichment
+            paper_id: paperId
         })
     });
 }
@@ -466,6 +464,21 @@ export async function exportBibTeX(paperIds) {
     return response.text();
 }
 
+/**
+ * Export formatted citations from paper bibliography (citations extracted FROM the paper)
+ * @param {array} paperIds - Array of paper IDs
+ * @param {string} format - Citation format (apa, mla, ieee, vancouver)
+ */
+export async function exportFormattedCitations(paperIds, format = 'apa') {
+  return apiRequest('/api/citations/export/formatted', {
+    method: 'POST',
+    body: JSON.stringify({
+      paper_ids: paperIds,
+      format: format
+    })
+  });
+}
+
 
 /**
  * Delete all citations for a paper
@@ -512,6 +525,83 @@ export async function getVerifiedCitations(paperId) {
   return apiRequest(`/api/citations/verified/${paperId}`);
 }
 
+/**
+ * AI-Powered Citation Generator (Hybrid DOI + AI)
+ * 
+ * Generate APA 7th Edition citation from PDF using:
+ * 1. DOI extraction + Crossref API (free)
+ * 2. Grok AI extraction (fallback)
+ * 
+ * @param {File} pdfFile - PDF file to generate citation from
+ * @returns {Promise<Object>} - Citation response
+ * {
+ *   citation: "Author, A. (2021). Title. *Journal*, *5*(3), 123-145. https://doi.org/...",
+ *   source: "crossref" or "ai",
+ *   metadata: { title, authors, year, journal, volume, issue, pages, doi },
+ *   success: true,
+ *   error: null
+ * }
+ */
+export async function generateAICitation(pdfFile) {
+  const formData = new FormData();
+  formData.append('file', pdfFile);
+  
+  const token = await getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/generate-citation`, {
+    method: 'POST',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Citation generation failed');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Batch AI Citation Generator
+ * 
+ * Generate citations for multiple PDFs at once
+ * 
+ * @param {File[]} pdfFiles - Array of PDF files
+ * @returns {Promise<Object>} - Batch response
+ * {
+ *   citations: [...],
+ *   total: 5,
+ *   successful: 4,
+ *   failed: 1
+ * }
+ */
+export async function generateBatchAICitations(pdfFiles) {
+  const formData = new FormData();
+  pdfFiles.forEach(file => {
+    formData.append('files', file);
+  });
+  
+  const token = await getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/batch-generate-citations`, {
+    method: 'POST',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Batch citation generation failed');
+  }
+  
+  return response.json();
+}
+
 
 // Export API configuration for use in other files
 export const API_CONFIG = {
@@ -523,6 +613,7 @@ export const API_CONFIG = {
         DIAGNOSTICS: '/qdrant/diagnostics',
         SYNTHESIS: '/synthesis',
         CITATIONS: '/api/citations',
+        AI_CITATIONS: '/generate-citation',
     },
 };
 

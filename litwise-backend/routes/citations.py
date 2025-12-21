@@ -12,12 +12,12 @@ from auth_middleware import get_current_user, AuthUser
 router = APIRouter(prefix="/api/citations", tags=["Citations"])
 
 def extract_metadata(paper: dict) -> PaperMetadata:
-    """Extract metadata from paper record"""
+    """Extract complete metadata from paper record for citations"""
     # Extract authors from JSONB field
     authors = None
     authors_data = paper.get("authors", [])
     if authors_data and isinstance(authors_data, list):
-        # authors is stored as [{"name": "John Doe", "affiliation": "..."}, ...]
+        # authors is stored as [{"name": "LastName, I.", "affiliation": "..."}, ...]
         authors = []
         for author in authors_data:
             if isinstance(author, dict) and author.get("name"):
@@ -37,14 +37,37 @@ def extract_metadata(paper: dict) -> PaperMetadata:
             except:
                 pass
     
+    # Extract additional metadata from summary JSONB if available
+    summary_data = paper.get("summary", {})
+    volume = None
+    issue = None
+    pages = None
+    publisher = None
+    
+    if isinstance(summary_data, dict):
+        volume = summary_data.get("volume")
+        issue = summary_data.get("issue")
+        pages = summary_data.get("pages")
+        publisher = summary_data.get("publisher")
+    
+    # Get URL - use DOI link if DOI exists, otherwise use stored URL
+    url = paper.get("url")
+    doi = paper.get("doi")
+    if doi and not url:
+        url = f"https://doi.org/{doi}"
+    
     return PaperMetadata(
         id=paper.get("id", ""),
         title=paper.get("title", "Untitled"),
         authors=authors,
         year=year,
-        doi=paper.get("doi"),
-        url=paper.get("url"),
+        doi=doi,
+        url=url,
         journal=paper.get("journal_or_conference"),
+        volume=volume,
+        issue=issue,
+        pages=pages,
+        publisher=publisher,
     )
 
 @router.post("/generate", response_model=CitationResponse)
@@ -55,8 +78,21 @@ async def generate_citation(request: CitationRequest, current_user: AuthUser = D
     if not result.data:
         raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
+    # Debug: Print paper data
+    print(f"\n🔍 [CITATION DEBUG] Paper ID: {request.paper_id}")
+    print(f"   Title: {result.data.get('title', 'N/A')}")
+    print(f"   Authors (raw from DB): {result.data.get('authors', 'N/A')}")
+    print(f"   Year: {result.data.get('publication_year', 'N/A')}")
+    print(f"   DOI: {result.data.get('doi', 'N/A')}")
+    
     metadata = extract_metadata(result.data)
+    
+    print(f"   Extracted metadata authors: {metadata.authors}")
+    print(f"   Extracted metadata year: {metadata.year}")
+    
     citation = citation_service.generate(metadata, request.format)
+    
+    print(f"   Generated citation: {citation}\n")
     
     return CitationResponse(
         paper_id=request.paper_id,
@@ -99,6 +135,62 @@ async def get_formats():
             {"value": "vancouver", "label": "Vancouver", "description": "Medical/scientific journals"},
             {"value": "mla", "label": "MLA 9th Edition", "description": "Modern Language Association"},
         ]
+    }
+
+@router.post("/export/formatted")
+async def export_formatted_citations(request: BatchCitationRequest, current_user: AuthUser = Depends(get_current_user)):
+    """Export extracted citations (from bibliography) in any format. User must own all papers."""
+    
+    # Verify user owns all papers first
+    papers_check = supabase.table("papers").select("id").eq("user_id", current_user.id).in_("id", request.paper_ids).execute()
+    if not papers_check.data or len(papers_check.data) != len(request.paper_ids):
+        raise HTTPException(status_code=404, detail="One or more papers not found or access denied")
+    
+    # Get all extracted citations for the papers
+    result = supabase.table("paper_citations").select("*").in_("paper_id", request.paper_ids).execute()
+    
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No citations found for export")
+    
+    citations = result.data
+    formatted_citations = []
+    
+    # Generate formatted citation for each extracted citation
+    for cit in citations:
+        try:
+            # Create metadata from citation data
+            metadata = PaperMetadata(
+                id=cit.get("id", "unknown"),
+                title=cit.get("title") or cit.get("citation_text", "Untitled")[:200],
+                authors=cit.get("authors") or [],
+                year=cit.get("year"),
+                journal=cit.get("venue"),
+                doi=cit.get("doi"),
+                url=None,  # URLs typically not in extracted citations
+                volume=None,
+                issue=None,
+                pages=None,
+                publisher=None
+            )
+            
+            # Generate formatted citation
+            formatted = citation_service.generate(metadata, request.format)
+            formatted_citations.append({
+                "citation_id": cit.get("id"),
+                "title": metadata.title,
+                "citation": formatted
+            })
+        except Exception as e:
+            print(f"⚠️ Failed to format citation {cit.get('id')}: {e}")
+            continue
+    
+    if not formatted_citations:
+        raise HTTPException(status_code=500, detail="Failed to generate formatted citations")
+    
+    return {
+        "citations": formatted_citations,
+        "format": request.format.value,
+        "count": len(formatted_citations)
     }
 
 @router.post("/export/bibtex", response_class=PlainTextResponse)
@@ -197,31 +289,13 @@ async def extract_citations_from_paper(request: ExtractCitationsRequest, current
     # Find in-text contexts (increased limit from 3 to 10 for better context)
     citation_contexts = citation_extraction_service.find_in_text_citations(full_text, raw_citations)
     
-    # Prepare for AI enrichment batching if requested
+    # Process each citation with enhanced regex metadata extraction
     extracted_citations = []
     
-    if request.use_ai_enrichment and raw_citations:
-        print(f"🚀 Starting batch AI enrichment for {len(raw_citations)} citations...")
-        # Use batch enrichment to reduce API calls by 80%
-        ai_metadata_results = await citation_extraction_service.enrich_citations_batch(
-            raw_citations, 
-            full_text[:1000],  # Pass paper context for better understanding
-            batch_size=5  # Process 5 citations per API call
-        )
-    else:
-        ai_metadata_results = []
-    
-    # Process each citation with metadata (now includes AI enriched results)
     for idx, raw_cit in enumerate(raw_citations):
-        # Extract basic metadata
+        # Extract metadata using enhanced regex patterns (no AI calls)
         metadata = citation_extraction_service.extract_metadata_from_citation(raw_cit['raw_text'])
         
-        # Apply AI enrichment if available
-        if request.use_ai_enrichment and idx < len(ai_metadata_results):
-            ai_metadata = ai_metadata_results[idx]
-            # Merge metadata, preferring AI results
-            metadata.update({k: v for k, v in ai_metadata.items() if v})
-            
         # Calculate importance (increase context limit from 3 to 10)
         contexts = citation_contexts.get(raw_cit.get("ref_number", ""), [])[:10]
         importance = await citation_extraction_service.calculate_importance_score(raw_cit, contexts)
@@ -268,7 +342,7 @@ async def extract_citations_from_paper(request: ExtractCitationsRequest, current
                 "mention_count": citation.mention_count,
                 "importance_score": citation.importance_score,
                 "citation_type": citation.citation_type[:50] if citation.citation_type else None,
-                "extraction_method": "auto" if not request.use_ai_enrichment else "ai-enhanced"
+                "extraction_method": "regex"  # Using enhanced regex extraction
             }).execute()
         except Exception as e:
             print(f"❌ Failed to store citation: {e}")

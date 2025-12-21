@@ -3,7 +3,7 @@
 import {
   exportBibTeX,
   extractCitations,
-  generateBatchCitations,
+  exportFormattedCitations,
 } from "@/lib/api";
 import { useCitationStore } from "@/lib/stores";
 import { useState } from "react";
@@ -62,7 +62,8 @@ export default function CitationControls({ paperId, onRefresh }) {
     }
 
     try {
-      const response = await generateBatchCitations([paperId], format);
+      // Export formatted citations FROM the paper's bibliography
+      const response = await exportFormattedCitations([paperId], format);
       const formattedText = response.citations
         .map((c) => c.citation)
         .join("\n\n");
@@ -82,8 +83,8 @@ export default function CitationControls({ paperId, onRefresh }) {
   const handleReExtract = async () => {
     setIsReExtracting(true);
     try {
-      await extractCitations(paperId, true);
-      toast.success("Citation re-extracted with AI enrichment.");
+      await extractCitations(paperId);
+      toast.success("Citations re-extracted successfully.");
       if (onRefresh) onRefresh();
     } catch (error) {
       toast.error("Failed to re-extract citations: " + error.message);
@@ -159,7 +160,7 @@ export default function CitationControls({ paperId, onRefresh }) {
           ) : (
             <>
               <RefreshCw className="w-4 h-4 mr-1" />
-              AI Enrich
+              Re-Extract
             </>
           )}
         </Button>

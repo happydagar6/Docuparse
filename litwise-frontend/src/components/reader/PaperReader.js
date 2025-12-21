@@ -38,7 +38,10 @@ import {
   Copy,
   Menu,
   Lightbulb,
-  Sparkles
+  Sparkles,
+  Quote,
+  Users,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,6 +62,7 @@ import { Image as ImageIcon } from 'lucide-react';
 import CitationList from '@/components/citations/CitationList';
 import CitationStats from '@/components/citations/CitationStats';
 import CitationControls from '@/components/citations/CitationControls';
+import CitationButton from '@/components/citations/CitationButton';
 import { getPaperCitations, getCitationStats } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 
@@ -655,29 +659,97 @@ export function PaperReader({ paper, onBack }) {
                 {/* Citations Tab */}
                 <TabsContent value="citations" className="h-full flex flex-col m-0 overflow-hidden">
                   <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6">
-                    <div className="max-w-5xl mx-auto">
-                      <div className="mb-6">
-                        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                          <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
-                          Citations & References
-                        </h2>
-                        <p className="text-slate-600 text-xs sm:text-sm md:text-base">
-                          Auto-extracted citations with AI-powered relevance insights
-                        </p>
+                    <div className="max-w-5xl mx-auto space-y-8">
+                      {/* Cite This Paper Section */}
+                      <div>
+                        <div className="mb-4">
+                          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                            <Quote className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                            Cite This Paper
+                          </h2>
+                          <p className="text-slate-600 text-xs sm:text-sm md:text-base">
+                            Generate formatted citation for this paper using AI-extracted metadata
+                          </p>
+                        </div>
+                        
+                        <Card className="border-blue-200 bg-blue-50/30">
+                          <CardContent className="p-4 sm:p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0">
+                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+                                  <Sparkles className="h-5 w-5 text-white" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-slate-900 mb-2 text-sm sm:text-base">
+                                  {paper.title}
+                                </h3>
+                                {paper.authors && paper.authors.length > 0 && (
+                                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-2">
+                                    <Users className="h-4 w-4 flex-shrink-0" />
+                                    <span>
+                                      {paper.authors.map(a => a.name || a).slice(0, 3).join(', ')}
+                                      {paper.authors.length > 3 && ` et al.`}
+                                    </span>
+                                  </div>
+                                )}
+                                {paper.publication_year && (
+                                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-2">
+                                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                                    <span>{paper.publication_year}</span>
+                                  </div>
+                                )}
+                                {paper.doi && (
+                                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-4">
+                                    <Link2 className="h-4 w-4 flex-shrink-0" />
+                                    <a 
+                                      href={`https://doi.org/${paper.doi.replace('doi:', '').replace('https://doi.org/', '').trim()}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline truncate"
+                                    >
+                                      {paper.doi.replace('doi:', '').replace('https://doi.org/', '').trim()}
+                                    </a>
+                                  </div>
+                                )}
+                                <div className="pt-2">
+                                  <CitationButton
+                                    paperId={paper.id}
+                                    variant="default"
+                                    size="default"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
                       
-                      <CitationStats stats={citationStats} isLoading={citationsLoading} />
-                      
-                      <CitationControls 
-                        paperId={paper?.id} 
-                        onRefresh={loadCitations}
-                      />
-                      
-                      <CitationList
-                        paperId={paper?.id}
-                        citations={citations}
-                        isLoading={citationsLoading}
-                      />
+                      {/* References FROM the Paper */}
+                      <div>
+                        <div className="mb-4">
+                          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                            References in This Paper
+                          </h2>
+                          <p className="text-slate-600 text-xs sm:text-sm md:text-base">
+                            Auto-extracted citations from the bibliography section
+                          </p>
+                        </div>
+                        
+                        <CitationStats stats={citationStats} isLoading={citationsLoading} />
+                        
+                        <CitationControls 
+                          paperId={paper?.id} 
+                          onRefresh={loadCitations}
+                        />
+                        
+                        <CitationList
+                          paperId={paper?.id}
+                          citations={citations}
+                          isLoading={citationsLoading}
+                        />
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

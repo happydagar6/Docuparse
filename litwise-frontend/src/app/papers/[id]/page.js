@@ -22,7 +22,6 @@ import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { PaperReader } from '@/components/reader/PaperReader';
 import ChatInterface from '@/components/chat/ChatInterface.jsx';
 import { FormattedContent } from '@/components/ui/formatted-content';
-import CitationButton from '@/components/citations/CitationButton';
 
 export default function PaperPage() {
   const params = useParams();
@@ -107,7 +106,6 @@ export default function PaperPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <CitationButton paperId={paper.id} />
                 <ProcessingStatus paper={paper} />
               </div>
             </div>
@@ -255,12 +253,12 @@ export default function PaperPage() {
                         DOI
                       </label>
                       <a 
-                        href={`https://doi.org/${paper.doi}`}
+                        href={`https://doi.org/${paper.doi.replace('doi:', '').replace('https://doi.org/', '').trim()}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-sm md:text-base text-blue-600 hover:text-blue-800 hover:underline font-mono bg-blue-50 px-3 py-1.5 rounded border border-blue-200 transition-colors"
                       >
-                        {paper.doi}
+                        {paper.doi.replace('doi:', '').replace('https://doi.org/', '').trim()}
                         <Link2 className="h-3 w-3" />
                       </a>
                     </div>

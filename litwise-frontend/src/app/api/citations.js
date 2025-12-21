@@ -1,38 +1,29 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { apiRequest } from '@/lib/api';
 
 export async function generateCitation(paperId, format = "apa"){
-    const res = await fetch(`${API_URL}/api/citations/generate`, {
+    return apiRequest('/api/citations/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paper_id: paperId, format }),
     });
-    if(!res.ok) throw new Error(`Error generating citation: ${res.statusText}`);
-    return res.json();
 }
 
 export async function batchCitations(paperIds = [], format = "apa"){
-    const res = await fetch(`${API_URL}/api/citations/batch`, {
+    return apiRequest('/api/citations/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paper_ids: paperIds, format }),
     });
-    if(!res.ok) throw new Error(`Error generating batch citations: ${res.statusText}`);
-    return res.json();
 }
 
 export async function getCitationFormats(){
-    const res = await fetch(`${API_URL}/api/citations/formats`);
-    if(!res.ok) throw new Error(`Error fetching citation formats: ${res.statusText}`);
-    return res.json();
+    return apiRequest('/api/citations/formats');
 }
 
 export async function exportBibtex(paperIds){
-    const res = await fetch(`${API_URL}/api/citations/export/bibtex`, {
+    const response = await apiRequest('/api/citations/export/bibtex', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paper_ids: paperIds }),
     });
-    if(!res.ok) throw new Error(`Error exporting BibTeX: ${res.statusText}`);
-    return res.text();
-};
+    // For text responses, we need to handle it differently
+    return response.text ? await response.text() : response;
+}
 

@@ -64,7 +64,6 @@ class ExtractedCitation(BaseModel):
 class ExtractCitationsRequest(BaseModel):
     """Request to extract citations from a paper"""
     paper_id: str
-    use_ai_enrichment: bool = True
 
 class ExtractCitationsResponse(BaseModel):
     """Response with extracted citations"""

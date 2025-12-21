@@ -70,10 +70,8 @@ export default function PlanGenerator({ onPlanGenerated }) {
   });
 
   // Backend returns array directly, not { papers: [...] }
-  // Status is 'completed' not 'processed'
-  const papers =
-    (Array.isArray(papersdata) ? papersdata : papersdata?.papers || [])
-      .filter((p) => p.processing_status === "completed");
+  // Show all papers regardless of processing status
+  const papers = Array.isArray(papersdata) ? papersdata : papersdata?.papers || [];
 
   const selectedPaper = papers.find(p => p.id === formData.paper_id);
 
@@ -145,7 +143,7 @@ export default function PlanGenerator({ onPlanGenerated }) {
             </AnimatePresence>
             {papers.length === 0 && !loadingPapers && (
               <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">
-                ⚠️ No processed documents. Upload and process a document first.
+                ⚠️ No documents found. Upload a document first.
               </p>
             )}
           </div>

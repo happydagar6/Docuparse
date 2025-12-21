@@ -1,18 +1,14 @@
 import re
 from typing import List, Dict, Optional, Tuple
-from openai import OpenAI
 from difflib import SequenceMatcher
-import os
 import logging
 
 logger = logging.getLogger(__name__)
 
 class CitationExtractionService:
-    """Extract and enrich citations from research papers"""
+    """Extract and parse citations from research papers using advanced regex patterns"""
     
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
         # Patterns for in-text citations
         self.in_text_patterns = [
             r'\[(\d+(?:,\s*\d+)*)\]',  # [1], [1,2,3]
@@ -90,13 +86,15 @@ class CitationExtractionService:
         return citations
     
     def extract_metadata_from_citation(self, citation_text: str) -> Dict:
-        """Extract structured metadata from citation text using regex"""
+        """Extract structured metadata from citation text using enhanced regex patterns"""
         metadata = {
             'title': None,
             'authors': [],
             'year': None,
             'doi': None,
-            'venue': None
+            'venue': None,
+            'citation_type': 'reference',  # Default type
+            'relevance_summary': None
         }
         
         # Extract DOI
@@ -104,135 +102,98 @@ class CitationExtractionService:
         if doi_match:
             metadata['doi'] = doi_match.group(1)
         
-        # Extract year
-        year_match = re.search(r'\((\d{4})\)|,\s*(\d{4})[,.]', citation_text)
-        if year_match:
-            metadata['year'] = int(year_match.group(1) or year_match.group(2))
+        # Extract year with improved patterns
+        year_patterns = [
+            r'\((\d{4})\)',           # (2020)
+            r',\s*(\d{4})[,.]',       # , 2020,
+            r'\s(\d{4})\.',           #  2020.
+            r'\s(\d{4})\s',           #  2020 
+        ]
+        for pattern in year_patterns:
+            year_match = re.search(pattern, citation_text)
+            if year_match:
+                year = int(year_match.group(1))
+                if 1900 <= year <= 2030:  # Validate year range
+                    metadata['year'] = year
+                    break
         
-        # Extract title (quoted text or between year and venue)
+        # Extract title with improved patterns
+        # Try quoted text first
         title_match = re.search(r'["""](.+?)["""]', citation_text)
         if title_match:
             metadata['title'] = title_match.group(1).strip()
+        else:
+            # Try finding text between year and venue markers
+            # Pattern: (Year) Title. Journal/Conference
+            title_fallback = re.search(r'\(\d{4}\)\s*([^.]+)\.', citation_text)
+            if title_fallback:
+                metadata['title'] = title_fallback.group(1).strip()
+            else:
+                # Last resort: text between authors and year
+                title_last = re.search(r'[A-Z][a-z]+,?\s+[A-Z]\.\s+(.+?)\s+\(\d{4}\)', citation_text)
+                if title_last:
+                    metadata['title'] = title_last.group(1).strip()
         
-        # Extract authors (complex, simplified version)
-        # Look for pattern: LastName, F., LastName, F., ... (Year)
+        # Extract authors with improved parsing
+        # Pattern 1: LastName, F., LastName, F., ... (Year)
         author_pattern = r'^(.+?)\s*\(\d{4}\)'
         author_match = re.search(author_pattern, citation_text)
         if author_match:
             author_text = author_match.group(1)
+            # Remove common prefixes
+            author_text = re.sub(r'^\d+\.\s*', '', author_text)  # Remove numbering
+            author_text = re.sub(r'^\[\d+\]\s*', '', author_text)  # Remove [1]
+            
             # Split by "and" or commas
-            authors = re.split(r',\s*(?:and\s+)?|and\s+', author_text)
-            metadata['authors'] = [a.strip() for a in authors if a.strip()][:5]  # Limit to 5
+            authors = re.split(r',\s*(?:and\s+)?|and\s+|\s+&\s+', author_text)
+            metadata['authors'] = [self._clean_author_name(a) for a in authors if a.strip()][:10]  # Limit to 10
+        
+        # Extract venue (journal/conference)
+        # Look for text after title and year
+        venue_patterns = [
+            r'\.\s*([A-Z][^.]+?),\s*\d+',  # . Journal Name, Volume
+            r'\.\s*In\s+([^,]+)',          # . In Conference Name
+            r'\.\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+\d{4}',  # . Journal 2020
+        ]
+        for pattern in venue_patterns:
+            venue_match = re.search(pattern, citation_text)
+            if venue_match:
+                venue = venue_match.group(1).strip()
+                # Clean up venue name
+                venue = re.sub(r'\s+vol\.?\s+\d+', '', venue, flags=re.IGNORECASE)
+                metadata['venue'] = venue[:200]  # Truncate
+                break
+        
+        # Determine citation type based on keywords
+        metadata['citation_type'] = self._classify_citation_type(citation_text)
         
         return metadata
     
-    async def enrich_citation_with_ai(self, citation_text: str, paper_context: str = "") -> Dict:
-        """Use AI to extract metadata and relevance from citation"""
-        try:
-            prompt = f"""Extract structured metadata from this citation and explain its relevance.
-
-Citation:
-{citation_text}
-
-{f"Paper context:\n{paper_context[:500]}" if paper_context else ""}
-
-Respond in JSON format:
-{{
-    "title": "Full paper title",
-    "authors": ["Author 1", "Author 2"],
-    "year": 2020,
-    "venue": "Journal/Conference name",
-    "doi": "10.xxxx/xxxx or null",
-    "relevance_summary": "One sentence explaining why this citation is relevant (e.g., 'Introduces the Transformer architecture used in this paper')",
-    "citation_type": "background|method|comparison|data"
-}}"""
-
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are an expert at parsing academic citations."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-            
-            import json
-            result = json.loads(response.choices[0].message.content)
-            return result
-            
-        except Exception as e:
-            logger.error(f"AI enrichment failed: {e}")
-            return {}
+    def _clean_author_name(self, name: str) -> str:
+        """Clean and standardize author names"""
+        name = name.strip()
+        # Remove extra whitespace
+        name = re.sub(r'\s+', ' ', name)
+        # Remove trailing periods and commas
+        name = name.rstrip('.,')
+        return name
     
-    async def enrich_citations_batch(self, citations: List[Dict], paper_context: str = "", batch_size: int = 5) -> List[Dict]:
-        """Batch AI enrichment for multiple citations to reduce API calls
+    def _classify_citation_type(self, citation_text: str) -> str:
+        """Classify citation type based on common patterns"""
+        text_lower = citation_text.lower()
         
-        Process 5-10 citations in a single API call instead of one call per citation.
-        This reduces API calls by 80%+ for papers with many citations.
-        """
-        enriched = []
-        
-        # Process in batches
-        for i in range(0, len(citations), batch_size):
-            batch = citations[i:i+batch_size]
-            
-            try:
-                # Create a batch enrichment prompt
-                citations_text = "\n\n".join([
-                    f"Citation {idx+1}:\n{cit['raw_text']}" 
-                    for idx, cit in enumerate(batch)
-                ])
-                
-                prompt = f"""Extract structured metadata from these citations and explain their relevance.
+        # Keywords for different citation types
+        if any(kw in text_lower for kw in ['dataset', 'data', 'benchmark', 'corpus']):
+            return 'data'
+        elif any(kw in text_lower for kw in ['method', 'algorithm', 'approach', 'technique']):
+            return 'method'
+        elif any(kw in text_lower for kw in ['comparison', 'survey', 'review', 'analysis']):
+            return 'comparison'
+        elif any(kw in text_lower for kw in ['background', 'introduction', 'overview']):
+            return 'background'
+        else:
+            return 'reference'
 
-Citations to process ({len(batch)} total):
-{citations_text}
-
-{f"Paper context:\n{paper_context[:300]}" if paper_context else ""}
-
-Respond in JSON format with an array of objects:
-[
-  {{
-    "index": 0,
-    "title": "Paper title",
-    "authors": ["Author 1", "Author 2"],
-    "year": 2020,
-    "venue": "Journal/Conference",
-    "doi": "10.xxxx/xxxx or null",
-    "relevance_summary": "One sentence",
-    "citation_type": "background|method|comparison|data"
-  }}
-]"""
-
-                response = self.client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are an expert at parsing academic citations. Return ONLY valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                
-                import json
-                results = json.loads(response.choices[0].message.content)
-                
-                # Handle both single object and array responses
-                if isinstance(results, dict) and "results" in results:
-                    enriched.extend(results["results"])
-                elif isinstance(results, list):
-                    enriched.extend(results)
-                    
-            except Exception as e:
-                logger.error(f"Batch enrichment failed for citations {i}-{i+len(batch)}: {e}")
-                # Fall back to individual enrichment for this batch
-                for cit in batch:
-                    result = await self.enrich_citation_with_ai(cit['raw_text'], paper_context)
-                    enriched.append(result)
-        
-        return enriched
-    
     def find_in_text_citations(self, full_text: str, citation_entries: List[Dict]) -> Dict[str, List[str]]:
         """Find where each citation appears in the main text"""
         citation_contexts = {}

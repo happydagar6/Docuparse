@@ -149,7 +149,10 @@ export function CitationCard({ citation, isSelected, onToggleSelect }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => window.open(`https://doi.org/${citation.doi}`, '_blank')}
+                    onClick={() => {
+                      const cleanDoi = citation.doi.replace('doi:', '').replace('https://doi.org/', '').trim();
+                      window.open(`https://doi.org/${cleanDoi}`, '_blank');
+                    }}
                   >
                     <Link2 className="w-3 h-3 mr-1" />
                     DOI

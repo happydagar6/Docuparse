@@ -31,6 +31,7 @@ from routes.chat import router as chat_router
 from routes.study_plan import router as study_plan_router
 from routes.citations import router as citations_router
 from routes.literature_review import router as literature_review_router
+from routes.ai_citations import router as ai_citations_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -72,6 +73,9 @@ app.include_router(study_plan_router)
 
 # Include citations router
 app.include_router(citations_router)
+
+# Include AI citations router (new hybrid DOI + AI generator)
+app.include_router(ai_citations_router)
 
 # Include literature review router
 app.include_router(literature_review_router)
@@ -119,10 +123,40 @@ async def upload_paper(
                     status_code=400, detail="Could not extract meaningful text from PDF"
                 )
 
-            # Extract metadata from PDF
-            from workflow.metadata_extractor import metadata_extractor
-
-            paper_metadata = metadata_extractor.extract_from_pdf(tmp_path)
+            # Extract metadata using AI-powered hybrid approach (DOI + AI)
+            print("🤖 Using AI-powered metadata extraction...")
+            from services.ai_citation_service import ai_citation_service
+            
+            citation_result = await ai_citation_service.generate_citation_from_pdf(tmp_path)
+            
+            # Extract metadata from citation result
+            paper_metadata = {}
+            if citation_result.get('success') and citation_result.get('metadata'):
+                metadata = citation_result['metadata']
+                paper_metadata = {
+                    'extracted_title': metadata.get('title'),
+                    'authors': [{'name': author} for author in metadata.get('authors', [])],
+                    'publication_year': metadata.get('year'),
+                    'doi': metadata.get('doi'),
+                    'journal_or_conference': metadata.get('journal'),
+                    'keywords': [],
+                    'abstract': None,
+                    'extraction_source': citation_result.get('source')  # 'crossref' or 'ai'
+                }
+                print(f"✅ AI extraction successful ({citation_result.get('source')}): {len(metadata.get('authors', []))} authors, year: {metadata.get('year')}")
+            else:
+                # If AI extraction fails, use minimal fallback
+                print("⚠️ AI extraction failed, using minimal fallback...")
+                paper_metadata = {
+                    'extracted_title': None,
+                    'authors': [],
+                    'publication_year': None,
+                    'doi': None,
+                    'journal_or_conference': None,
+                    'keywords': [],
+                    'abstract': None,
+                    'extraction_source': 'fallback'
+                }
 
         finally:
             os.unlink(tmp_path)  # Cleanup
@@ -152,8 +186,8 @@ async def upload_paper(
             "filename": file.filename,
             "processing_status": "uploaded",
             "created_at": datetime.utcnow().isoformat(),
-            # Add extracted metadata
-            "authors": json.dumps(paper_metadata.get("authors", [])),
+            # Add extracted metadata (authors as JSONB, not string!)
+            "authors": paper_metadata.get("authors", []),  # Store as JSONB array
             "publication_year": paper_metadata.get("publication_year"),
             "doi": paper_metadata.get("doi"),
             "keywords": paper_metadata.get("keywords", []),
@@ -806,6 +840,22 @@ async def synthesize_search_results(request: SynthesisRequest, current_user: Aut
         print(f"   - Themes: {len(synthesis.get('themes', []))}")
         print(f"   - Key Findings: {len(synthesis.get('key_findings', []))}")
         print(f"   - Research Gaps: {len(synthesis.get('research_gaps', []))}")
+        
+        # DEBUG: Check what types we actually have
+        print(f"🔍 DEBUG - Type validation:")
+        print(f"   - key_findings type: {type(synthesis.get('key_findings', []))}")
+        if synthesis.get('key_findings'):
+            print(f"   - First finding type: {type(synthesis['key_findings'][0])}")
+            print(f"   - First finding: {synthesis['key_findings'][0][:100] if isinstance(synthesis['key_findings'][0], str) else synthesis['key_findings'][0]}")
+        
+        print(f"   - research_gaps type: {type(synthesis.get('research_gaps', []))}")
+        if synthesis.get('research_gaps'):
+            print(f"   - First gap type: {type(synthesis['research_gaps'][0])}")
+        
+        print(f"   - themes type: {type(synthesis.get('themes', []))}")
+        if synthesis.get('themes'):
+            print(f"   - First theme type: {type(synthesis['themes'][0])}")
+            print(f"   - First theme: {synthesis['themes'][0]}")
 
         return synthesis
 
