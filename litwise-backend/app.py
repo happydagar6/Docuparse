@@ -1,10 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from models import (
-    PaperUpload,
-    PaperSummary,
     SearchQuery,
-    ProcessingRequest,
     ProcessingResponse,
     SynthesisRequest,
     SynthesisResponse,  # Phase 1: Synthesis models
@@ -19,7 +16,6 @@ from typing import Optional
 import os
 import tempfile
 import uuid
-import asyncio
 import json
 from datetime import datetime
 
@@ -32,6 +28,7 @@ from routes.study_plan import router as study_plan_router
 from routes.citations import router as citations_router
 from routes.literature_review import router as literature_review_router
 from routes.ai_citations import router as ai_citations_router
+from routes.export import router as export_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -79,6 +76,9 @@ app.include_router(ai_citations_router)
 
 # Include literature review router
 app.include_router(literature_review_router)
+
+# Include export router
+app.include_router(export_router)
 
 @app.get("/")
 async def root():
