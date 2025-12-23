@@ -19,7 +19,7 @@ Architecture:
 """
 
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 from collections import Counter, defaultdict
 from openai import OpenAI

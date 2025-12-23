@@ -23,6 +23,9 @@ from .paper import (
 # Import chat models
 from .chat import ChatMessage, ChatSession, ChatRequest, ChatResponse, StreamingChatChunk
 
+# Import export models
+from .export import APAExportRequest, ParagraphContent, ReferenceMetadata
+
 # Export all models
 __all__ = [
     'PaperUpload', 
@@ -45,5 +48,8 @@ __all__ = [
     'ChatSession', 
     'ChatRequest', 
     'ChatResponse',
-    'StreamingChatChunk'
+    'StreamingChatChunk',
+    'APAExportRequest',
+    'ParagraphContent',
+    'ReferenceMetadata'
 ]

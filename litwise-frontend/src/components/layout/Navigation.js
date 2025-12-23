@@ -1,33 +1,32 @@
 /**
  * Enhanced Interactive Navigation Component
- * 
+ *
  * Provides app-wide navigation with minimal design patterns,
  * subtle interactions, and modern UI elements.
  */
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import UserMenu from '../auth/UserMenu';
-import { 
-  BookOpen, 
-  Upload, 
-  Search, 
-  FileText, 
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import UserMenu from "../auth/UserMenu";
+import {
+  BookOpen,
+  Upload,
+  Search,
+  FileText,
   Settings,
   Menu,
   X,
   Brain,
   ChevronRight,
   Sparkles,
-  Calendar
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useUIStore } from '@/lib/stores';
-
+  Calendar,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useUIStore } from "@/lib/stores";
 
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -37,73 +36,82 @@ export function Navigation() {
 
   const navigationItems = [
     {
-      href: '/',
-      label: 'Home',
+      href: "/",
+      label: "Home",
       icon: BookOpen,
-      description: 'Dashboard and overview',
-      color: 'from-blue-500 to-blue-600',
-      bgColor: 'bg-blue-50',
-      hoverColor: 'hover:bg-blue-100'
+      description: "Dashboard and overview",
+      color: "from-blue-500 to-blue-600",
+      bgColor: "bg-blue-50",
+      hoverColor: "hover:bg-blue-100",
     },
     {
-      href: '/upload',
-      label: 'Upload',
+      href: "/upload",
+      label: "Upload",
       icon: Upload,
-      description: 'Upload new research papers',
-      color: 'from-green-500 to-green-600',
-      bgColor: 'bg-green-50',
-      hoverColor: 'hover:bg-green-100'
+      description: "Upload new research papers",
+      color: "from-green-500 to-green-600",
+      bgColor: "bg-green-50",
+      hoverColor: "hover:bg-green-100",
     },
     {
-      href: '/study-plan',
-      label: 'Study Plan',
+      href: "/study-plan",
+      label: "Study Plan",
       icon: Calendar,
-      description: 'Generate AI study plans',
-      color: 'from-teal-500 to-teal-600',
-      bgColor: 'bg-teal-50',
-      hoverColor: 'hover:bg-teal-100'
+      description: "Generate AI study plans",
+      color: "from-teal-500 to-teal-600",
+      bgColor: "bg-teal-50",
+      hoverColor: "hover:bg-teal-100",
     },
     {
-      href: '/search',
-      label: 'Search',
+      href: "/search",
+      label: "Search",
       icon: Search,
-      description: 'Semantic search across papers',
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-50',
-      hoverColor: 'hover:bg-purple-100'
+      description: "Semantic search across papers",
+      color: "from-purple-500 to-purple-600",
+      bgColor: "bg-purple-50",
+      hoverColor: "hover:bg-purple-100",
     },
     {
-      href: '/literature-review',
-      label: 'Literature Review',
-      icon: Sparkles,
-      description: 'Generate literature reviews',
-      color: 'from-pink-500 to-pink-600',
-      bgColor: 'bg-pink-50',
-      hoverColor: 'hover:bg-pink-100'
-    },
-    {
-      href: '/synthesis',
-      label: 'History',
-      icon: Brain,
-      description: 'View saved syntheses',
-      color: 'from-indigo-500 to-indigo-600',
-      bgColor: 'bg-indigo-50',
-      hoverColor: 'hover:bg-indigo-100'
-    },
-    {
-      href: '/papers',
-      label: 'Papers',
+      href: "/research-editor",
+      label: "Research Editor",
       icon: FileText,
-      description: 'Browse uploaded papers',
-      color: 'from-orange-500 to-orange-600',
-      bgColor: 'bg-orange-50',
-      hoverColor: 'hover:bg-orange-100'
+      description: "Write APA formatted papers",
+      color: "from-orange-500 to-orange-600",
+      bgColor: "bg-orange-50",
+      hoverColor: "hover:bg-orange-100",
+    },
+    {
+      href: "/literature-review",
+      label: "Literature Review",
+      icon: Sparkles,
+      description: "Generate literature reviews",
+      color: "from-pink-500 to-pink-600",
+      bgColor: "bg-pink-50",
+      hoverColor: "hover:bg-pink-100",
+    },
+    {
+      href: "/synthesis",
+      label: "History",
+      icon: Brain,
+      description: "View saved syntheses",
+      color: "from-indigo-500 to-indigo-600",
+      bgColor: "bg-indigo-50",
+      hoverColor: "hover:bg-indigo-100",
+    },
+    {
+      href: "/papers",
+      label: "Papers",
+      icon: FileText,
+      description: "Browse uploaded papers",
+      color: "from-orange-500 to-orange-600",
+      bgColor: "bg-orange-50",
+      hoverColor: "hover:bg-orange-100",
     },
   ];
 
   const isActive = (href) => {
-    if(href === '/') {
-        return pathname === '/';
+    if (href === "/") {
+      return pathname === "/";
     }
     return pathname.startsWith(href);
   };
@@ -113,14 +121,14 @@ export function Navigation() {
       {/* Desktop Navigation */}
       <nav className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 flex-col z-50 shadow-sm">
         {/* Logo/Brand */}
-        <motion.div 
+        <motion.div
           className="p-6 border-b border-gray-100"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <Link href="/" className="flex items-center gap-3 group">
-            <motion.div 
+            <motion.div
               className="w-10 h-10 bg-linear-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
               whileHover={{ scale: 1.05, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
@@ -148,7 +156,7 @@ export function Navigation() {
             {navigationItems.map((item, index) => {
               const IconComponent = item.icon;
               const active = isActive(item.href);
-              
+
               return (
                 <motion.div
                   key={item.href}
@@ -162,9 +170,10 @@ export function Navigation() {
                     <motion.div
                       className={`
                         relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group cursor-pointer
-                        ${active 
-                          ? `bg-linear-to-r ${item.color} text-white shadow-lg shadow-blue-200` 
-                          : `text-gray-700 ${item.hoverColor} hover:shadow-md hover:scale-[1.02]`
+                        ${
+                          active
+                            ? `bg-linear-to-r ${item.color} text-white shadow-lg shadow-blue-200`
+                            : `text-gray-700 ${item.hoverColor} hover:shadow-md hover:scale-[1.02]`
                         }
                       `}
                       whileHover={!active ? { x: 4 } : {}}
@@ -179,26 +188,34 @@ export function Navigation() {
                           transition={{ type: "spring", stiffness: 300 }}
                         />
                       )}
-                      
+
                       <motion.div
                         className={`p-2 rounded-lg ${
-                          active 
-                            ? 'bg-white/20' 
+                          active
+                            ? "bg-white/20"
                             : `${item.bgColor} group-hover:scale-110 transition-transform`
                         }`}
                       >
-                        <IconComponent className={`h-5 w-5 ${
-                          active ? 'text-white' : 'text-gray-600'
-                        }`} />
+                        <IconComponent
+                          className={`h-5 w-5 ${
+                            active ? "text-white" : "text-gray-600"
+                          }`}
+                        />
                       </motion.div>
-                      
+
                       <div className="flex-1 min-w-0">
-                        <div className={`font-medium ${active ? 'text-white' : 'text-gray-900'}`}>
+                        <div
+                          className={`font-medium ${
+                            active ? "text-white" : "text-gray-900"
+                          }`}
+                        >
                           {item.label}
                         </div>
-                        <div className={`text-xs mt-0.5 ${
-                          active ? 'text-white/80' : 'text-gray-500'
-                        }`}>
+                        <div
+                          className={`text-xs mt-0.5 ${
+                            active ? "text-white/80" : "text-gray-500"
+                          }`}
+                        >
                           {item.description}
                         </div>
                       </div>
@@ -225,15 +242,15 @@ export function Navigation() {
         </div>
 
         {/* Settings */}
-        <motion.div 
+        <motion.div
           className="p-4 border-t border-gray-100"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
         >
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="w-full justify-start hover:bg-gray-100 rounded-xl group"
           >
             <motion.div
@@ -251,14 +268,14 @@ export function Navigation() {
       {/* Mobile Navigation */}
       <div className="lg:hidden">
         {/* Mobile Header */}
-        <motion.header 
+        <motion.header
           className="fixed top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-sm border-b border-gray-200 flex items-center justify-between px-4 z-50 shadow-sm"
           initial={{ y: -64 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <Link href="/" className="flex items-center gap-3 group">
-            <motion.div 
+            <motion.div
               className="w-8 h-8 bg-linear-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center"
               whileHover={{ scale: 1.1, rotate: 10 }}
               transition={{ type: "spring", stiffness: 400 }}
@@ -269,11 +286,11 @@ export function Navigation() {
               Litwise
             </span>
           </Link>
-          
+
           <div className="flex items-center gap-2">
             {/* User Menu in Mobile */}
             <UserMenu />
-            
+
             {/* Mobile Menu Toggle */}
             <motion.div whileTap={{ scale: 0.95 }}>
               <Button
@@ -300,7 +317,7 @@ export function Navigation() {
         {/* Mobile Menu Overlay */}
         <AnimatePresence>
           {isMobileMenuOpen && (
-            <motion.div 
+            <motion.div
               className="fixed inset-0 top-16 bg-white z-40"
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -312,7 +329,7 @@ export function Navigation() {
                   {navigationItems.map((item, index) => {
                     const IconComponent = item.icon;
                     const active = isActive(item.href);
-                    
+
                     return (
                       <motion.div
                         key={item.href}
@@ -327,31 +344,38 @@ export function Navigation() {
                           <motion.div
                             className={`
                               flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-300
-                              ${active 
-                                ? `bg-linear-to-r ${item.color} text-white shadow-lg` 
-                                : `text-gray-700 ${item.hoverColor} hover:shadow-md`
+                              ${
+                                active
+                                  ? `bg-linear-to-r ${item.color} text-white shadow-lg`
+                                  : `text-gray-700 ${item.hoverColor} hover:shadow-md`
                               }
                             `}
                             whileTap={{ scale: 0.98 }}
                           >
-                            <div className={`p-3 rounded-xl ${
-                              active 
-                                ? 'bg-white/20' 
-                                : item.bgColor
-                            }`}>
-                              <IconComponent className={`h-6 w-6 ${
-                                active ? 'text-white' : 'text-gray-600'
-                              }`} />
+                            <div
+                              className={`p-3 rounded-xl ${
+                                active ? "bg-white/20" : item.bgColor
+                              }`}
+                            >
+                              <IconComponent
+                                className={`h-6 w-6 ${
+                                  active ? "text-white" : "text-gray-600"
+                                }`}
+                              />
                             </div>
                             <div className="flex-1">
-                              <div className={`font-medium text-base ${
-                                active ? 'text-white' : 'text-gray-900'
-                              }`}>
+                              <div
+                                className={`font-medium text-base ${
+                                  active ? "text-white" : "text-gray-900"
+                                }`}
+                              >
                                 {item.label}
                               </div>
-                              <div className={`text-sm ${
-                                active ? 'text-white/80' : 'text-gray-500'
-                              }`}>
+                              <div
+                                className={`text-sm ${
+                                  active ? "text-white/80" : "text-gray-500"
+                                }`}
+                              >
                                 {item.description}
                               </div>
                             </div>
@@ -367,7 +391,7 @@ export function Navigation() {
         </AnimatePresence>
 
         {/* Mobile Bottom Navigation */}
-        <motion.div 
+        <motion.div
           className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 z-50 shadow-lg"
           initial={{ y: 80 }}
           animate={{ y: 0 }}
@@ -377,35 +401,35 @@ export function Navigation() {
             {navigationItems.map((item) => {
               const IconComponent = item.icon;
               const active = isActive(item.href);
-              
+
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex-1"
-                >
+                <Link key={item.href} href={item.href} className="flex-1">
                   <motion.div
                     className={`
                       flex flex-col items-center py-2 px-2 rounded-xl transition-all duration-300
-                      ${active ? 'text-white' : 'text-gray-600'}
+                      ${active ? "text-white" : "text-gray-600"}
                     `}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <motion.div 
+                    <motion.div
                       className={`p-2 rounded-lg mb-1 ${
-                        active 
-                          ? `bg-linear-to-r ${item.color} shadow-lg` 
-                          : 'bg-transparent'
+                        active
+                          ? `bg-linear-to-r ${item.color} shadow-lg`
+                          : "bg-transparent"
                       }`}
                       whileHover={!active ? { scale: 1.1 } : {}}
                     >
-                      <IconComponent className={`h-5 w-5 ${
-                        active ? 'text-white' : 'text-gray-600'
-                      }`} />
+                      <IconComponent
+                        className={`h-5 w-5 ${
+                          active ? "text-white" : "text-gray-600"
+                        }`}
+                      />
                     </motion.div>
-                    <span className={`text-xs font-medium ${
-                      active ? 'text-gray-900' : 'text-gray-600'
-                    }`}>
+                    <span
+                      className={`text-xs font-medium ${
+                        active ? "text-gray-900" : "text-gray-600"
+                      }`}
+                    >
                       {item.label}
                     </span>
                   </motion.div>

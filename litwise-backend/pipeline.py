@@ -1,12 +1,9 @@
 # LangGraph multi-agent workflow
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from typing import TypedDict, Annotated, Dict, List, Any
-from models.paper import PaperSummary
+from typing import TypedDict, Annotated, Dict, Any
 from dotenv import load_dotenv
-import json
-
 
 load_dotenv()
 import os

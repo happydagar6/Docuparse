@@ -9,7 +9,7 @@ from models import (
     UpdateSynthesisTagsRequest,
 )
 from pipeline import workflow as graph_app
-from workflow.utils import extract_text_from_pdf, store_embedding, extract_multimodal_from_pdf, store_multimodal_embeddings
+from workflow.utils import store_embedding, extract_multimodal_from_pdf, store_multimodal_embeddings
 from workflow.db import supabase
 from async_pipeline import get_async_pipeline
 from typing import Optional
@@ -20,7 +20,7 @@ import json
 from datetime import datetime
 
 # Import authentication middleware
-from auth_middleware import get_current_user, get_optional_user, AuthUser
+from auth_middleware import get_current_user, AuthUser
 
 # Import chat and study plan routes and other routes
 from routes.chat import router as chat_router

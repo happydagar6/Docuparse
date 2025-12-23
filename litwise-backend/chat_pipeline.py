@@ -1,25 +1,19 @@
 import os
 import json
 import asyncio
-from typing import Any, Dict, Optional, AsyncGenerator, List
+from typing import Dict, Optional, AsyncGenerator, List
 from datetime import datetime
 
 # LangChain imports
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
 
-
-# LangGraph imports
-from langgraph.graph import StateGraph, END
 
 # LangSmith imports
 from langsmith import traceable, Client
 
 # Qdrant imports
-from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 
 # Supabase imports
@@ -27,8 +21,6 @@ from workflow.db import supabase, qdrant
 from dotenv import load_dotenv
 load_dotenv()
 
-# Import models
-from models.chat import ChatMessage, ChatRequest, ChatResponse
 
 class ChatState:
     def __init__(self):

@@ -52,7 +52,7 @@ export function AuthProvider({ children }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event)
+        // Auth state changed: update local state
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)

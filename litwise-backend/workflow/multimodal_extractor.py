@@ -8,7 +8,7 @@ import fitz  # PyMuPDF
 import pdfplumber
 import base64
 import io
-from typing import List, Dict, Optional
+from typing import List, Dict
 from PIL import Image
 import hashlib
 

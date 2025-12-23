@@ -618,3 +618,31 @@ export const API_CONFIG = {
 };
 
 
+
+
+/**
+ * Export document as APA formatted Word file
+ * @param {Object} data - Document data (title, authors, content, references)
+ * @returns {Promise<Blob>} - Word document blob
+ */
+export async function exportAPADocument(data) {
+    const token = await getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/api/export/apa`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+            detail: `HTTP ${response.status}: ${response.statusText}`
+        }));
+        throw new Error(errorData.detail || 'Failed to export document');
+    }
+
+    return await response.blob();
+}

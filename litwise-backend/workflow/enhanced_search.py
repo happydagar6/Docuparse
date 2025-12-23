@@ -1,14 +1,12 @@
 # Enhanced Search System with Hybrid Retrieval and Re-ranking
 
 from typing import List, Dict, Tuple, Optional
-import numpy as np
 import asyncio
 from rank_bm25 import BM25Okapi
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import re
-import os
 import warnings
 
 # Suppress warnings for cleaner output

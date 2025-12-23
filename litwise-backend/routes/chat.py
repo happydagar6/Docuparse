@@ -2,11 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import json
-import asyncio
 from datetime import datetime
 import uuid
 
-from models.chat import ChatSession, ChatRequest, ChatMessage, ChatResponse
+from models.chat import ChatSession, ChatRequest, ChatMessage
 from chat_pipeline import rag_pipeline
 from workflow.db import supabase
 from auth_middleware import get_current_user, AuthUser
@@ -42,6 +41,7 @@ async def create_chat_session(paper_id: str, current_user: AuthUser = Depends(ge
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create chat session: {str(e)}")
+
 
 @router.get("/sessions/{paper_id}", response_model=List[ChatSession])
 async def get_paper_chat_sessions(paper_id: str, current_user: AuthUser = Depends(get_current_user)):
@@ -127,6 +127,8 @@ async def stream_chat(request: ChatRequest, current_user: AuthUser = Depends(get
             "id", session_id
         ).execute()
         
+        
+        # Verify session exists
         if not session_result.data:
             raise HTTPException(status_code=404, detail="Chat session not found")
         

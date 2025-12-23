@@ -9,8 +9,6 @@ from typing import Optional
 import jwt
 import os
 from dotenv import load_dotenv
-import requests
-
 load_dotenv()
 
 # Security schemes
