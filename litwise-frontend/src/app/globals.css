@@ -214,6 +214,64 @@
     pointer-events: none;
 }
 
+/* APA 7th Edition Heading Styles in Editor */
+.ProseMirror h1 {
+    /* Level 1: Centered, Bold, Title Case */
+    font-size: 1.25rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 1.5rem 0 1rem;
+    line-height: 1.5;
+}
+
+.ProseMirror h2 {
+    /* Level 2: Left-Aligned, Bold, Title Case */
+    font-size: 1.125rem;
+    font-weight: bold;
+    text-align: left;
+    margin: 1.25rem 0 0.75rem;
+    line-height: 1.5;
+}
+
+.ProseMirror h3 {
+    /* Level 3: Left-Aligned, Bold Italic, Title Case */
+    font-size: 1.0625rem;
+    font-weight: bold;
+    font-style: italic;
+    text-align: left;
+    margin: 1rem 0 0.75rem;
+    line-height: 1.5;
+}
+
+.ProseMirror h4 {
+    /* Level 4: Indented, Bold, Title Case, Run-in */
+    font-size: 1rem;
+    font-weight: bold;
+    font-style: normal;
+    display: inline;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.ProseMirror h5 {
+    /* Level 5: Indented, Bold Italic, Title Case, Run-in */
+    font-size: 1rem;
+    font-weight: bold;
+    font-style: italic;
+    display: inline;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Dark mode heading adjustments */
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4,
+.dark .ProseMirror h5 {
+    color: #f3f4f6;
+}
+
 .citation-mention {
     display: inline-flex;
     align-items: center;

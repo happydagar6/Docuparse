@@ -5,11 +5,13 @@
 
 /**
  * Convert TipTap JSON to backend API format
+ * Supports both paragraphs and headings (APA 7th Edition levels 1-5)
+ * 
  * @param {Object} editorJSON - TipTap editor content as JSON
- * @returns {Object} - Formatted content for backend
+ * @returns {Object} - Formatted content for backend with content array and citedPapers
  */
 export function convertEditorToAPIFormat(editorJSON) {
-    const paragraphs = [];
+    const content = [];
     const citedPapers = new Set();
 
     if (!editorJSON?.content) {
@@ -18,7 +20,31 @@ export function convertEditorToAPIFormat(editorJSON) {
 
     // Iterate through editor content
     editorJSON.content.forEach((node) => {
-        if (node.type === 'paragraph') {
+        // Handle heading nodes
+        if (node.type === 'heading') {
+            const level = node.attrs?.level || 1;
+            let headingText = '';
+            
+            // Extract text from heading content
+            if (node.content) {
+                node.content.forEach((contentNode) => {
+                    if (contentNode.type === 'text') {
+                        headingText += contentNode.text;
+                    }
+                });
+            }
+            
+            // Only add non-empty headings
+            if (headingText.trim()) {
+                content.push({
+                    type: 'heading',
+                    level: level,
+                    text: headingText.trim()
+                });
+            }
+        }
+        // Handle paragraph nodes
+        else if (node.type === 'paragraph') {
             let text = '';
             const citations = [];
 
@@ -41,7 +67,8 @@ export function convertEditorToAPIFormat(editorJSON) {
 
             // Only add non-empty paragraphs
             if (text.trim()) {
-                paragraphs.push({
+                content.push({
+                    type: 'paragraph',
                     text: text,
                     citations: citations
                 });
@@ -50,7 +77,7 @@ export function convertEditorToAPIFormat(editorJSON) {
     });
 
     return {
-        content: paragraphs,
+        content: content,
         citedPapers: Array.from(citedPapers)
     };
 }
@@ -70,9 +97,13 @@ export function extractReferencesMetadata(citedPaperIds, availablePapers) {
             metadata[paperId] = {
                 title: paper.title || 'Untitled',
                 author_list: paper.authors || [],
-                year: paper.year?.toString() || 'n.d.',
+                year: paper.publication_year?.toString() || paper.year?.toString() || 'n.d.',
                 doi: paper.doi || null,
-                publisher: paper.publisher || paper.journal || null
+                publisher: paper.journal_or_conference || paper.publisher || paper.journal || null,
+                volume: paper.volume || null,
+                issue: paper.issue || null,
+                pages: paper.pages || null,
+                publication_type: paper.publication_type || 'journal'
             };
         }
     });

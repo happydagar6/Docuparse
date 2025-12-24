@@ -31,7 +31,9 @@ class APAExportService:
         authors: List[str],
         content: List[Dict],
         references_metadata: Dict[str, Dict],
-        affiliation: str = "Independent Researcher"
+        affiliation: str = "Independent Researcher",
+        abstract: Optional[str] = None,
+        keywords: Optional[List[str]] = None
     ) -> BytesIO:
         """
         Generate APA formatted document
@@ -43,6 +45,8 @@ class APAExportService:
             content: List of paragraph objects with 'text' and optional 'citations'
             references_metadata: Dict mapping paper_id to metadata
             affiliation: Author affiliation (default: Independent Researcher)
+            abstract: Optional abstract text (max 250 words recommended)
+            keywords: Optional list of keywords (3-5 recommended)
         
         Returns:
             BytesIO object containing the .docx file
@@ -61,20 +65,34 @@ class APAExportService:
         # Add running head and page numbers to all sections
         self._add_header(doc, running_head)
         
+        # Add abstract page (if provided)
+        if abstract:
+            self._add_abstract_page(doc, abstract, keywords)
+        
         # Add body content
-        for para_obj in content:
-            text = para_obj.get("text", "")
-            citations = para_obj.get("citations", [])
+        for item in content:
+            content_type = item.get("type", "paragraph")
             
-            # Replace citation placeholders with formatted citations
-            formatted_text, cited_ids = self._process_citations(
-                text, 
-                references_metadata
-            )
-            cited_papers.update(cited_ids)
-            
-            # Add paragraph with formatting
-            self._add_body_paragraph(doc, formatted_text)
+            if content_type == "heading":
+                # Handle heading content
+                level = item.get("level", 1)
+                heading_text = item.get("text", "")
+                self._add_heading(doc, level, heading_text)
+                
+            elif content_type == "paragraph":
+                # Handle paragraph content
+                text = item.get("text", "")
+                citations = item.get("citations", [])
+                
+                # Replace citation placeholders with formatted citations
+                formatted_text, cited_ids = self._process_citations(
+                    text, 
+                    references_metadata
+                )
+                cited_papers.update(cited_ids)
+                
+                # Add paragraph with formatting
+                self._add_body_paragraph(doc, formatted_text)
         
         # Add page break before references
         doc.add_page_break()
@@ -186,6 +204,80 @@ class APAExportService:
         # Page break after title page
         doc.add_page_break()
     
+    def _add_abstract_page(
+        self, 
+        doc: Document, 
+        abstract: str, 
+        keywords: Optional[List[str]] = None
+    ):
+        """
+        Create APA-style abstract page (Page 2)
+        
+        APA 7th Edition Requirements:
+        - Starts on Page 2 (separate page after title page)
+        - Label "Abstract" centered and bolded at top
+        - Abstract text is NOT indented (flush left)
+        - Single block paragraph, double-spaced
+        - Max 250 words recommended
+        - Keywords appear on same page, one line below abstract
+        - Keywords format: "Keywords: word1, word2, word3"
+        
+        Implementation Notes:
+        - Uses APA spacing (double-spaced throughout)
+        - Keywords label is italicized per APA 7th guidelines
+        - Keywords are lowercase unless proper nouns
+        - No closing punctuation after keywords
+        """
+        # Abstract heading (centered, bold)
+        abstract_heading = doc.add_paragraph()
+        abstract_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        heading_run = abstract_heading.add_run("Abstract")
+        heading_run.bold = True
+        heading_run.font.name = self.font_name
+        heading_run.font.size = self.font_size
+        self._set_line_spacing(abstract_heading, self.line_spacing)
+        
+        # Abstract text (flush left, NO indent)
+        abstract_para = doc.add_paragraph()
+        abstract_run = abstract_para.add_run(abstract)
+        abstract_run.font.name = self.font_name
+        abstract_run.font.size = self.font_size
+        
+        # Paragraph formatting - NO first line indent for abstract
+        abstract_format = abstract_para.paragraph_format
+        abstract_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        abstract_format.first_line_indent = Inches(0)  # Flush left, no indent
+        abstract_format.space_before = Pt(0)
+        abstract_format.space_after = Pt(0)
+        self._set_line_spacing(abstract_para, self.line_spacing)
+        
+        # Keywords (if provided)
+        if keywords and len(keywords) > 0:
+            keywords_para = doc.add_paragraph()
+            
+            # Keywords label (italicized, indented)
+            keywords_format = keywords_para.paragraph_format
+            keywords_format.first_line_indent = self.paragraph_indent  # 0.5" indent
+            keywords_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            keywords_format.space_before = Pt(0)
+            keywords_format.space_after = Pt(0)
+            self._set_line_spacing(keywords_para, self.line_spacing)
+            
+            # Add "Keywords:" label (italicized)
+            label_run = keywords_para.add_run("Keywords:")
+            label_run.italic = True
+            label_run.font.name = self.font_name
+            label_run.font.size = self.font_size
+            
+            # Add keywords text (lowercase, comma-separated, no period at end)
+            keywords_text = ", ".join([kw.lower() if not kw[0].isupper() or len(kw) < 3 else kw for kw in keywords])
+            keywords_run = keywords_para.add_run(f" {keywords_text}")
+            keywords_run.font.name = self.font_name
+            keywords_run.font.size = self.font_size
+        
+        # Page break after abstract page (before body content)
+        doc.add_page_break()
+    
     def _add_body_paragraph(self, doc: Document, text: str):
         """Add formatted body paragraph with APA styling"""
         para = doc.add_paragraph()
@@ -204,6 +296,166 @@ class APAExportService:
         
         # Line spacing
         self._set_line_spacing(para, self.line_spacing)
+    
+    def _add_heading(self, doc: Document, level: int, text: str):
+        """
+        Add APA 7th Edition formatted heading
+        
+        APA 7th Edition Heading Levels:
+        
+        Level 1: Centered, Bold, Title Case
+                 Use for major sections (e.g., Method, Results, Discussion)
+        
+        Level 2: Left-Aligned, Bold, Title Case
+                 Use for subsections within Level 1 sections
+        
+        Level 3: Left-Aligned, Bold Italic, Title Case
+                 Use for sub-subsections within Level 2
+        
+        Level 4: Indented, Bold, Title Case, Ending with Period
+                 Text begins on same line after the heading
+        
+        Level 5: Indented, Bold Italic, Title Case, Ending with Period
+                 Text begins on same line after the heading
+        
+        Args:
+            doc: Document object
+            level: Heading level (1-5)
+            text: Heading text
+        
+        Implementation Notes:
+        - Levels 1-3: Standalone headings (text on next line)
+        - Levels 4-5: Run-in headings (text continues on same line)
+        - All headings use double spacing consistent with body text
+        - Title case is applied automatically by this method
+        """
+        # Apply title case to heading text
+        title_cased_text = self._to_title_case(text)
+        
+        if level == 1:
+            # Level 1: Centered, Bold, Title Case
+            para = doc.add_paragraph()
+            run = para.add_run(title_cased_text)
+            run.bold = True
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+            
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            para_format.space_before = Pt(0)
+            para_format.space_after = Pt(0)
+            self._set_line_spacing(para, self.line_spacing)
+            
+        elif level == 2:
+            # Level 2: Left-Aligned, Bold, Title Case
+            para = doc.add_paragraph()
+            run = para.add_run(title_cased_text)
+            run.bold = True
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+            
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            para_format.space_before = Pt(0)
+            para_format.space_after = Pt(0)
+            self._set_line_spacing(para, self.line_spacing)
+            
+        elif level == 3:
+            # Level 3: Left-Aligned, Bold Italic, Title Case
+            para = doc.add_paragraph()
+            run = para.add_run(title_cased_text)
+            run.bold = True
+            run.italic = True
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+            
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            para_format.space_before = Pt(0)
+            para_format.space_after = Pt(0)
+            self._set_line_spacing(para, self.line_spacing)
+            
+        elif level == 4:
+            # Level 4: Indented, Bold, Title Case, Ending with Period
+            # Run-in heading: text continues on same line
+            para = doc.add_paragraph()
+            
+            # Add heading with period
+            heading_run = para.add_run(f"{title_cased_text}. ")
+            heading_run.bold = True
+            heading_run.font.name = self.font_name
+            heading_run.font.size = self.font_size
+            
+            # Note: The actual paragraph text will be added separately
+            # This creates the heading structure; content follows in generate_document
+            
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            para_format.first_line_indent = self.paragraph_indent
+            para_format.space_before = Pt(0)
+            para_format.space_after = Pt(0)
+            self._set_line_spacing(para, self.line_spacing)
+            
+        elif level == 5:
+            # Level 5: Indented, Bold Italic, Title Case, Ending with Period
+            # Run-in heading: text continues on same line
+            para = doc.add_paragraph()
+            
+            # Add heading with period
+            heading_run = para.add_run(f"{title_cased_text}. ")
+            heading_run.bold = True
+            heading_run.italic = True
+            heading_run.font.name = self.font_name
+            heading_run.font.size = self.font_size
+            
+            # Note: The actual paragraph text will be added separately
+            # This creates the heading structure; content follows in generate_document
+            
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            para_format.first_line_indent = self.paragraph_indent
+            para_format.space_before = Pt(0)
+            para_format.space_after = Pt(0)
+            self._set_line_spacing(para, self.line_spacing)
+    
+    def _to_title_case(self, text: str) -> str:
+        """
+        Convert text to Title Case for APA headings
+        
+        APA title case rules:
+        - Capitalize major words (nouns, verbs, adjectives, adverbs, pronouns)
+        - Lowercase articles (a, an, the), coordinating conjunctions (and, but, or)
+        - Lowercase prepositions of 3 letters or fewer (of, to, in, for, on, at, by)
+        - Always capitalize first and last word
+        - Capitalize words of 4 letters or more
+        
+        This is a simplified implementation that capitalizes all words except
+        common short words that should be lowercase (unless first/last).
+        """
+        # Words that should be lowercase in title case (unless first/last word)
+        lowercase_words = {
+            'a', 'an', 'the',                    # Articles
+            'and', 'but', 'or', 'nor', 'for',   # Conjunctions
+            'at', 'by', 'in', 'of', 'on', 'to', 'up', 'as', 'is'  # Short prepositions
+        }
+        
+        words = text.split()
+        if not words:
+            return text
+        
+        title_cased = []
+        for i, word in enumerate(words):
+            # Always capitalize first and last word
+            if i == 0 or i == len(words) - 1:
+                title_cased.append(word.capitalize())
+            # Lowercase specific short words in the middle
+            elif word.lower() in lowercase_words:
+                title_cased.append(word.lower())
+            # Capitalize all other words
+            else:
+                title_cased.append(word.capitalize())
+        
+        return ' '.join(title_cased)
     
     def _process_citations(
         self, 
@@ -284,7 +536,16 @@ class APAExportService:
         cited_papers: set, 
         references_metadata: Dict[str, Dict]
     ):
-        """Add APA-formatted reference list"""
+        """
+        Add APA-formatted reference list with proper formatting
+        
+        APA 7th Edition Requirements:
+        - Alphabetically sorted by first author's last name
+        - Hanging indent (0.5 inches)
+        - Journal names and volume numbers italicized
+        - DOIs as blue hyperlinks
+        - Proper punctuation and spacing
+        """
         # "References" heading (centered, bold)
         ref_heading = doc.add_paragraph()
         ref_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -299,77 +560,245 @@ class APAExportService:
         for paper_id in cited_papers:
             if paper_id in references_metadata:
                 metadata = references_metadata[paper_id]
-                formatted_ref = self._format_reference(metadata)
-                references.append(formatted_ref)
+                # Store metadata with sort key
+                first_author = metadata.get("author_list", ["Unknown"])[0]
+                sort_key = self._extract_last_name(first_author)
+                references.append((sort_key, metadata))
         
-        references.sort()
+        references.sort(key=lambda x: x[0].lower())
         
-        # Add each reference with hanging indent
-        for reference in references:
-            ref_para = doc.add_paragraph()
-            ref_run = ref_para.add_run(reference)
-            
-            # Font
-            ref_run.font.name = self.font_name
-            ref_run.font.size = self.font_size
-            
-            # Hanging indent
-            ref_format = ref_para.paragraph_format
-            ref_format.left_indent = self.hanging_indent
-            ref_format.first_line_indent = -self.hanging_indent
-            ref_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            ref_format.space_before = Pt(0)
-            ref_format.space_after = Pt(0)
-            
-            # Line spacing
-            self._set_line_spacing(ref_para, self.line_spacing)
+        # Add each reference with rich text formatting
+        for _, metadata in references:
+            self._add_formatted_reference(doc, metadata)
     
-    def _format_reference(self, metadata: Dict) -> str:
+    def _add_formatted_reference(self, doc: Document, metadata: Dict):
         """
-        Format full reference entry for reference list
+        Add a single formatted reference with rich text (italics, hyperlinks)
         
-        APA 7th Format:
-        Author, A. A., & Author, B. B. (Year). Title of article. 
-        Journal Name, volume(issue), pages. https://doi.org/xx.xxxx
+        APA 7th Edition Format Examples:
+        
+        Journal Article:
+        Author, A. A., & Author, B. B. (Year). Title of article. Journal Name, 
+        volume(issue), pages. https://doi.org/xx.xxxx
+        
+        Book:
+        Author, A. A. (Year). Title of book. Publisher.
+        
+        Formatting Rules:
+        - Journal name: Italicized
+        - Volume number: Italicized
+        - Issue number: In parentheses, NOT italicized
+        - Article title: Sentence case, NOT italicized
+        - DOI: Clickable blue hyperlink
         """
-        # Authors
-        authors = metadata.get("author_list", [])
-        if not authors:
-            author_str = "Unknown Author"
-        elif len(authors) == 1:
-            author_str = self._format_reference_author(authors[0])
-        elif len(authors) == 2:
-            author_str = f"{self._format_reference_author(authors[0])} & {self._format_reference_author(authors[1])}"
-        elif len(authors) <= 20:
-            formatted = [self._format_reference_author(a) for a in authors[:-1]]
-            author_str = ", ".join(formatted) + f", & {self._format_reference_author(authors[-1])}"
-        else:
-            # 21+ authors: first 19, ellipsis, last author
-            formatted = [self._format_reference_author(a) for a in authors[:19]]
-            author_str = ", ".join(formatted) + f", ... {self._format_reference_author(authors[-1])}"
+        ref_para = doc.add_paragraph()
         
-        # Year
+        # Paragraph formatting (hanging indent)
+        ref_format = ref_para.paragraph_format
+        ref_format.left_indent = self.hanging_indent
+        ref_format.first_line_indent = -self.hanging_indent
+        ref_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        ref_format.space_before = Pt(0)
+        ref_format.space_after = Pt(0)
+        self._set_line_spacing(ref_para, self.line_spacing)
+        
+        # 1. Authors
+        author_str = self._format_authors_for_reference(metadata.get("author_list", []))
+        run = ref_para.add_run(author_str)
+        run.font.name = self.font_name
+        run.font.size = self.font_size
+        
+        # 2. Year
         year = metadata.get("year", "n.d.")
+        run = ref_para.add_run(f" ({year}). ")
+        run.font.name = self.font_name
+        run.font.size = self.font_size
         
-        # Title (italicized in actual formatting, but here we use plain text)
+        # 3. Title (sentence case, NOT italicized for articles)
         title = metadata.get("title", "Untitled").rstrip(".")
+        # Convert to sentence case if needed
+        title = self._to_sentence_case(title)
         
-        # Publisher/Journal
+        publication_type = metadata.get("publication_type", "journal")
+        
+        if publication_type == "book":
+            # Book titles are italicized
+            run = ref_para.add_run(title)
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+            run.italic = True
+        else:
+            # Article titles are NOT italicized
+            run = ref_para.add_run(title)
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+        
+        run = ref_para.add_run(". ")
+        run.font.name = self.font_name
+        run.font.size = self.font_size
+        
+        # 4. Journal name (italicized) and volume/issue/pages
         publisher = metadata.get("publisher", "")
-        
-        # DOI
-        doi = metadata.get("doi", "")
-        
-        # Build reference
-        parts = [f"{author_str} ({year}). {title}."]
+        volume = metadata.get("volume", "")
+        issue = metadata.get("issue", "")
+        pages = metadata.get("pages", "")
         
         if publisher:
-            parts.append(f"{publisher}.")
+            # Journal/Publisher name (italicized)
+            run = ref_para.add_run(publisher)
+            run.font.name = self.font_name
+            run.font.size = self.font_size
+            run.italic = True
+            
+            # Volume number (italicized) and issue (not italicized)
+            if volume:
+                run = ref_para.add_run(", ")
+                run.font.name = self.font_name
+                run.font.size = self.font_size
+                
+                # Volume (italicized)
+                run = ref_para.add_run(volume)
+                run.font.name = self.font_name
+                run.font.size = self.font_size
+                run.italic = True
+                
+                # Issue (in parentheses, NOT italicized)
+                if issue:
+                    run = ref_para.add_run(f"({issue})")
+                    run.font.name = self.font_name
+                    run.font.size = self.font_size
+                
+                # Pages
+                if pages:
+                    run = ref_para.add_run(f", {pages}")
+                    run.font.name = self.font_name
+                    run.font.size = self.font_size
+            
+            run = ref_para.add_run(". ")
+            run.font.name = self.font_name
+            run.font.size = self.font_size
         
+        # 5. DOI as hyperlink (blue, underlined)
+        doi = metadata.get("doi", "")
         if doi:
-            parts.append(f"https://doi.org/{doi}")
+            # Clean DOI (remove any existing URL prefix)
+            doi_clean = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
+            doi_url = f"https://doi.org/{doi_clean}"
+            
+            # Add hyperlink
+            self._add_hyperlink(ref_para, doi_url, doi_url)
+    
+    def _add_hyperlink(self, paragraph, url: str, text: str):
+        """
+        Add a clickable hyperlink to a paragraph
         
-        return " ".join(parts)
+        Creates a blue, underlined hyperlink in APA style
+        """
+        # Get the paragraph's XML element
+        p = paragraph._element
+        
+        # Create a new hyperlink element
+        hyperlink = OxmlElement('w:hyperlink')
+        
+        # Create relationship ID for the hyperlink
+        part = paragraph.part
+        r_id = part.relate_to(url, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', is_external=True)
+        hyperlink.set(qn('r:id'), r_id)
+        
+        # Create run with hyperlink text
+        new_run = OxmlElement('w:r')
+        rPr = OxmlElement('w:rPr')
+        
+        # Set font
+        rFonts = OxmlElement('w:rFonts')
+        rFonts.set(qn('w:ascii'), self.font_name)
+        rFonts.set(qn('w:hAnsi'), self.font_name)
+        rPr.append(rFonts)
+        
+        # Set size
+        sz = OxmlElement('w:sz')
+        sz.set(qn('w:val'), str(int(self.font_size.pt * 2)))  # Half-points
+        rPr.append(sz)
+        
+        # Set color (blue)
+        color = OxmlElement('w:color')
+        color.set(qn('w:val'), '0563C1')  # APA blue color
+        rPr.append(color)
+        
+        # Set underline
+        u = OxmlElement('w:u')
+        u.set(qn('w:val'), 'single')
+        rPr.append(u)
+        
+        new_run.append(rPr)
+        
+        # Add text
+        t = OxmlElement('w:t')
+        t.text = text
+        new_run.append(t)
+        
+        hyperlink.append(new_run)
+        p.append(hyperlink)
+    
+    def _format_authors_for_reference(self, authors: List[str]) -> str:
+        """
+        Format authors for reference list following APA 7th Edition rules
+        
+        Rules:
+        - 1 author: Author, A. A.
+        - 2 authors: Author, A. A., & Author, B. B.
+        - 3-20 authors: Author, A. A., Author, B. B., & Author, C. C.
+        - 21+ authors: First 19 authors, ..., Last Author
+        """
+        if not authors:
+            return "Unknown Author"
+        
+        if len(authors) == 1:
+            return self._format_reference_author(authors[0])
+        
+        if len(authors) == 2:
+            return f"{self._format_reference_author(authors[0])} & {self._format_reference_author(authors[1])}"
+        
+        if len(authors) <= 20:
+            # 3-20 authors: list all with & before last
+            formatted = [self._format_reference_author(a) for a in authors[:-1]]
+            return ", ".join(formatted) + f", & {self._format_reference_author(authors[-1])}"
+        
+        # 21+ authors: first 19, ellipsis, last author
+        formatted = [self._format_reference_author(a) for a in authors[:19]]
+        return ", ".join(formatted) + f", ... {self._format_reference_author(authors[-1])}"
+    
+    def _to_sentence_case(self, text: str) -> str:
+        """
+        Convert title to sentence case for APA references
+        
+        Rules:
+        - First word capitalized
+        - First word after colon capitalized
+        - Proper nouns remain capitalized (we preserve existing capitalization for words with internal caps)
+        """
+        if not text:
+            return text
+        
+        # Don't modify if already in sentence case or has proper formatting
+        words = text.split()
+        if len(words) == 0:
+            return text
+        
+        # Capitalize first word
+        result = []
+        for i, word in enumerate(words):
+            if i == 0:
+                # First word - capitalize
+                result.append(word[0].upper() + word[1:] if len(word) > 1 else word.upper())
+            elif ':' in result[-1]:
+                # Word after colon - capitalize
+                result.append(word[0].upper() + word[1:] if len(word) > 1 else word.upper())
+            else:
+                # Keep existing capitalization (preserves proper nouns)
+                result.append(word)
+        
+        return ' '.join(result)
     
     def _format_reference_author(self, author: str) -> str:
         """

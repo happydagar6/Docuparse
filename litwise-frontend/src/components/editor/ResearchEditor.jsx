@@ -2,7 +2,29 @@
 
 /**
  * Research Editor Component
- * TipTap-based editor with smart citation autocomplete
+ * TipTap-based editor with smart citation autocomplete and APA 7th Edition support
+ * 
+ * Features:
+ * - Smart citation system: Type @ to search and cite papers from your library
+ * - Multi-level headings: 5 APA heading levels with proper formatting
+ * - Rich text editing: Bold, italic, lists, blockquotes
+ * - Abstract & Keywords: Dedicated fields with word count validation
+ * - APA Export: Generate properly formatted Word documents (.docx)
+ * 
+ * APA 7th Edition Heading Levels:
+ * - Level 1: Centered, Bold (e.g., Method, Results, Discussion)
+ * - Level 2: Left-Aligned, Bold (e.g., Participants, Materials)
+ * - Level 3: Left-Aligned, Bold Italic (e.g., Subsection titles)
+ * - Level 4: Indented, Bold, Run-in (text continues on same line)
+ * - Level 5: Indented, Bold Italic, Run-in (text continues on same line)
+ * 
+ * Keyboard Shortcuts:
+ * - Ctrl+B: Bold
+ * - Ctrl+I: Italic
+ * - Ctrl+Z: Undo
+ * - Ctrl+Y: Redo
+ * - Ctrl+Shift+1-5: Heading levels 1-5
+ * - @: Trigger citation autocomplete
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -13,6 +35,7 @@ import Typography from '@tiptap/extension-typography';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Download, Loader2, AlertCircle } from 'lucide-react';
 import EditorMenuBar from './EditorMenuBar';
 import { convertEditorToAPIFormat, extractReferencesMetadata, sanitizeFilename, formatAuthorsForDisplay } from '@/lib/editor-utils';
@@ -153,7 +176,13 @@ export default function ResearchEditor({ availablePapers = [] }) {
     const [runningHead, setRunningHead] = useState('');
     const [authors, setAuthors] = useState(['']);
     const [affiliation, setAffiliation] = useState('Independent Researcher');
+    const [abstract, setAbstract] = useState('');
+    const [keywords, setKeywords] = useState('');
     const [isExporting, setIsExporting] = useState(false);
+
+    // Calculate word count for abstract
+    const abstractWordCount = abstract.trim() ? abstract.trim().split(/\s+/).length : 0;
+    const isAbstractTooLong = abstractWordCount > 250;
 
     // Configure TipTap editor
     const editor = useEditor({
@@ -161,7 +190,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
         extensions: [
             StarterKit.configure({
                 heading: {
-                    levels: [1, 2, 3],
+                    levels: [1, 2, 3, 4, 5], // APA 7th Edition supports 5 heading levels
                 },
             }),
             Typography,
@@ -290,6 +319,12 @@ export default function ResearchEditor({ availablePapers = [] }) {
             return;
         }
 
+        // Validate abstract word count
+        if (isAbstractTooLong) {
+            toast.error('Abstract is too long. Please reduce to 250 words or less.');
+            return;
+        }
+
         if (!editor) {
             toast.error('Editor not initialized');
             return;
@@ -300,6 +335,15 @@ export default function ResearchEditor({ availablePapers = [] }) {
         try {
             // Convert editor content to API format
             const editorJSON = editor.getJSON();
+            
+            // Check if editor has any text content
+            const editorText = editor.getText().trim();
+            if (!editorText) {
+                toast.error('Please write some content before exporting');
+                setIsExporting(false);
+                return;
+            }
+            
             const { content, citedPapers } = convertEditorToAPIFormat(editorJSON);
 
             if (content.length === 0) {
@@ -317,6 +361,8 @@ export default function ResearchEditor({ availablePapers = [] }) {
                 running_head: runningHead.substring(0, 50),
                 authors: authors.filter(a => a.trim()),
                 affiliation: affiliation,
+                abstract: abstract.trim() || null,
+                keywords: keywords.trim() ? keywords.split(',').map(k => k.trim()).filter(k => k) : [],
                 content: content,
                 references_metadata: referencesMetadata,
             };
@@ -346,7 +392,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
     return (
         <div className="h-full flex flex-col overflow-hidden">
             {/* Document Metadata Section */}
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 md:p-6 space-y-4 overflow-y-auto shrink-0">
+            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 md:p-6 overflow-y-auto shrink-0 max-h-[45vh]">
                 <div className="max-w-4xl mx-auto space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -425,6 +471,45 @@ export default function ResearchEditor({ availablePapers = [] }) {
                                 + Add Author
                             </Button>
                         </div>
+                    </div>
+
+                    {/* Abstract Field (Optional but recommended for APA) */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Abstract <span className="text-xs text-gray-500">(Optional, max 250 words)</span>
+                        </label>
+                        <Textarea
+                            value={abstract}
+                            onChange={(e) => setAbstract(e.target.value)}
+                            placeholder="Provide a brief summary of your research (recommended for professional papers and theses)..."
+                            className={`w-full min-h-[100px] resize-y ${isAbstractTooLong ? 'border-red-500 focus:border-red-500' : ''}`}
+                            rows={4}
+                        />
+                        <div className="flex justify-between items-center mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                A concise summary appears on Page 2 of your APA document
+                            </p>
+                            <p className={`text-xs font-medium ${isAbstractTooLong ? 'text-red-600 dark:text-red-400' : abstractWordCount > 200 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {abstractWordCount}/250 words
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Keywords Field (Optional but recommended) */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Keywords <span className="text-xs text-gray-500">(Optional, 3-5 recommended)</span>
+                        </label>
+                        <Input
+                            type="text"
+                            value={keywords}
+                            onChange={(e) => setKeywords(e.target.value)}
+                            placeholder="machine learning, healthcare, artificial intelligence"
+                            className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Separate keywords with commas. Appears below abstract for indexing.
+                        </p>
                     </div>
                 </div>
             </div>
