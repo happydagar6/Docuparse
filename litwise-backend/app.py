@@ -178,11 +178,11 @@ async def upload_paper(
         if file.filename:
             clean_filename = os.path.splitext(file.filename)[0]
 
-        # Use extracted title if not provided and available in metadata
+        # Use actual filename first, then extracted title as fallback
         final_title = (
             title
-            or paper_metadata.get("extracted_title")
             or clean_filename
+            or paper_metadata.get("extracted_title")
             or "Untitled Document"
         )
 

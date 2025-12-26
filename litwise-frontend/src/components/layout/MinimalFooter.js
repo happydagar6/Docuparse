@@ -144,31 +144,31 @@ const InteractiveFooter = () => {
   return (
     <footer className="w-full bg-white border-t border-gray-200 mt-auto relative">
       {/* Main Footer Content - with proper sidebar spacing */}
-      <div className="lg:ml-64 max-w-none px-4 sm:px-6 lg:px-8 py-12">
+      <div className="lg:ml-64 max-w-none px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           
           {/* Brand Section */}
-          <div className="lg:col-span-1">
+          <div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-linear-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-                  <BookOpen className="h-6 w-6 text-white" />
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-linear-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-2">
+                  <BookOpen className="h-5 w-5 text-white" />
                 </div>
-                <span className="text-2xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <span className="text-xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   Litwise
                 </span>
               </div>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                AI-powered research assistant helping researchers accelerate discoveries through intelligent document analysis.
+              <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                AI-powered research assistant helping researchers accelerate discoveries.
               </p>
               
               {/* Social Links */}
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 {socialLinks.map((social) => {
                   const IconComponent = social.icon;
                   return (
@@ -179,10 +179,10 @@ const InteractiveFooter = () => {
                       rel="noopener noreferrer"
                       whileHover={{ scale: 1.1, y: -2 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center transition-all duration-300 ${social.color}`}
+                      className={`w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center transition-all duration-300 ${social.color}`}
                       aria-label={social.name}
                     >
-                      <IconComponent className="h-5 w-5" />
+                      <IconComponent className="h-4 w-4" />
                     </motion.a>
                   );
                 })}
@@ -190,48 +190,30 @@ const InteractiveFooter = () => {
             </motion.div>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-6">Quick Links</h4>
-            <ul className="space-y-3">
-              {quickLinks.map((link) => (
-                <li key={link.name}>
-                  <a
-                    href={link.href}
-                    className="text-gray-600 hover:text-blue-600 transition-colors duration-200 flex items-center group"
-                  >
-                    {link.name}
-                    <ExternalLink className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           {/* Newsletter */}
           <div>
-            <h4 className="font-semibold text-gray-900 mb-6">Stay Updated</h4>
-            <p className="text-gray-600 text-sm mb-4">
-              Get the latest updates on AI research tools and features.
+            <h4 className="font-semibold text-gray-900 mb-3 text-sm">Stay Updated</h4>
+            <p className="text-gray-600 text-xs mb-3">
+              Get the latest updates on AI research tools.
             </p>
-            <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+            <form onSubmit={handleNewsletterSubmit} className="space-y-2">
               <Input
                 type="email"
                 placeholder="Enter your email"
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
-                className="w-full"
+                className="w-full h-9 text-sm"
                 disabled={isSubmitting}
               />
               <Button 
                 type="submit" 
-                className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="w-full h-9 text-sm bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 disabled={!newsletterEmail || isSubmitting}
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-3 w-3 animate-spin mr-2" />
                 ) : (
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-3 w-3 mr-2" />
                 )}
                 Subscribe
               </Button>
@@ -240,16 +222,16 @@ const InteractiveFooter = () => {
 
           {/* Feedback Section */}
           <div>
-            <h4 className="font-semibold text-gray-900 mb-6">Feedback</h4>
-            <p className="text-gray-600 text-sm mb-4">
-              Help us improve by sharing your thoughts and suggestions.
+            <h4 className="font-semibold text-gray-900 mb-3 text-sm">Feedback</h4>
+            <p className="text-gray-600 text-xs mb-3">
+              Help us improve by sharing your thoughts.
             </p>
             <Button 
               onClick={() => setShowFeedback(true)}
               variant="outline"
-              className="w-full hover:bg-blue-50 hover:border-blue-300"
+              className="w-full h-9 text-sm hover:bg-blue-50 hover:border-blue-300"
             >
-              <MessageCircle className="h-4 w-4 mr-2" />
+              <MessageCircle className="h-3 w-3 mr-2" />
               Send Feedback
             </Button>
           </div>
@@ -260,15 +242,15 @@ const InteractiveFooter = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mt-12 pt-8 border-t border-gray-200"
+          className="mt-6 pt-4 border-t border-gray-200"
         >
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center text-sm text-gray-600">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-3">
+            <div className="flex items-center text-xs text-gray-600">
               © {currentYear} Litwise AI. Made with
-              <Heart className="inline h-4 w-4 text-red-500 mx-1" />
+              <Heart className="inline h-3 w-3 text-red-500 mx-1" />
               for researchers worldwide.
             </div>
-            <div className="flex items-center gap-6 text-sm text-gray-500">
+            <div className="flex items-center gap-4 text-xs text-gray-500">
               <span>🚀 React 19.2</span>
               <span>⚡ Next.js 16</span>
               <span>🤖 AI-Powered</span>

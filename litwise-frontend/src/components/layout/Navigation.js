@@ -397,45 +397,47 @@ export function Navigation() {
           animate={{ y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="flex px-2 py-2">
-            {navigationItems.map((item) => {
-              const IconComponent = item.icon;
-              const active = isActive(item.href);
+          <div className="overflow-x-auto scrollbar-hide">
+            <div className="flex px-2 py-2 min-w-max gap-1">
+              {navigationItems.map((item) => {
+                const IconComponent = item.icon;
+                const active = isActive(item.href);
 
-              return (
-                <Link key={item.href} href={item.href} className="flex-1">
-                  <motion.div
-                    className={`
-                      flex flex-col items-center py-2 px-2 rounded-xl transition-all duration-300
-                      ${active ? "text-white" : "text-gray-600"}
-                    `}
-                    whileTap={{ scale: 0.95 }}
-                  >
+                return (
+                  <Link key={item.href} href={item.href}>
                     <motion.div
-                      className={`p-2 rounded-lg mb-1 ${
-                        active
-                          ? `bg-linear-to-r ${item.color} shadow-lg`
-                          : "bg-transparent"
-                      }`}
-                      whileHover={!active ? { scale: 1.1 } : {}}
+                      className={`
+                        flex flex-col items-center py-2 px-3 rounded-xl transition-all duration-300 min-w-[70px]
+                        ${active ? "text-white" : "text-gray-600"}
+                      `}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <IconComponent
-                        className={`h-5 w-5 ${
-                          active ? "text-white" : "text-gray-600"
+                      <motion.div
+                        className={`p-2 rounded-lg mb-1 ${
+                          active
+                            ? `bg-linear-to-r ${item.color} shadow-lg`
+                            : "bg-transparent"
                         }`}
-                      />
+                        whileHover={!active ? { scale: 1.1 } : {}}
+                      >
+                        <IconComponent
+                          className={`h-5 w-5 ${
+                            active ? "text-white" : "text-gray-600"
+                          }`}
+                        />
+                      </motion.div>
+                      <span
+                        className={`text-xs font-medium whitespace-nowrap ${
+                          active ? "text-gray-900" : "text-gray-600"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
                     </motion.div>
-                    <span
-                      className={`text-xs font-medium ${
-                        active ? "text-gray-900" : "text-gray-600"
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  </motion.div>
-                </Link>
-              );
-            })}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </motion.div>
       </div>
