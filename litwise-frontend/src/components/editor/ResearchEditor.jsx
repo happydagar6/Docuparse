@@ -32,12 +32,18 @@ import StarterKit from '@tiptap/starter-kit';
 import Mention from '@tiptap/extension-mention';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
-import { useState } from 'react';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { Image } from '@tiptap/extension-image';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Download, Loader2, AlertCircle } from 'lucide-react';
 import EditorMenuBar from './EditorMenuBar';
+import ImageUploadModal from './ImageUploadModal';
 import { convertEditorToAPIFormat, extractReferencesMetadata, sanitizeFilename, formatAuthorsForDisplay } from '@/lib/editor-utils';
 import { exportAPADocument } from '@/lib/api';
 import { toast } from 'sonner';
@@ -179,6 +185,8 @@ export default function ResearchEditor({ availablePapers = [] }) {
     const [abstract, setAbstract] = useState('');
     const [keywords, setKeywords] = useState('');
     const [isExporting, setIsExporting] = useState(false);
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+    const [figureNumber, setFigureNumber] = useState(1);
 
     // Calculate word count for abstract
     const abstractWordCount = abstract.trim() ? abstract.trim().split(/\s+/).length : 0;
@@ -194,6 +202,24 @@ export default function ResearchEditor({ availablePapers = [] }) {
                 },
             }),
             Typography,
+            // Table extensions for APA tables
+            Table.configure({
+                resizable: true,
+                HTMLAttributes: {
+                    class: 'editor-table',
+                },
+            }),
+            TableRow,
+            TableCell,
+            TableHeader,
+            // Image extension for APA figures
+            Image.configure({
+                inline: false,
+                allowBase64: false,
+                HTMLAttributes: {
+                    class: 'editor-image',
+                },
+            }),
             Placeholder.configure({
                 placeholder: 'Start writing your research paper... Type @ to cite a paper from your library.',
             }),
@@ -283,6 +309,52 @@ export default function ResearchEditor({ availablePapers = [] }) {
             },
         },
     });
+
+    // Listen for image upload button click from toolbar
+    React.useEffect(() => {
+        const handleOpenImageUpload = () => {
+            setIsImageModalOpen(true);
+        };
+
+        window.addEventListener('openImageUpload', handleOpenImageUpload);
+        
+        return () => {
+            window.removeEventListener('openImageUpload', handleOpenImageUpload);
+        };
+    }, []);
+
+    /**
+     * Handle image insertion from upload modal
+     * Stores metadata in editor as custom node attributes
+     * 
+     * @param {Object} imageData - Uploaded image data from modal
+     */
+    const handleImageInsert = (imageData) => {
+        if (!editor) return;
+
+        // Insert custom figure node with metadata
+        // The image will be rendered with figure number and caption
+        editor
+            .chain()
+            .focus()
+            .setImage({
+                src: imageData.url,
+                alt: imageData.alt_text,
+                title: imageData.caption,
+                // Store custom attributes for APA export
+                'data-figure-number': figureNumber,
+                'data-file-id': imageData.file_id,
+                'data-filename': imageData.filename,
+                'data-caption': imageData.caption,
+                'data-width-percent': imageData.width_percent,
+            })
+            .run();
+
+        // Increment figure number for next insertion
+        setFigureNumber(prev => prev + 1);
+
+        toast.success(`Figure ${figureNumber} inserted`);
+    };
 
     // Handle author input
     const handleAuthorChange = (index, value) => {
@@ -571,6 +643,13 @@ export default function ResearchEditor({ availablePapers = [] }) {
                     </div>
                 </div>
             </div>
+
+            {/* Image Upload Modal */}
+            <ImageUploadModal
+                isOpen={isImageModalOpen}
+                onClose={() => setIsImageModalOpen(false)}
+                onImageInsert={handleImageInsert}
+            />
         </div>
     );
 }

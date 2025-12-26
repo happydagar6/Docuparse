@@ -25,6 +25,51 @@ class HeadingContent(BaseModel):
             raise ValueError('Heading level must be between 1 and 5 (APA 7th Edition)')
         return v
 
+class TableCell(BaseModel):
+    """Individual cell in a table"""
+    content: str = Field(..., description="Cell content (plain text)")
+    header: bool = Field(default=False, description="Whether this is a header cell")
+
+class TableContent(BaseModel):
+    """
+    Table content for research papers
+    
+    APA 7th Edition Table Requirements:
+    - Numbered (Table 1, Table 2, etc.)
+    - Title above table (italicized)
+    - Double-spaced
+    - Minimal horizontal lines (top, bottom, under header only)
+    - No vertical lines
+    - Left-aligned content
+    - Note below table if needed (starts with "Note.")
+    """
+    type: Literal["table"] = Field(default="table", description="Content type identifier")
+    number: int = Field(..., ge=1, description="Table number for ordering")
+    title: str = Field(..., min_length=1, description="Table title (will be italicized)")
+    rows: List[List[str]] = Field(..., min_items=1, description="Table data as list of rows")
+    header_rows: int = Field(default=1, description="Number of header rows (usually 1)")
+    note: Optional[str] = Field(None, description="Table note/footer (optional)")
+
+class FigureContent(BaseModel):
+    """
+    Figure content for research papers
+    
+    APA 7th Edition Figure Requirements:
+    - Numbered (Figure 1, Figure 2, etc.)
+    - Caption below figure (starts with 'Figure #.')
+    - Caption is in sentence case
+    - Figure positioned near relevant text
+    - All figures referenced in text
+    - Supported formats: JPEG, PNG, GIF, WebP, SVG
+    """
+    type: Literal["figure"] = Field(default="figure", description="Content type identifier")
+    number: int = Field(..., ge=1, description="Figure number for ordering")
+    file_id: str = Field(..., description="File ID from media upload endpoint")
+    filename: str = Field(..., description="Original filename")
+    caption: str = Field(..., min_length=1, description="Figure caption (APA sentence case)")
+    alt_text: Optional[str] = Field(None, description="Alternative text for accessibility")
+    width_percent: Optional[int] = Field(default=100, ge=10, le=100, description="Figure width as % of page (10-100)")
+
 class ReferenceMetadata(BaseModel):
     """Metadata for a single reference (APA 7th Edition compliant)"""
     title: str = Field(..., description="Paper title")
@@ -45,7 +90,7 @@ class APAExportRequest(BaseModel):
     affiliation: Optional[str] = Field("Independent Researcher", description="Author affiliation")
     abstract: Optional[str] = Field(None, description="Abstract text (max 250 words recommended)")
     keywords: Optional[List[str]] = Field(default_factory=list, description="List of keywords (3-5 recommended)")
-    content: List[Union[ParagraphContent, HeadingContent]] = Field(..., min_items=1, description="List of content items (paragraphs and headings)")
+    content: List[Union[ParagraphContent, HeadingContent, TableContent, FigureContent]] = Field(..., min_items=1, description="List of content items (paragraphs, headings, tables, and figures)")
     references_metadata: Dict[str, ReferenceMetadata] = Field(
         default_factory=dict,
         description="Map of paper_id to reference metadata"

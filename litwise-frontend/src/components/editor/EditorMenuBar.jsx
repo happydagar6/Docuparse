@@ -19,6 +19,8 @@ import {
     Quote,
     ChevronDown,
     Type,
+    Table2,
+    ImagePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -238,6 +240,30 @@ export default function EditorMenuBar({ editor }) {
                 title="Block Quote"
             >
                 <Quote className="h-4 w-4" />
+            </ToolbarButton>
+
+            <Separator orientation="vertical" className="h-6 mx-1" />
+
+            {/* Table */}
+            <ToolbarButton
+                onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+                isActive={editor.isActive('table')}
+                title="Insert Table (3x3)"
+            >
+                <Table2 className="h-4 w-4" />
+            </ToolbarButton>
+
+            {/* Image - Will open upload modal */}
+            <ToolbarButton
+                onClick={() => {
+                    // Trigger custom image upload event
+                    const event = new CustomEvent('openImageUpload');
+                    window.dispatchEvent(event);
+                }}
+                isActive={false}
+                title="Insert Figure (Upload Image)"
+            >
+                <ImagePlus className="h-4 w-4" />
             </ToolbarButton>
 
             <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 hidden sm:block">

@@ -93,6 +93,25 @@ class APAExportService:
                 
                 # Add paragraph with formatting
                 self._add_body_paragraph(doc, formatted_text)
+                
+            elif content_type == "table":
+                # Handle table content
+                number = item.get("number", 1)
+                title = item.get("title", "")
+                rows = item.get("rows", [])
+                header_rows = item.get("header_rows", 1)
+                note = item.get("note", None)
+                self._add_table(doc, number, title, rows, header_rows, note)
+                
+            elif content_type == "figure":
+                # Handle figure content
+                number = item.get("number", 1)
+                file_id = item.get("file_id", "")
+                filename = item.get("filename", "")
+                caption = item.get("caption", "")
+                alt_text = item.get("alt_text", "")
+                width_percent = item.get("width_percent", 100)
+                self._add_figure(doc, number, file_id, filename, caption, alt_text, width_percent)
         
         # Add page break before references
         doc.add_page_break()
@@ -456,6 +475,298 @@ class APAExportService:
                 title_cased.append(word.capitalize())
         
         return ' '.join(title_cased)
+    
+    def _add_table(
+        self,
+        doc: Document,
+        number: int,
+        title: str,
+        rows: List[List[str]],
+        header_rows: int = 1,
+        note: Optional[str] = None
+    ):
+        """
+        Add APA 7th Edition formatted table to document
+        
+        APA 7th Edition Table Requirements:
+        - Numbered sequentially (Table 1, Table 2, etc.)
+        - Title is italicized and placed above table
+        - Double-spaced
+        - Minimal lines: top border, bottom border, line under header
+        - No vertical lines (clean columnar layout)
+        - All content left-aligned
+        - Optional note below table starting with "Note."
+        
+        Table Structure:
+        - First `header_rows` rows are formatted as headers (bold, top border)
+        - Data rows are left-aligned
+        - Bottom border closes the table
+        
+        Args:
+            doc: Document object
+            number: Table number for ordering
+            title: Table title (will be italicized)
+            rows: List of rows, where each row is list of cell strings
+            header_rows: Number of header rows (usually 1)
+            note: Optional table note/footer
+        """
+        # Add table number and title (italicized)
+        title_para = doc.add_paragraph()
+        title_run = title_para.add_run(f"Table {number}.")
+        title_run.bold = True
+        title_run.font.name = self.font_name
+        title_run.font.size = self.font_size
+        
+        # Add space then italicized title
+        title_para.add_run(" ")
+        title_text_run = title_para.add_run(title)
+        title_text_run.italic = True
+        title_text_run.font.name = self.font_name
+        title_text_run.font.size = self.font_size
+        
+        # Paragraph formatting
+        title_format = title_para.paragraph_format
+        title_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        title_format.space_before = Pt(12)  # Space above table
+        title_format.space_after = Pt(0)
+        self._set_line_spacing(title_para, self.line_spacing)
+        
+        # Create table (rows x columns)
+        if rows:
+            num_cols = len(rows[0])
+            table = doc.add_table(rows=len(rows), cols=num_cols)
+            table.style = 'Light Grid Accent 1'  # Professional table style
+            
+            # Configure table borders - APA style (top, bottom, under header only)
+            # Set table properties
+            tblPr = table._element.tblPr
+            
+            # Create table borders
+            tblBorders = OxmlElement('w:tblBorders')
+            
+            # Top border (solid black)
+            top = OxmlElement('w:top')
+            top.set(qn('w:val'), 'single')
+            top.set(qn('w:sz'), '12')
+            top.set(qn('w:space'), '0')
+            top.set(qn('w:color'), '000000')
+            tblBorders.append(top)
+            
+            # Bottom border (solid black)
+            bottom = OxmlElement('w:bottom')
+            bottom.set(qn('w:val'), 'single')
+            bottom.set(qn('w:sz'), '12')
+            bottom.set(qn('w:space'), '0')
+            bottom.set(qn('w:color'), '000000')
+            tblBorders.append(bottom)
+            
+            # Left border (none)
+            left = OxmlElement('w:left')
+            left.set(qn('w:val'), 'none')
+            tblBorders.append(left)
+            
+            # Right border (none)
+            right = OxmlElement('w:right')
+            right.set(qn('w:val'), 'none')
+            tblBorders.append(right)
+            
+            # Inside horizontal (between rows)
+            insideH = OxmlElement('w:insideH')
+            insideH.set(qn('w:val'), 'none')
+            tblBorders.append(insideH)
+            
+            # Inside vertical (between columns - none for clean look)
+            insideV = OxmlElement('w:insideV')
+            insideV.set(qn('w:val'), 'none')
+            tblBorders.append(insideV)
+            
+            tblPr.append(tblBorders)
+            
+            # Format header row with top border
+            for row_idx, row in enumerate(table.rows):
+                for cell_idx, cell in enumerate(row.cells):
+                    # Get cell content from data
+                    if row_idx < len(rows) and cell_idx < len(rows[row_idx]):
+                        cell_text = rows[row_idx][cell_idx]
+                    else:
+                        cell_text = ""
+                    
+                    # Clear default paragraph
+                    for paragraph in cell.paragraphs:
+                        paragraph.clear()
+                    
+                    # Add formatted text to cell
+                    para = cell.paragraphs[0]
+                    run = para.add_run(cell_text)
+                    run.font.name = self.font_name
+                    run.font.size = self.font_size
+                    
+                    # Format header row (bold)
+                    if row_idx < header_rows:
+                        run.bold = True
+                    
+                    # Alignment
+                    para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    para_format = para.paragraph_format
+                    para_format.space_before = Pt(0)
+                    para_format.space_after = Pt(0)
+                    self._set_line_spacing(para, self.line_spacing)
+            
+            # Add line under header row
+            if header_rows > 0:
+                header_row = table.rows[header_rows - 1]
+                for cell in header_row.cells:
+                    tcPr = cell._element.tcPr
+                    if tcPr is None:
+                        tcPr = OxmlElement('w:tcPr')
+                        cell._element.insert(0, tcPr)
+                    
+                    # Add bottom border to header cells
+                    tcBorders = OxmlElement('w:tcBorders')
+                    tcBottom = OxmlElement('w:bottom')
+                    tcBottom.set(qn('w:val'), 'single')
+                    tcBottom.set(qn('w:sz'), '12')
+                    tcBottom.set(qn('w:color'), '000000')
+                    tcBorders.append(tcBottom)
+                    tcPr.append(tcBorders)
+        
+        # Add table note if provided
+        if note:
+            note_para = doc.add_paragraph()
+            note_run = note_para.add_run(note)
+            note_run.italic = True
+            note_run.font.name = self.font_name
+            note_run.font.size = Pt(11)  # Slightly smaller for notes
+            
+            note_format = note_para.paragraph_format
+            note_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            note_format.space_before = Pt(6)
+            note_format.space_after = Pt(0)
+            note_format.first_line_indent = Inches(0)  # No indent for note
+            self._set_line_spacing(note_para, self.line_spacing)
+    
+    def _add_figure(
+        self,
+        doc: Document,
+        number: int,
+        file_id: str,
+        filename: str,
+        caption: str,
+        alt_text: Optional[str] = None,
+        width_percent: int = 100
+    ):
+        """
+        Add APA 7th Edition formatted figure to document
+        
+        APA 7th Edition Figure Requirements:
+        - Numbered sequentially (Figure 1, Figure 2, etc.)
+        - Placed near relevant text in document
+        - Caption below figure (starts with 'Figure #.')
+        - Caption in sentence case (only first word and proper nouns capitalized)
+        - Double-spaced
+        - All figures must be referenced in text
+        
+        Figure Structure:
+        - Image is embedded with APA sizing
+        - Caption paragraph follows with: Figure #. Caption text.
+        - Spacing maintained for professional appearance
+        
+        Args:
+            doc: Document object
+            number: Figure number for ordering
+            file_id: Unique file ID from media upload
+            filename: Original filename
+            caption: Figure caption (APA sentence case)
+            alt_text: Alternative text for accessibility
+            width_percent: Width as percentage of page (10-100)
+        """
+        try:
+            # Construct path to uploaded figure
+            # The figure should be saved in uploads/figures/ directory
+            import os
+            from pathlib import Path
+            
+            upload_dir = Path("uploads/figures")
+            figure_path = None
+            
+            # Find figure file matching the file_id
+            if upload_dir.exists():
+                for filepath in upload_dir.iterdir():
+                    if filepath.name.startswith(file_id):
+                        figure_path = str(filepath)
+                        break
+            
+            if not figure_path or not os.path.exists(figure_path):
+                # Fallback: try direct path construction
+                figure_path = f"uploads/figures/{file_id}{Path(filename).suffix}"
+            
+            # Add figure with spacing
+            # Top spacing
+            spacing_para = doc.add_paragraph()
+            spacing_para.paragraph_format.space_before = Pt(12)
+            spacing_para.paragraph_format.space_after = Pt(0)
+            
+            # Add figure image
+            fig_para = doc.add_paragraph()
+            fig_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Calculate width based on percentage (standard Word page is 6.5" wide with 1" margins)
+            # At 100%, use 6 inches; adjust based on percentage
+            max_width = Inches(6.0)
+            actual_width = Inches(6.0 * (width_percent / 100))
+            
+            try:
+                # Add image only if file exists
+                if os.path.exists(figure_path):
+                    run = fig_para.add_run()
+                    run.add_picture(figure_path, width=actual_width)
+                else:
+                    # Placeholder if image not found
+                    placeholder_run = fig_para.add_run(f"[Figure {number}: {filename}]")
+                    placeholder_run.font.size = Pt(10)
+                    placeholder_run.font.color.rgb = RGBColor(128, 128, 128)
+            except Exception as e:
+                # Fallback placeholder
+                placeholder_run = fig_para.add_run(f"[Image not available: {filename}]")
+                placeholder_run.font.size = Pt(10)
+                placeholder_run.font.color.rgb = RGBColor(128, 128, 128)
+            
+            # Figure formatting
+            fig_format = fig_para.paragraph_format
+            fig_format.space_before = Pt(0)
+            fig_format.space_after = Pt(6)  # Space before caption
+            self._set_line_spacing(fig_para, self.line_spacing)
+            
+            # Add figure caption below image
+            # Caption format: "Figure #. Caption text."
+            caption_para = doc.add_paragraph()
+            
+            # Figure number (bold)
+            figure_num_run = caption_para.add_run(f"Figure {number}.")
+            figure_num_run.bold = True
+            figure_num_run.font.name = self.font_name
+            figure_num_run.font.size = self.font_size
+            
+            # Space and caption text
+            caption_para.add_run(" ")
+            caption_text_run = caption_para.add_run(caption)
+            caption_text_run.font.name = self.font_name
+            caption_text_run.font.size = self.font_size
+            
+            # Caption formatting (centered and italicized per some APA styles)
+            caption_format = caption_para.paragraph_format
+            caption_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            caption_format.space_before = Pt(0)
+            caption_format.space_after = Pt(12)  # Space after caption
+            self._set_line_spacing(caption_para, self.line_spacing)
+            
+        except Exception as e:
+            # Graceful degradation - add text placeholder
+            error_para = doc.add_paragraph()
+            error_run = error_para.add_run(f"[Figure {number}: Unable to embed image - {str(e)[:50]}...]")
+            error_run.font.color.rgb = RGBColor(192, 0, 0)  # Red for error
+            error_para.paragraph_format.space_before = Pt(12)
+            error_para.paragraph_format.space_after = Pt(12)
     
     def _process_citations(
         self, 

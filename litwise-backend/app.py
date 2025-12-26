@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from models import (
     SearchQuery,
     ProcessingResponse,
@@ -29,6 +30,7 @@ from routes.citations import router as citations_router
 from routes.literature_review import router as literature_review_router
 from routes.ai_citations import router as ai_citations_router
 from routes.export import router as export_router
+from routes.media import router as media_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -79,6 +81,12 @@ app.include_router(literature_review_router)
 
 # Include export router
 app.include_router(export_router)
+
+# Include media router (figure uploads)
+app.include_router(media_router)
+
+# Mount static files for uploaded figures (serve images)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():
