@@ -31,6 +31,7 @@ from routes.literature_review import router as literature_review_router
 from routes.ai_citations import router as ai_citations_router
 from routes.export import router as export_router
 from routes.media import router as media_router
+from routes.notes import router as notes_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -52,7 +53,7 @@ app.add_middleware(
         "https://localhost:3000",  # HTTPS variant
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -84,6 +85,9 @@ app.include_router(export_router)
 
 # Include media router (figure uploads)
 app.include_router(media_router)
+
+# Include notes router (research notes)
+app.include_router(notes_router)
 
 # Mount static files for uploaded figures (serve images)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

@@ -341,3 +341,33 @@ create table public.chat_memory (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_chat_memory_session_id on public.chat_memory using btree (session_id) TABLESPACE pg_default;
+
+
+
+--- Notes Table ---
+-- Table for user notes/reminders for research and study purposes
+
+create table public.notes (
+  id uuid not null default gen_random_uuid (),
+  user_id uuid not null,
+  title text not null,
+  content text not null default ''::text,
+  color text null default '#fef3c7'::text,
+  pinned boolean not null default false,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint notes_pkey primary key (id),
+  constraint notes_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade
+) TABLESPACE pg_default;
+
+-- Indexes for notes table
+create index IF not exists idx_notes_user_id on public.notes using btree (user_id) TABLESPACE pg_default;
+
+create index IF not exists idx_notes_created_at on public.notes using btree (created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_notes_pinned on public.notes using btree (pinned, created_at desc) TABLESPACE pg_default;
+
+-- Trigger to update updated_at timestamp
+create trigger trigger_update_notes_updated_at BEFORE
+update on notes for EACH row
+execute FUNCTION update_updated_at_column ();

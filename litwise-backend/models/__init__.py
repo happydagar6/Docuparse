@@ -26,6 +26,9 @@ from .chat import ChatMessage, ChatSession, ChatRequest, ChatResponse, Streaming
 # Import export models
 from .export import APAExportRequest, ParagraphContent, ReferenceMetadata
 
+# Import note models
+from .note import NoteBase, NoteCreate, NoteUpdate, NoteResponse, NoteListResponse
+
 # Export all models
 __all__ = [
     'PaperUpload', 
@@ -51,5 +54,10 @@ __all__ = [
     'StreamingChatChunk',
     'APAExportRequest',
     'ParagraphContent',
-    'ReferenceMetadata'
+    'ReferenceMetadata',
+    'NoteBase',
+    'NoteCreate',
+    'NoteUpdate',
+    'NoteResponse',
+    'NoteListResponse'
 ]

@@ -16,6 +16,7 @@ ALTER TABLE public.synthesis_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.literature_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.citation_relationships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- USERS TABLE POLICIES
@@ -421,6 +422,35 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- =====================================================
+-- NOTES TABLE POLICIES
+-- =====================================================
+
+-- Users can view their own notes
+CREATE POLICY "Users can view their own notes"
+  ON public.notes
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Users can insert their own notes
+CREATE POLICY "Users can insert their own notes"
+  ON public.notes
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can update their own notes
+CREATE POLICY "Users can update their own notes"
+  ON public.notes
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can delete their own notes
+CREATE POLICY "Users can delete their own notes"
+  ON public.notes
+  FOR DELETE
+  USING (auth.uid() = user_id);
 
 -- =====================================================
 -- GRANT SERVICE ROLE BYPASS (for backend API)

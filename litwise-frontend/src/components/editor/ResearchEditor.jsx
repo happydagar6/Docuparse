@@ -41,10 +41,11 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Download, Loader2, AlertCircle } from 'lucide-react';
+import { Download, Loader2, AlertCircle, StickyNote } from 'lucide-react';
 import EditorMenuBar from './EditorMenuBar';
 import TableToolbar from './TableToolbar';
 import ImageUploadModal from './ImageUploadModal';
+import NotesModal from '@/components/notes/NotesModal';
 import { convertEditorToAPIFormat, extractReferencesMetadata, sanitizeFilename, formatAuthorsForDisplay } from '@/lib/editor-utils';
 import { exportAPADocument } from '@/lib/api';
 import { toast } from 'sonner';
@@ -188,6 +189,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
     const [isExporting, setIsExporting] = useState(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
     const [figureNumber, setFigureNumber] = useState(1);
+    const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
 
     // Calculate word count for abstract
     const abstractWordCount = abstract.trim() ? abstract.trim().split(/\s+/).length : 0;
@@ -465,6 +467,23 @@ export default function ResearchEditor({ availablePapers = [] }) {
             {/* Document Metadata Section */}
             <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 md:p-6 overflow-y-auto shrink-0 max-h-[45vh]">
                 <div className="max-w-4xl mx-auto space-y-4">
+                    {/* Header with Title and Notes Button */}
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">
+                            Research Editor
+                        </h2>
+                        <Button
+                            type="button"
+                            onClick={() => setIsNotesModalOpen(true)}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                        >
+                            <StickyNote className="h-4 w-4" />
+                            Create Notes
+                        </Button>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Document Title *
@@ -649,6 +668,12 @@ export default function ResearchEditor({ availablePapers = [] }) {
                 isOpen={isImageModalOpen}
                 onClose={() => setIsImageModalOpen(false)}
                 onImageInsert={handleImageInsert}
+            />
+
+            {/* Notes Modal */}
+            <NotesModal
+                isOpen={isNotesModalOpen}
+                onClose={() => setIsNotesModalOpen(false)}
             />
         </div>
     );
