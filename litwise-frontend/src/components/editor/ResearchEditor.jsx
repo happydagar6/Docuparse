@@ -43,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Download, Loader2, AlertCircle } from 'lucide-react';
 import EditorMenuBar from './EditorMenuBar';
+import TableToolbar from './TableToolbar';
 import ImageUploadModal from './ImageUploadModal';
 import { convertEditorToAPIFormat, extractReferencesMetadata, sanitizeFilename, formatAuthorsForDisplay } from '@/lib/editor-utils';
 import { exportAPADocument } from '@/lib/api';
@@ -205,9 +206,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
             // Table extensions for APA tables
             Table.configure({
                 resizable: true,
-                HTMLAttributes: {
-                    class: 'editor-table',
-                },
+                allowTableNodeSelection: true,
             }),
             TableRow,
             TableCell,
@@ -589,6 +588,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
             {/* Editor Section */}
             <div className="flex-1 overflow-hidden flex flex-col bg-gray-50 dark:bg-gray-900">
                 <EditorMenuBar editor={editor} />
+                <TableToolbar editor={editor} />
 
                 <div className="flex-1 overflow-y-auto">
                     {/* Info Banner - Inline at top of editor if no papers */}

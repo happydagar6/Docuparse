@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 
 export default function ImageUploadModal({ isOpen, onClose, onImageInsert }) {
     const [file, setFile] = useState(null);
@@ -78,17 +80,28 @@ export default function ImageUploadModal({ isOpen, onClose, onImageInsert }) {
         setIsUploading(true);
 
         try {
+            // Get backend API URL
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+            
+            // Get Supabase authentication token
+            const supabase = getSupabaseClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            
+            if (!token) {
+                throw new Error('Not authenticated. Please log in again.');
+            }
+            
             // Create FormData for file upload
             const formData = new FormData();
             formData.append('file', file);
             formData.append('caption', caption.trim());
 
             // Upload to backend
-            const response = await fetch('/api/media/upload-figure', {
+            const response = await fetch(`${API_BASE_URL}/api/media/upload-figure`, {
                 method: 'POST',
                 headers: {
-                    // Authorization header will be added by fetch interceptor if configured
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: formData,
             });
@@ -101,10 +114,13 @@ export default function ImageUploadModal({ isOpen, onClose, onImageInsert }) {
             const data = await response.json();
 
             // Insert image into editor with metadata
+            // Ensure URL has full backend path
+            const imageUrl = data.url.startsWith('http') ? data.url : `${API_BASE_URL}${data.url}`;
+            
             onImageInsert({
                 file_id: data.file_id,
                 filename: data.filename,
-                url: data.url,
+                url: imageUrl,
                 caption: caption.trim(),
                 alt_text: altText.trim() || caption.trim(),
                 width_percent: widthPercent,
@@ -173,11 +189,16 @@ export default function ImageUploadModal({ isOpen, onClose, onImageInsert }) {
                         <div className="relative">
                             {/* Image Preview */}
                             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                <img
-                                    src={preview}
-                                    alt="Preview"
-                                    className="w-full h-auto max-h-64 object-contain bg-gray-50 dark:bg-gray-900"
-                                />
+                                {preview && (
+                                    <Image
+                                        src={preview}
+                                        alt="Preview"
+                                        width={600}
+                                        height={400}
+                                        className="w-full h-auto max-h-64 object-contain bg-gray-50 dark:bg-gray-900"
+                                        unoptimized
+                                    />
+                                )}
                             </div>
 
                             {/* Remove Button */}

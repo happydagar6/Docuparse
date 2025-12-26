@@ -204,6 +204,8 @@
 /* TipTap Editor Styles */
 .ProseMirror {
     outline: none;
+    padding: 1.5rem;
+    min-height: 400px;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
@@ -296,46 +298,66 @@
     user-select: none;
 }
 
-/* APA Table Styles */
-.ProseMirror .editor-table {
+/* APA Table Styles - Apply to all tables in ProseMirror */
+.ProseMirror table {
     border-collapse: collapse;
-    table-layout: auto;
+    table-layout: fixed;
     width: 100%;
     margin: 1.5rem 0;
     overflow: hidden;
+    border: 2px solid #d1d5db;
 }
 
-.ProseMirror .editor-table td,
-.ProseMirror .editor-table th {
-    min-width: 1em;
+.ProseMirror td,
+.ProseMirror th {
+    min-width: 100px;
     border: 1px solid #d1d5db;
     padding: 0.5rem 0.75rem;
     vertical-align: top;
     box-sizing: border-box;
     position: relative;
-    text-align: left;
+    background-clip: padding-box;
 }
 
-.ProseMirror .editor-table th {
+.ProseMirror th {
     font-weight: bold;
+    text-align: left;
     background-color: #f3f4f6;
+    border-bottom: 2px solid #9ca3af;
 }
 
-.dark .ProseMirror .editor-table td,
-.dark .ProseMirror .editor-table th {
+.ProseMirror td > *,
+.ProseMirror th > * {
+    margin: 0;
+}
+
+/* Dark mode table styles */
+.dark .ProseMirror table {
     border-color: #4b5563;
 }
 
-.dark .ProseMirror .editor-table th {
+.dark .ProseMirror td,
+.dark .ProseMirror th {
+    border-color: #4b5563;
+}
+
+.dark .ProseMirror th {
     background-color: #1f2937;
+    border-bottom-color: #6b7280;
 }
 
-.ProseMirror .editor-table .selectedCell {
-    background-color: #dbeafe;
+/* Selected cell highlighting */
+.ProseMirror .selectedCell:after {
+    z-index: 2;
+    position: absolute;
+    content: "";
+    left: 0; right: 0; top: 0; bottom: 0;
+    background-color: rgba(59, 130, 246, 0.1);
+    pointer-events: none;
 }
 
-.dark .ProseMirror .editor-table .selectedCell {
-    background-color: #1e3a8a;
+.dark .ProseMirror .selectedCell:after {
+    background-color: rgba(59, 130, 246, 0.2);
 }
 
 /* Column resize handle */
