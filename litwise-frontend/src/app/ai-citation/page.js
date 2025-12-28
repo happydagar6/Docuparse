@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateAICitation } from '@/lib/api';
 import { toast } from 'sonner';
+import { PageLayout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Sparkles, Copy, CheckCircle2, XCircle, FileText, Loader2, Check } from 'lucide-react';
@@ -116,15 +117,31 @@ export default function AICitationGenerator() {
   };
 
   return (
-    <div className="container max-w-4xl mx-auto py-8 px-4">
-      <Card className="shadow-lg">
-        <CardHeader className="bg-linear-to-r from-blue-50 to-indigo-50 border-b">
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <Sparkles className="w-7 h-7 text-blue-600" />
-            AI-Powered Citation Generator
-          </CardTitle>
-          <CardDescription className="text-base">
-            Upload a PDF to generate an APA 7th Edition citation using our hybrid DOI + AI approach.
+    <PageLayout>
+      {/* Enhanced Header Section */}
+      <div className="mb-8">
+        <div className="relative bg-linear-to-br from-indigo-50 via-blue-50 to-cyan-50 rounded-2xl p-8 md:p-10 border border-indigo-100/50 overflow-hidden">
+          {/* Glassmorphic background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200 to-blue-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-200 to-cyan-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+          
+          <div className="relative z-10 flex items-start gap-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-lg">
+              <Sparkles className="h-7 w-7 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">AI Citation Generator</h1>
+              <p className="text-gray-700 leading-relaxed">Upload a PDF to generate an APA 7th Edition citation using our hybrid DOI + AI approach.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Card */}
+      <div className="max-w-4xl mx-auto">
+      <Card className="shadow-lg border-0 bg-white/60 backdrop-blur-sm">
+        <CardHeader className="bg-gradient-to-br from-white to-gray-50/50">
+          <CardDescription className="text-base text-gray-700">
             We first try to find the DOI and use the free Crossref API, then fall back to Grok AI if needed.
           </CardDescription>
         </CardHeader>
@@ -347,6 +364,7 @@ export default function AICitationGenerator() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

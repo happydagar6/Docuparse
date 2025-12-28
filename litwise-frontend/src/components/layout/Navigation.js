@@ -119,10 +119,10 @@ export function Navigation() {
   return (
     <>
       {/* Desktop Navigation */}
-      <nav className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 flex-col z-50 shadow-sm">
+      <nav className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-white/80 backdrop-blur-md border-r border-gray-200/50 flex-col z-50 shadow-lg">
         {/* Logo/Brand */}
         <motion.div
-          className="p-6 border-b border-gray-100"
+          className="p-6 border-b border-gray-100/50 bg-gradient-to-br from-white to-gray-50/50"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -136,19 +136,13 @@ export function Navigation() {
               <Sparkles className="h-5 w-5 text-white" />
             </motion.div>
             <div>
-              <span className="text-xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                 Litwise
               </span>
-              <div className="text-xs text-gray-500">AI Research Assistant</div>
+              <div className="text-xs text-gray-500 font-medium">Research Platform</div>
             </div>
           </Link>
         </motion.div>
-
-        {/* User Menu */}
-        <div className="flex items-center gap-4">
-          {/* ... existing nav items */}
-          <UserMenu />
-        </div>
 
         {/* Navigation Items */}
         <div className="flex-1 py-6 px-3">
@@ -162,50 +156,43 @@ export function Navigation() {
                   key={item.href}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 + 0.2 }}
+                  transition={{ delay: index * 0.05 + 0.1 }}
                   onMouseEnter={() => setHoveredItem(item.href)}
                   onMouseLeave={() => setHoveredItem(null)}
                 >
                   <Link href={item.href}>
-                    <motion.div
+                    <div
                       className={`
-                        relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group cursor-pointer
+                        relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group cursor-pointer
                         ${
                           active
-                            ? `bg-linear-to-r ${item.color} text-white shadow-lg shadow-blue-200`
-                            : `text-gray-700 ${item.hoverColor} hover:shadow-md hover:scale-[1.02]`
+                            ? `bg-linear-to-r ${item.color} text-white shadow-lg`
+                            : `text-gray-700 hover:bg-white/60 hover:shadow-md`
                         }
                       `}
-                      whileHover={!active ? { x: 4 } : {}}
-                      whileTap={{ scale: 0.98 }}
                     >
                       {/* Active indicator */}
                       {active && (
-                        <motion.div
-                          className="absolute left-0 top-1/2 w-1 h-8 bg-white rounded-r-full shadow-sm"
-                          initial={{ height: 0 }}
-                          animate={{ height: 32 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        />
+                        <div className="absolute left-0 top-1/2 w-1 h-8 bg-white/40 rounded-r-full" />
                       )}
 
-                      <motion.div
-                        className={`p-2 rounded-lg ${
+                      <div
+                        className={`p-2 rounded-lg transition-all duration-200 ${
                           active
                             ? "bg-white/20"
-                            : `${item.bgColor} group-hover:scale-110 transition-transform`
+                            : `${item.bgColor} group-hover:scale-105`
                         }`}
                       >
                         <IconComponent
-                          className={`h-5 w-5 ${
+                          className={`h-5 w-5 transition-all ${
                             active ? "text-white" : "text-gray-600"
                           }`}
                         />
-                      </motion.div>
+                      </div>
 
                       <div className="flex-1 min-w-0">
                         <div
-                          className={`font-medium ${
+                          className={`font-semibold text-sm ${
                             active ? "text-white" : "text-gray-900"
                           }`}
                         >
@@ -213,7 +200,7 @@ export function Navigation() {
                         </div>
                         <div
                           className={`text-xs mt-0.5 ${
-                            active ? "text-white/80" : "text-gray-500"
+                            active ? "text-white/70" : "text-gray-500"
                           }`}
                         >
                           {item.description}
@@ -221,19 +208,10 @@ export function Navigation() {
                       </div>
 
                       {/* Hover arrow */}
-                      <AnimatePresence>
-                        {hoveredItem === item.href && !active && (
-                          <motion.div
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -5 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <ChevronRight className="h-4 w-4 text-gray-400" />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
+                      {hoveredItem === item.href && !active && (
+                        <ChevronRight className="h-4 w-4 text-gray-400 transition-all" />
+                      )}
+                    </div>
                   </Link>
                 </motion.div>
               );
@@ -241,28 +219,27 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Settings */}
+        {/* Settings Footer */}
         <motion.div
-          className="p-4 border-t border-gray-100"
+          className="p-4 border-t border-gray-100/50 bg-gradient-to-tr from-gray-50 to-white"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.3 }}
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start hover:bg-gray-100 rounded-xl group"
-          >
-            <motion.div
-              className="p-1.5 bg-gray-100 rounded-lg mr-3 group-hover:bg-gray-200 transition-colors"
-              whileHover={{ rotate: 90 }}
-              transition={{ duration: 0.3 }}
-            >
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white/80 transition-all duration-200 cursor-pointer border border-gray-100/50">
+            <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
               <Settings className="h-4 w-4 text-gray-600" />
-            </motion.div>
-            <span className="text-gray-700">Settings</span>
-          </Button>
+            </div>
+            <Link href="/settings" className="text-sm font-medium text-gray-700">
+              Settings
+            </Link>
+          </div>
         </motion.div>
+
+        {/* User Menu */}
+        <div className="p-4 border-t border-gray-100/50">
+          <UserMenu />
+        </div>
       </nav>
 
       {/* Mobile Navigation */}

@@ -127,10 +127,26 @@ export default function SynthesisHistoryPage() {
   }, [searchQuery]);
   
   return (
-    <PageLayout
-      title="Synthesis History"
-      description="View and manage your saved research syntheses"
-    >
+    <PageLayout>
+      {/* Enhanced Header Section */}
+      <div className="mb-8">
+        <div className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 rounded-2xl p-8 md:p-10 border border-purple-100/50 overflow-hidden">
+          {/* Glassmorphic background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-200 to-pink-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-200 to-rose-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+          
+          <div className="relative z-10 flex items-start gap-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-lg">
+              <Brain className="h-7 w-7 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">AI Synthesis</h1>
+              <p className="text-gray-700 leading-relaxed">Create comprehensive syntheses that combine insights from multiple documents with advanced AI analysis.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="w-full max-w-6xl mx-auto space-y-6">
         {/* Search and Filter Bar */}
         <Card>

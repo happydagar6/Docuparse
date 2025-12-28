@@ -70,10 +70,26 @@ export default function LiteratureReviewPage() {
     };
 
     return (
-        <PageLayout
-        title="Literature Reviews Generator"
-        description="Generate comprehensive literature reviews tailored to your research needs."
-      >
+        <PageLayout>
+        {/* Enhanced Header Section */}
+        <div className="mb-8">
+          <div className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-2xl p-8 md:p-10 border border-green-100/50 overflow-hidden">
+            {/* Glassmorphic background elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-green-200 to-emerald-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-emerald-200 to-teal-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+            
+            <div className="relative z-10 flex items-start gap-6">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-lg">
+                <BookOpen className="h-7 w-7 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Literature Reviews</h1>
+                <p className="text-gray-700 leading-relaxed">Generate comprehensive, well-structured literature reviews from your document collection with AI-powered synthesis.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Page content goes here */}
 
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 p-6'>
