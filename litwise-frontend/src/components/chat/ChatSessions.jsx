@@ -41,16 +41,16 @@ const ChatSessions = memo(({
           <div
             key={session.id}
             className={cn(
-              "group flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+              "group flex items-start justify-between gap-2 p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
               activeSessionId === session.id && "bg-muted"
             )}
             onClick={() => onSessionSelect(session.id)}
           >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
+            <div className="flex-1 min-w-0 pr-2">
+              <p className="text-sm font-medium wrap-break-word whitespace-normal line-clamp-2">
                 {session.title || 'Untitled Chat'}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 {format(new Date(session.updated_at), 'MMM d, h:mm a')}
               </p>
             </div>
@@ -60,9 +60,10 @@ const ChatSessions = memo(({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0"
+                  className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
                   onClick={(e) => e.stopPropagation()}
                   disabled={isDeleting}
+                  title="Delete session"
                 >
                   {isDeleting ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -75,7 +76,7 @@ const ChatSessions = memo(({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Chat Session</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to delete `{session.title}`? This action cannot be undone.
+                    Are you sure you want to delete &quot;{session.title}&quot;? This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

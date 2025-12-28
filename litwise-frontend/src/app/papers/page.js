@@ -549,7 +549,7 @@ export default function PapersPage() {
                 No papers uploaded yet
               </h3>
               <p className="text-gray-600 mb-8 leading-relaxed">
-                Start by uploading your first research paper to begin exploring AI-powered insights and unlock intelligent analysis.
+                Start by uploading your first document to begin exploring AI-powered insights and unlock intelligent analysis.
               </p>
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -560,7 +560,7 @@ export default function PapersPage() {
                   className="px-8 py-4 rounded-xl bg-linear-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all"
                 >
                   <Upload className="h-5 w-5 mr-2" />
-                  Upload Your First Paper
+                  Upload Your First Document
                 </Button>
               </motion.div>
             </div>

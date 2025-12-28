@@ -222,7 +222,7 @@ export default function ResearchEditor({ availablePapers = [] }) {
                 },
             }),
             Placeholder.configure({
-                placeholder: 'Start writing your research paper... Type @ to cite a paper from your library.',
+                placeholder: 'Start writing your document... Type @ to cite from your library.'
             }),
             Mention.configure({
                 HTMLAttributes: {

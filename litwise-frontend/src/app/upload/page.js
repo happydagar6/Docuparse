@@ -26,8 +26,8 @@ export default function UploadPage() {
 
   return (
     <PageLayout
-      title="Upload Research Paper"
-      description="Upload a PDF research paper to extract insights and enable semantic search."
+      title="Upload Your Documents"
+      description="Upload PDF documents to extract insights and enable semantic search."
     >
       {/* Enhanced Hero Section */}
       <motion.div
@@ -75,7 +75,7 @@ export default function UploadPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            Upload Your Research
+            Upload Your Documents
           </motion.h1>
           
           <motion.p 
@@ -164,30 +164,42 @@ export default function UploadPage() {
               {
                 step: "1",
                 title: "Upload PDF",
-                description: "Select and upload your research paper",
+                description: "Select and upload your document or paper",
                 icon: Upload,
-                color: "purple"
+                bgColor: "#a855f7",
+                lightBg1: "#f3e8ff",
+                lightBg2: "#e9d5ff",
+                textColor: "#6d28d9"
               },
               {
                 step: "2", 
                 title: "Extract Text",
                 description: "AI processes and extracts content",
                 icon: BookOpen,
-                color: "blue"
+                bgColor: "#3b82f6",
+                lightBg1: "#dbeafe",
+                lightBg2: "#bfdbfe",
+                textColor: "#1e40af"
               },
               {
                 step: "3",
                 title: "Generate Insights",
                 description: "Create summaries and key points",
                 icon: Brain,
-                color: "indigo"
+                bgColor: "#f97316",
+                lightBg1: "#fed7aa",
+                lightBg2: "#fdba74",
+                textColor: "#ea580c"
               },
               {
                 step: "4",
                 title: "Ready to Explore",
                 description: "Chat, search, and discover insights",
                 icon: Sparkles,
-                color: "purple"
+                bgColor: "#a855f7",
+                lightBg1: "#f3e8ff",
+                lightBg2: "#e9d5ff",
+                textColor: "#6d28d9"
               }
             ].map((item, index) => (
               <motion.div
@@ -196,11 +208,13 @@ export default function UploadPage() {
                 whileHover={{ scale: 1.05, y: -5 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <div className={`bg-linear-to-br from-${item.color}-100 to-${item.color}-200 rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 mx-auto mb-2 sm:mb-3 lg:mb-4 flex items-center justify-center relative`}>
-                  <span className={`absolute -top-1 -right-1 sm:-top-2 sm:-right-2 bg-${item.color}-500 text-white text-[10px] sm:text-xs font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex items-center justify-center`}>
+                <div className="rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 mx-auto mb-2 sm:mb-3 lg:mb-4 flex items-center justify-center relative" style={{
+                  backgroundImage: `linear-gradient(to bottom right, ${item.lightBg1}, ${item.lightBg2})`
+                }}>
+                  <span className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-white text-[10px] sm:text-xs font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex items-center justify-center" style={{ backgroundColor: item.bgColor }}>
                     {item.step}
                   </span>
-                  <item.icon className={`h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-${item.color}-600`} />
+                  <item.icon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8" style={{ color: item.textColor }} />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-xs sm:text-sm lg:text-base">{item.title}</h3>
                 <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600 leading-tight">{item.description}</p>

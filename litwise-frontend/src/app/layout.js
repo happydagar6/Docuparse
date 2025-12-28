@@ -22,7 +22,7 @@ export default function Layout({ children }) {
     <html lang="en">
       <head>
         <title>Litwise - AI-Powered Research Companion</title>
-        <meta name="description" content="Upload, analyze, and discover insights from research papers using AI" />
+        <meta name="description" content="Upload, analyze, and discover insights from your documents and papers using AI" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

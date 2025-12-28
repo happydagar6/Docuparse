@@ -60,21 +60,21 @@ export default function Home() {
       title: 'Smart Upload',
       description: 'Upload PDFs and let AI extract key insights automatically',
       action: () => router.push('/upload'),
-      buttonText: 'Upload Paper',
+      buttonText: 'Upload Document',
       color: 'bg-blue-500'
     },
     {
       icon: Search,
       title: 'Semantic Search',
-      description: 'Find relevant papers using natural language queries',
+      description: 'Find relevant content using natural language queries',
       action: () => router.push('/search'),
-      buttonText: 'Search Papers',
+      buttonText: 'Search Documents',
       color: 'bg-green-500'
     },
     {
       icon: FileText,
-      title: 'Paper Library',
-      description: 'Browse and manage your collection of research papers',
+      title: 'Document Library',
+      description: 'Browse and manage your collection of documents and papers',
       action: () => router.push('/papers'),
       buttonText: 'View Library',
       color: 'bg-purple-500'
@@ -83,7 +83,7 @@ export default function Home() {
 
   const stats = [
     {
-      label: 'Papers Uploaded',
+      label: 'Documents Uploaded',
       value: safePapers.length || 0,
       icon: FileText
     },
@@ -124,8 +124,8 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-xl md:text-2xl text-gray-700 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Your intelligent research companion. Upload, analyze, and uncover insights 
-            from academic papers with cutting-edge AI semantic understanding.
+            Your intelligent document companion. Upload, analyze, and uncover insights 
+            from your PDFs with cutting-edge AI understanding.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

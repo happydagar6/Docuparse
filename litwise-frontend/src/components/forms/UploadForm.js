@@ -493,28 +493,36 @@ export function UploadForm({ onUploadSuccess }) {
                 title: "Text Extraction",
                 description: "Advanced PDF parsing and content extraction",
                 icon: FileText,
-                color: "blue"
+                bgColor: "#3b82f6",
+                lightBg: "#dbeafe",
+                textColor: "#1e40af"
               },
               {
                 step: "2", 
                 title: "AI Summarization",
                 description: "Generate intelligent summaries and insights",
                 icon: Brain,
-                color: "purple"
+                bgColor: "#a855f7",
+                lightBg: "#f3e8ff",
+                textColor: "#6d28d9"
               },
               {
                 step: "3",
                 title: "Topic Linking",
                 description: "Connect themes and find related research",
                 icon: Zap,
-                color: "indigo"
+                bgColor: "#f97316",
+                lightBg: "#fed7aa",
+                textColor: "#ea580c"
               },
               {
                 step: "4",
                 title: "Semantic Search",
                 description: "Enable intelligent content discovery",
                 icon: Sparkles,
-                color: "blue"
+                bgColor: "#3b82f6",
+                lightBg: "#dbeafe",
+                textColor: "#1e40af"
               }
             ].map((item, index) => (
               <motion.div
@@ -523,14 +531,14 @@ export function UploadForm({ onUploadSuccess }) {
                 whileHover={{ scale: 1.02, y: -2 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
-                <div className={`bg-${item.color}-100 rounded-lg p-1.5 sm:p-2 shrink-0`}>
-                  <item.icon className={`h-3 w-3 sm:h-4 sm:w-4 text-${item.color}-600`} />
+                <div className="rounded-lg p-1.5 sm:p-2 shrink-0" style={{ backgroundColor: item.lightBg }}>
+                  <item.icon className="h-3 w-3 sm:h-4 sm:w-4" style={{ color: item.textColor }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-xs sm:text-sm">{item.title}</p>
                   <p className="text-[10px] sm:text-xs text-gray-600 leading-tight">{item.description}</p>
                 </div>
-                <span className={`bg-${item.color}-500 text-white text-[10px] sm:text-xs font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0`}>
+                <span className="text-white text-[10px] sm:text-xs font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0" style={{ backgroundColor: item.bgColor }}>
                   {item.step}
                 </span>
               </motion.div>

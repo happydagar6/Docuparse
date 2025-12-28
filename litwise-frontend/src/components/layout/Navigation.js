@@ -48,7 +48,7 @@ export function Navigation() {
       href: "/upload",
       label: "Upload",
       icon: Upload,
-      description: "Upload new research papers",
+      description: "Upload new documents and papers",
       color: "from-green-500 to-green-600",
       bgColor: "bg-green-50",
       hoverColor: "hover:bg-green-100",

@@ -21,7 +21,7 @@ export default function SignupPage() {
             <div>
               <h3 className="text-white font-semibold text-lg">AI-Powered Analysis</h3>
               <p className="text-cyan-100 text-sm mt-1">
-                Get instant insights from research papers with advanced AI understanding
+                Get instant insights from your documents with advanced AI understanding
               </p>
             </div>
           </div>

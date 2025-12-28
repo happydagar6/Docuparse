@@ -125,8 +125,13 @@ export const chatApi = {
 
   // Delete a chat session
   deleteSession: async (sessionId) => {
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}`, {
       method: 'DELETE',
+      headers,
     });
 
     if (!response.ok) {
