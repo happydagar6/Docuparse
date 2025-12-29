@@ -25,10 +25,10 @@ export default function SearchPage() {
     <PageLayout>
       {/* Enhanced Header Section */}
       <div className="mb-12">
-        <div className="relative bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 rounded-2xl p-8 md:p-12 border border-blue-100/50 overflow-hidden">
+        <div className="relative bg-linear-to-br from-blue-50 via-cyan-50 to-teal-50 rounded-2xl p-8 md:p-12 border border-blue-100/50 overflow-hidden">
           {/* Glassmorphic overlay elements */}
-          <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-blue-200 to-cyan-200 rounded-full blur-3xl opacity-20 -z-10"></div>
-          <div className="absolute bottom-0 left-0 w-52 h-52 bg-gradient-to-tr from-teal-200 to-blue-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+          <div className="absolute top-0 right-0 w-72 h-72 bg-linear-to-br from-blue-200 to-cyan-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-52 h-52 bg-linear-to-tr from-teal-200 to-blue-200 rounded-full blur-3xl opacity-15 -z-10"></div>
           
           <div className="relative z-10">
             {/* Icon Section */}

@@ -122,7 +122,7 @@ export function Navigation() {
       <nav className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-white/80 backdrop-blur-md border-r border-gray-200/50 flex-col z-50 shadow-lg">
         {/* Logo/Brand */}
         <motion.div
-          className="p-6 border-b border-gray-100/50 bg-gradient-to-br from-white to-gray-50/50"
+          className="p-6 border-b border-gray-100/50 bg-linear-to-br from-white to-gray-50/50"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -221,7 +221,7 @@ export function Navigation() {
 
         {/* Settings Footer */}
         <motion.div
-          className="p-4 border-t border-gray-100/50 bg-gradient-to-tr from-gray-50 to-white"
+          className="p-4 border-t border-gray-100/50 bg-linear-to-tr from-gray-50 to-white"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}

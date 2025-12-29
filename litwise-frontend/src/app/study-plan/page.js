@@ -99,10 +99,10 @@ export default function StudyPlanPage() {
     <PageLayout>
       {/* Enhanced Header Section */}
       <div className="mb-8">
-        <div className="relative bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 rounded-2xl p-8 md:p-10 border border-teal-100/50 overflow-hidden">
+        <div className="relative bg-linear-to-br from-teal-50 via-cyan-50 to-blue-50 rounded-2xl p-8 md:p-10 border border-teal-100/50 overflow-hidden">
           {/* Glassmorphic background elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-teal-200 to-cyan-200 rounded-full blur-3xl opacity-20 -z-10"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-cyan-200 to-blue-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-linear-to-br from-teal-200 to-cyan-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-linear-to-tr from-cyan-200 to-blue-200 rounded-full blur-3xl opacity-15 -z-10"></div>
           
           <div className="relative z-10 flex items-start gap-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-lg">

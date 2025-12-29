@@ -122,8 +122,8 @@ export default function AICitationGenerator() {
       <div className="mb-8">
         <div className="relative bg-linear-to-br from-indigo-50 via-blue-50 to-cyan-50 rounded-2xl p-8 md:p-10 border border-indigo-100/50 overflow-hidden">
           {/* Glassmorphic background elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200 to-blue-200 rounded-full blur-3xl opacity-20 -z-10"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-200 to-cyan-200 rounded-full blur-3xl opacity-15 -z-10"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-linear-to-br from-indigo-200 to-blue-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-linear-to-tr from-blue-200 to-cyan-200 rounded-full blur-3xl opacity-15 -z-10"></div>
           
           <div className="relative z-10 flex items-start gap-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/60 backdrop-blur-md border border-white/40 shadow-lg">
@@ -140,7 +140,7 @@ export default function AICitationGenerator() {
       {/* Main Content Card */}
       <div className="max-w-4xl mx-auto">
       <Card className="shadow-lg border-0 bg-white/60 backdrop-blur-sm">
-        <CardHeader className="bg-gradient-to-br from-white to-gray-50/50">
+        <CardHeader className="bg-linear-to-br from-white to-gray-50/50">
           <CardDescription className="text-base text-gray-700">
             We first try to find the DOI and use the free Crossref API, then fall back to Grok AI if needed.
           </CardDescription>
