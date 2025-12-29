@@ -304,6 +304,7 @@ create index IF not exists idx_chat_sessions_paper_id on public.chat_sessions us
 
 
 
+
 --- Chat Messages ---
 
 create table public.chat_messages (
@@ -344,6 +345,8 @@ create index IF not exists idx_chat_memory_session_id on public.chat_memory usin
 
 
 
+
+
 --- Notes Table ---
 -- Table for user notes/reminders for research and study purposes
 
@@ -371,3 +374,177 @@ create index IF not exists idx_notes_pinned on public.notes using btree (pinned,
 create trigger trigger_update_notes_updated_at BEFORE
 update on notes for EACH row
 execute FUNCTION update_updated_at_column ();
+
+
+
+
+
+
+
+
+-- ============================================
+-- QUIZ GENERATOR FEATURE - DATABASE SCHEMA
+-- ============================================
+
+-- 1. Main quizzes table
+CREATE TABLE IF NOT EXISTS quizzes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  paper_id UUID NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  
+  -- Quiz configuration
+  difficulty_level TEXT NOT NULL CHECK (difficulty_level IN ('easy', 'medium', 'hard')),
+  topic TEXT NOT NULL,
+  question_count INT NOT NULL CHECK (question_count > 0 AND question_count <= 100),
+  quiz_type TEXT NOT NULL CHECK (quiz_type IN ('fact-based', 'scenario-based', 'mixed')),
+  
+  -- Content storage
+  questions JSONB NOT NULL DEFAULT '[]'::jsonb, 
+  retrieval_context JSONB NOT NULL DEFAULT '[]'::jsonb, 
+  
+  -- Metadata
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  -- Constraints (Unique constraints ARE allowed inside CREATE TABLE)
+  CONSTRAINT user_paper_quiz_check UNIQUE(user_id, paper_id, title)
+);
+
+-- 2. Create Indexes for 'quizzes' separately
+CREATE INDEX IF NOT EXISTS idx_quizzes_user_id ON quizzes(user_id);
+CREATE INDEX IF NOT EXISTS idx_quizzes_paper_id ON quizzes(paper_id);
+CREATE INDEX IF NOT EXISTS idx_quizzes_created_at ON quizzes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quizzes_difficulty ON quizzes(difficulty_level);
+CREATE INDEX IF NOT EXISTS idx_quizzes_type ON quizzes(quiz_type);
+
+
+-- 3. Quiz attempts table
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quiz_id UUID NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  
+  -- Attempt data
+  responses JSONB NOT NULL DEFAULT '{}'::jsonb, 
+  score INT CHECK (score >= 0 AND score <= 100),
+  correct_answers INT DEFAULT 0,
+  total_questions INT NOT NULL,
+  time_spent_seconds INT,
+  
+  -- Metadata
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 4. Create Indexes for 'quiz_attempts' separately
+CREATE INDEX IF NOT EXISTS idx_attempts_user_id ON quiz_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_quiz_id ON quiz_attempts(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_completed_at ON quiz_attempts(completed_at DESC);
+
+
+-- 5. Quiz feedback/notes table
+CREATE TABLE IF NOT EXISTS quiz_feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  attempt_id UUID NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+  question_index INT NOT NULL,
+  user_feedback TEXT,
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+
+-- 6. Update timestamp trigger
+CREATE OR REPLACE FUNCTION update_quizzes_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Drop trigger if exists to prevent errors on re-runs
+DROP TRIGGER IF EXISTS quizzes_timestamp_trigger ON quizzes;
+
+CREATE TRIGGER quizzes_timestamp_trigger
+BEFORE UPDATE ON quizzes
+FOR EACH ROW
+EXECUTE FUNCTION update_quizzes_timestamp();
+
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================
+
+-- Enable RLS
+ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_feedback ENABLE ROW LEVEL SECURITY;
+
+-- Quizzes RLS Policies
+CREATE POLICY "Users can view their own quizzes"
+  ON quizzes FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create quizzes for their papers"
+  ON quizzes FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id AND
+    EXISTS (
+      SELECT 1 FROM papers 
+      WHERE papers.id = quizzes.paper_id 
+      AND papers.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their own quizzes"
+  ON quizzes FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own quizzes"
+  ON quizzes FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Quiz Attempts RLS Policies
+CREATE POLICY "Users can view their own attempts"
+  ON quiz_attempts FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create attempts for their quizzes"
+  ON quiz_attempts FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id AND
+    EXISTS (
+      SELECT 1 FROM quizzes 
+      WHERE quizzes.id = quiz_attempts.quiz_id 
+      AND quizzes.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their own attempts"
+  ON quiz_attempts FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Quiz Feedback RLS Policies
+CREATE POLICY "Users can view feedback for their attempts"
+  ON quiz_feedback FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM quiz_attempts 
+      WHERE quiz_attempts.id = quiz_feedback.attempt_id 
+      AND quiz_attempts.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create feedback for their attempts"
+  ON quiz_feedback FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM quiz_attempts 
+      WHERE quiz_attempts.id = quiz_feedback.attempt_id 
+      AND quiz_attempts.user_id = auth.uid()
+    )
+  );
