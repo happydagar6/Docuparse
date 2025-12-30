@@ -181,3 +181,78 @@ class MultiModalChunk(BaseModel):
     table_data: Optional[TableContent] = None
     
 
+
+
+
+# ============================================
+# QUIZ MODELS
+# ============================================
+
+from enum import Enum
+
+class DifficultyLevel(str, Enum):
+    """Quiz difficulty levels"""
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+
+
+class QuizType(str, Enum):
+    """Types of quizzes"""
+    FACT_BASED = "fact-based"
+    SCENARIO_BASED = "scenario-based"
+    MIXED = "mixed"
+
+
+class QuizQuestion(BaseModel):
+    """Single quiz question"""
+    question_text: str = Field(..., description="The question")
+    options: List[str] = Field(..., min_items=4, max_items=4, description="4 options")
+    correct_answer_index: int = Field(..., ge=0, le=3, description="Index of correct answer")
+    explanation: str = Field(..., description="Detailed explanation")
+    source_citation: str = Field(..., description="Citation from source")
+    source_page: Optional[int] = Field(None, description="Page number")
+    difficulty: DifficultyLevel = Field(..., description="Question difficulty")
+    quiz_type: QuizType = Field(..., description="Question type")
+
+
+class QuizConfig(BaseModel):
+    """Quiz generation configuration"""
+    paper_id: str = Field(..., description="Paper ID")
+    title: str = Field(..., min_length=3, max_length=200, description="Quiz title")
+    description: Optional[str] = Field(None, max_length=500)
+    difficulty_level: DifficultyLevel = Field(..., description="Difficulty level")
+    topic: str = Field(..., min_length=3, max_length=200, description="Topic to focus on")
+    question_count: int = Field(..., ge=5, le=50, description="Number of questions")
+    quiz_type: QuizType = Field(..., description="Quiz type")
+
+
+class QuizResponse(BaseModel):
+    """Generated quiz response"""
+    id: str
+    user_id: str
+    paper_id: str
+    title: str
+    difficulty_level: DifficultyLevel
+    topic: str
+    question_count: int
+    quiz_type: QuizType
+    questions: List[QuizQuestion]
+    created_at: datetime
+
+
+class QuizAttemptRequest(BaseModel):
+    """Submit quiz attempt"""
+    quiz_id: str
+    responses: Dict[int, int] = Field(..., description="question_index -> selected_option_index")
+    time_spent_seconds: Optional[int] = None
+
+
+class QuizAttemptResponse(BaseModel):
+    """Quiz attempt result"""
+    id: str
+    quiz_id: str
+    correct_answers: int
+    total_questions: int
+    score: int = Field(..., ge=0, le=100)
+    completed_at: datetime

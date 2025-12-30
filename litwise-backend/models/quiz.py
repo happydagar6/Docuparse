@@ -73,3 +73,34 @@ class QuizResponse(BaseModel):
     retrieval_context: List[RetrievalContext] = Field(..., description="Source chunks used")
     created_at: datetime = Field(...)
     updated_at: datetime = Field(...)
+    
+    
+class QuizAttemptRequest(BaseModel):
+    """Submit quiz attempt with user responses"""
+    quiz_id: str = Field(..., description="Quiz ID")
+    responses: Dict[int, int] = Field(..., description="Mapping of question_index to selected_option_index")
+    time_spent_seconds: Optional[int] = Field(None, description="Time taken to complete quiz")
+    
+    
+class QuizAttemptResponse(BaseModel):
+    """Quiz attempt result"""
+    id: str = Field(..., description="Attempt ID")
+    quiz_id: str = Field(...)
+    correct_answers: int = Field(...)
+    total_questions: int = Field(...)
+    score: int = Field(..., ge=0, le=100, description="Percentage score (0-100)")
+    completed_at: datetime = Field(...)
+    feedback: Optional[List[Dict[str, Any]]] = Field(None, description="Per-question feedback")
+    
+    
+class QuizListResponse(BaseModel):
+    """List of quizzes with metadata"""
+    id: str = Field(...)
+    title: str = Field(...)
+    difficulty_level: DifficultyLevel = Field(...)
+    topic: str = Field(...)
+    question_count: int = Field(...)
+    quiz_type: QuizType = Field(...)
+    created_at: datetime = Field(...)
+    attempt_count: int = Field(default=0, description="Number of attempts")
+    best_score: Optional[int] = Field(None, description="Best attempt score")

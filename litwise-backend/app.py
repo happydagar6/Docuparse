@@ -23,7 +23,7 @@ from datetime import datetime
 # Import authentication middleware
 from auth_middleware import get_current_user, AuthUser
 
-# Import chat and study plan routes and other routes
+# Import all the routes here
 from routes.chat import router as chat_router
 from routes.study_plan import router as study_plan_router
 from routes.citations import router as citations_router
@@ -32,6 +32,8 @@ from routes.ai_citations import router as ai_citations_router
 from routes.export import router as export_router
 from routes.media import router as media_router
 from routes.notes import router as notes_router
+from routes.quiz import router as quiz_router
+
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
@@ -88,6 +90,9 @@ app.include_router(media_router)
 
 # Include notes router (research notes)
 app.include_router(notes_router)
+
+# Include quiz router (quiz generation)
+app.include_router(quiz_router)
 
 # Mount static files for uploaded figures (serve images)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
