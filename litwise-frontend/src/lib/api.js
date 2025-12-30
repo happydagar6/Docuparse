@@ -646,3 +646,88 @@ export async function exportAPADocument(data) {
 
     return await response.blob();
 }
+
+
+// ============================================
+// QUIZ API ENDPOINTS
+// ============================================
+
+/**
+ * Generate a new quiz from a paper
+ * @param {string} paperId - Paper ID
+ * @param {object} config - Quiz configuration
+ * @returns {Promise<object>} - Generated quiz with questions
+ */
+
+export async function generateQuiz(paperId, config){
+    return apiRequest(`/api/quiz/generate`, {
+        method: 'POST',
+        body: JSON.stringify({
+            paper_id: paperId,
+            ...config
+        }),
+    });
+}
+
+/**
+ * Get quiz details by ID
+ * @param {string} quizId - Quiz ID
+ * @returns {Promise<object>} - Quiz with questions
+ */
+
+export async function getQuiz(quizId) {
+    return apiRequest(`/api/quiz/${quizId}`, {
+        method: 'GET',
+    });
+}
+
+/**
+ * Submit quiz attempt (answers)
+ * @param {string} quizId - Quiz ID
+ * @param {object} attempt - User's answers
+ * @returns {Promise<object>} - Score and feedback
+ */
+
+
+export async function submitQuizAttempt(quizId, attempt) {
+    return apiRequest(`/api/quiz/${quizId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify(attempt),
+    });
+}
+
+
+/**
+ * Get quiz analytics/summary
+ * @param {string} quizId - Quiz ID
+ * @returns {Promise<object>} - Analytics and performance data
+ */
+
+export async function getQuizAnalytics(quizId) {
+    return apiRequest(`/api/quiz/${quizId}/analytics`, {
+        method: 'GET',
+    });
+}
+
+/**
+ * List user's quizzes
+ * @returns {Promise<array>} - User's quizzes
+ */
+export async function getUserQuizzes(){
+    return apiRequest(`/api/quiz/user`, {
+        method: 'GET',
+    });
+}
+
+
+/**
+ * Delete a quiz
+ * @param {string} quizId - Quiz ID
+ * @returns {Promise<object>} - Success response
+ */
+
+export async function deleteQuiz(quizId){
+    return apiRequest(`/api/quiz/${quizId}`, {
+        method: 'DELETE',
+    });
+}

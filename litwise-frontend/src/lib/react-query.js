@@ -1,6 +1,6 @@
 /**
  * React Query Configuration and Custom Hooks
- * 
+ *
  * This file sets up React Query for server state management:
  * - API caching and synchronization
  * - Optimistic updates
@@ -9,179 +9,182 @@
  * - Custom hooks for each API endpoint
  */
 
-import { 
-  useQuery, 
-  useMutation, 
+import {
+  useQuery,
+  useMutation,
   useQueryClient,
   QueryClient,
-  QueryClientProvider 
-} from '@tanstack/react-query';
-import { 
-  uploadPaper, 
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import {
+  uploadPaper,
   processPaperAI,
-  searchPapers, 
-  getPapers, 
-  getPaper, 
+  searchPapers,
+  getPapers,
+  getPaper,
   deletePaper,
   getQdrantDiagnostics,
-  synthesizeSearchResults  // Phase 1: Synthesis API
-} from './api';
-import { chatApi } from './chat-api';
-import { useUploadStore, useSearchStore } from './stores';
-import { toast } from 'sonner';
+  synthesizeSearchResults,
+  generateQuiz,
+  submitQuizAttempt,
+  getQuizAnalytics,
+  getUserQuizzes,
+  deleteQuiz, // Phase 1: Synthesis API
+} from "./api";
+import { chatApi } from "./chat-api";
+import { useUploadStore, useSearchStore } from "./stores";
+import { toast } from "sonner";
 
 // Query Client configuration
 
 export const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            // Cache data for 5 minutes
-            staleTime: 5 * 60 * 1000,
+  defaultOptions: {
+    queries: {
+      // Cache data for 5 minutes
+      staleTime: 5 * 60 * 1000,
 
-            // Keep in cache for 10 minutes
-            gcTime: 10 * 60 * 1000,
+      // Keep in cache for 10 minutes
+      gcTime: 10 * 60 * 1000,
 
-            // Retry failed requests up to 2 times
-            retry: 2,
+      // Retry failed requests up to 2 times
+      retry: 2,
 
-            // Dont refetch on window focus in development
-            refetchOnWindowFocus: process.env.NODE_ENV === 'production',
-        },
-        mutations: {
-            // Retry failed mutations twice
-            retry: 2,
-        },
+      // Dont refetch on window focus in development
+      refetchOnWindowFocus: process.env.NODE_ENV === "production",
     },
+    mutations: {
+      // Retry failed mutations twice
+      retry: 2,
+    },
+  },
 });
 
 // Query key factory
 // Centrailized query key management for consistent caching
 
 export const queryKeys = {
-    papers: {
-        all: () => ['papers'],
-        lists: () => ['papers', 'lists'],
-        list: (filters) => ['papers', 'list', filters],
-        details: () => ['papers', 'details'],
-        detail: (id) => ['papers', 'detail', id],
-    },
-    search: {
-        all: () => ['search'],
-        results: (query) => ['search', 'results', query],
-    },
-    diagnostics: {
-        qdrant: () => ['diagnostics', 'qdrant'],
-    },
+  papers: {
+    all: () => ["papers"],
+    lists: () => ["papers", "lists"],
+    list: (filters) => ["papers", "list", filters],
+    details: () => ["papers", "details"],
+    detail: (id) => ["papers", "detail", id],
+  },
+  search: {
+    all: () => ["search"],
+    results: (query) => ["search", "results", query],
+  },
+  diagnostics: {
+    qdrant: () => ["diagnostics", "qdrant"],
+  },
+  quiz: {
+    all: () => ["quiz"],
+    lists: () => ["quiz", "lists"],
+    list: () => ["quiz", "list"],
+    myQuizzes: () => ["quiz", "my-quizzes"],
+    details: () => ["quiz", "details"],
+    detail: (id) => ["quiz", "detail", id],
+    analytics: (id) => ["quiz", "analytics", id],
+  },
 };
 
 // Custom Hooks
 // Handle file upload with progress tracking and optimistic updates
 
 export function useUploadPaper() {
-    const queryClient = useQueryClient();
-    const {
-        startUpload,
-        updateProgress,
-        finishUpload,
-        failUpload,
-    } = useUploadStore();
+  const queryClient = useQueryClient();
+  const { startUpload, updateProgress, finishUpload, failUpload } =
+    useUploadStore();
 
-    return useMutation({
-        mutationFn: uploadPaper,
-        onMutate: async(file) => {
-            // Start upload UI state
-            startUpload(file);
+  return useMutation({
+    mutationFn: uploadPaper,
+    onMutate: async (file) => {
+      // Start upload UI state
+      startUpload(file);
 
-            // Show loading toast
-            toast.loading('Uploading PDF...', {
-                id: 'upload-progress'
-            });
+      // Show loading toast
+      toast.loading("Uploading PDF...", {
+        id: "upload-progress",
+      });
 
-            // Simulate progress for better UX
-            const progressInterval = setInterval(() => {
-                updateProgress(Math.min(Math.random() * 30 + 10, 90));
-            }, 300);
-            return { progressInterval };
-        },
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        updateProgress(Math.min(Math.random() * 30 + 10, 90));
+      }, 300);
+      return { progressInterval };
+    },
 
-        onSuccess: (data, variables, context) => {
-            // Clear progress interval
-            if(context?.progressInterval){
-                clearInterval(context.progressInterval);
-            }
+    onSuccess: (data, variables, context) => {
+      // Clear progress interval
+      if (context?.progressInterval) {
+        clearInterval(context.progressInterval);
+      }
 
-            // Update progress to 100% and finish upload state
-            updateProgress(100);
-            finishUpload(data);
+      // Update progress to 100% and finish upload state
+      updateProgress(100);
+      finishUpload(data);
 
-            // Show success toast
-            toast.success(
-                `Paper "${data.title || 'Untitled'}" uploaded successfully!`,
-                {
-                    id: 'upload-progress',
-                    description: 'Click "Generate AI Summary" to process with AI.',
-                    duration: 5000
-                }
-            );
+      // Show success toast
+      toast.success(
+        `Paper "${data.title || "Untitled"}" uploaded successfully!`,
+        {
+          id: "upload-progress",
+          description: 'Click "Generate AI Summary" to process with AI.',
+          duration: 5000,
+        }
+      );
 
-            // Invalidate and refetch papers list
-            queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
-        },
+      // Invalidate and refetch papers list
+      queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
+    },
 
-        onError: (error, variables, context) => {
-            // Clear progress interval
-            if(context?.progressInterval){
-                clearInterval(context.progressInterval);
-            }
+    onError: (error, variables, context) => {
+      // Clear progress interval
+      if (context?.progressInterval) {
+        clearInterval(context.progressInterval);
+      }
 
-            // Update error state
-            failUpload(error);
+      // Update error state
+      failUpload(error);
 
-            // Show error toast
-            toast.error(
-                'Upload failed',
-                {
-                    id: 'upload-progress',
-                    description: error.message || 'Failed to upload the PDF file.',
-                    duration: 7000
-                }
-            );
-        },
-    });
+      // Show error toast
+      toast.error("Upload failed", {
+        id: "upload-progress",
+        description: error.message || "Failed to upload the PDF file.",
+        duration: 7000,
+      });
+    },
+  });
 }
 
 /**
  * Custom Hook: Search Papers
- * 
+ *
  * Handle semantic search with filters, caching and state management
  */
-export function useSearchPapers(){
-    const {
-        startSearch,
-        finishSearch,
-        failSearch,
-    } = useSearchStore(); 
+export function useSearchPapers() {
+  const { startSearch, finishSearch, failSearch } = useSearchStore();
 
-    return useMutation({
-        mutationFn: ({ query, filters = null, debug = false, limit = 10 }) => 
-            searchPapers(query, { filters, debug, limit }),
-        onMutate: () => {
-            startSearch();
-        },
+  return useMutation({
+    mutationFn: ({ query, filters = null, debug = false, limit = 10 }) =>
+      searchPapers(query, { filters, debug, limit }),
+    onMutate: () => {
+      startSearch();
+    },
 
-        onSuccess: (data) => {
-            finishSearch(data);
-        },
+    onSuccess: (data) => {
+      finishSearch(data);
+    },
 
-        onError: (error) => {
-            failSearch(error);
-        },
-    });
+    onError: (error) => {
+      failSearch(error);
+    },
+  });
 }
 
 /**
  * Custom Hook: Process Paper with AI
- * 
+ *
  * Handles AI processing with state management
  */
 export function useProcessPaper() {
@@ -189,59 +192,73 @@ export function useProcessPaper() {
 
   return useMutation({
     mutationFn: processPaperAI,
-    
+
     onMutate: async (paperId) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.papers.lists() });
-      await queryClient.cancelQueries({ queryKey: queryKeys.papers.detail(paperId) });
-      
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.papers.detail(paperId),
+      });
+
       // Optimistically update paper status
-      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
-        old?.map(paper => 
-          paper.id === paperId 
-            ? { ...paper, processing_status: 'processing' }
-            : paper
-        ) || []
+      queryClient.setQueryData(
+        queryKeys.papers.lists(),
+        (old) =>
+          old?.map((paper) =>
+            paper.id === paperId
+              ? { ...paper, processing_status: "processing" }
+              : paper
+          ) || []
       );
-      
-      queryClient.setQueryData(queryKeys.papers.detail(paperId), (old) => 
-        old ? { ...old, processing_status: 'processing' } : old
+
+      queryClient.setQueryData(queryKeys.papers.detail(paperId), (old) =>
+        old ? { ...old, processing_status: "processing" } : old
       );
     },
-    
+
     onSuccess: (data, paperId) => {
       // Update with actual processed data
-      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
-        old?.map(paper => 
-          paper.id === paperId 
-            ? { ...paper, processing_status: 'completed', summary: data.summary }
-            : paper
-        ) || []
+      queryClient.setQueryData(
+        queryKeys.papers.lists(),
+        (old) =>
+          old?.map((paper) =>
+            paper.id === paperId
+              ? {
+                  ...paper,
+                  processing_status: "completed",
+                  summary: data.summary,
+                }
+              : paper
+          ) || []
       );
     },
-    
+
     onError: (error, paperId) => {
       // Update status to failed
-      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
-        old?.map(paper => 
-          paper.id === paperId 
-            ? { ...paper, processing_status: 'failed' }
-            : paper
-        ) || []
+      queryClient.setQueryData(
+        queryKeys.papers.lists(),
+        (old) =>
+          old?.map((paper) =>
+            paper.id === paperId
+              ? { ...paper, processing_status: "failed" }
+              : paper
+          ) || []
       );
     },
-    
+
     onSettled: (data, error, paperId) => {
       // Refetch to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.papers.detail(paperId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.papers.detail(paperId),
+      });
     },
   });
 }
 
 /**
  * Custom Hook: Get Papers List
- * 
+ *
  * Fetches and caches all uploaded papers
  */
 export function usePapers() {
@@ -254,7 +271,7 @@ export function usePapers() {
 
 /**
  * Custom Hook: Get Paper Details
- * 
+ *
  * Fetches specific paper with caching
  */
 export function usePaper(paperId) {
@@ -268,7 +285,7 @@ export function usePaper(paperId) {
 
 /**
  * Custom Hook: Delete Paper
- * 
+ *
  * Handles paper deletion with optimistic updates
  */
 export function useDeletePaper() {
@@ -276,73 +293,74 @@ export function useDeletePaper() {
 
   return useMutation({
     mutationFn: deletePaper,
-    
+
     onMutate: async (paperId) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.papers.lists() });
-      
+
       // Snapshot the previous value
       const previousPapers = queryClient.getQueryData(queryKeys.papers.lists());
-      
+
       // Optimistically remove paper from list
-      queryClient.setQueryData(queryKeys.papers.lists(), (old) => 
-        old?.filter(paper => paper.id !== paperId) || []
+      queryClient.setQueryData(
+        queryKeys.papers.lists(),
+        (old) => old?.filter((paper) => paper.id !== paperId) || []
       );
-      
+
       return { previousPapers };
     },
-    
+
     onError: (error, paperId, context) => {
       // Rollback on error
       if (context?.previousPapers) {
-        queryClient.setQueryData(queryKeys.papers.lists(), context.previousPapers);
+        queryClient.setQueryData(
+          queryKeys.papers.lists(),
+          context.previousPapers
+        );
       }
-      
+
       // Get paper details for error message
       const papers = context?.previousPapers;
-      const failedPaper = papers?.find(p => p.id === paperId);
-      
-      toast.error(
-        'Failed to delete paper ❌',
-        {
-          description: `Could not delete "${failedPaper?.title || failedPaper?.filename || 'the paper'}". ${error.message || 'Please try again.'}`,
-          duration: 6000,
-          action: {
-            label: "Retry",
-            onClick: () => {
-              // Could trigger retry logic here if needed
-              toast.dismiss();
-            }
-          }
-        }
-      );
+      const failedPaper = papers?.find((p) => p.id === paperId);
+
+      toast.error("Failed to delete paper ❌", {
+        description: `Could not delete "${
+          failedPaper?.title || failedPaper?.filename || "the paper"
+        }". ${error.message || "Please try again."}`,
+        duration: 6000,
+        action: {
+          label: "Retry",
+          onClick: () => {
+            // Could trigger retry logic here if needed
+            toast.dismiss();
+          },
+        },
+      });
     },
-    
+
     onSuccess: (data, paperId) => {
       // Get paper details for the success message
       const papers = queryClient.getQueryData(queryKeys.papers.lists());
-      const deletedPaper = papers?.find(p => p.id === paperId);
-      
-      toast.success(
-        'Paper deleted successfully! 🗑️',
-        {
-          description: `"${deletedPaper?.title || deletedPaper?.filename || 'Untitled Paper'}" has been permanently removed from your library.`,
-          duration: 5000,
-          action: {
-            label: "Dismiss",
-            onClick: () => toast.dismiss()
-          }
-        }
-      );
+      const deletedPaper = papers?.find((p) => p.id === paperId);
+
+      toast.success("Paper deleted successfully! 🗑️", {
+        description: `"${
+          deletedPaper?.title || deletedPaper?.filename || "Untitled Paper"
+        }" has been permanently removed from your library.`,
+        duration: 5000,
+        action: {
+          label: "Dismiss",
+          onClick: () => toast.dismiss(),
+        },
+      });
     },
-    
+
     onSettled: () => {
       // Always refetch to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.papers.lists() });
     },
   });
 }
-
 
 export const useChatSessions = (paperId) => {
   return useQuery({
@@ -352,7 +370,6 @@ export const useChatSessions = (paperId) => {
   });
 };
 
-
 export const useChatMessages = (sessionId) => {
   return useQuery({
     queryKey: ["chatmessages", sessionId],
@@ -361,18 +378,16 @@ export const useChatMessages = (sessionId) => {
   });
 };
 
-
 export const useCreateChatSession = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ paperId, title }) => chatApi.createSession(paperId, title),
     onSuccess: (data, { paperId }) => {
-      queryClient.invalidateQueries(['chatsessions', paperId]);
+      queryClient.invalidateQueries(["chatsessions", paperId]);
     },
   });
-}
-
+};
 
 export const useDeleteChatSession = () => {
   const queryClient = useQueryClient();
@@ -380,78 +395,225 @@ export const useDeleteChatSession = () => {
   return useMutation({
     mutationFn: chatApi.deleteSession,
     onSuccess: () => {
-      queryClient.invalidateQueries(['chatsessions']);
+      queryClient.invalidateQueries(["chatsessions"]);
     },
   });
 };
 
 /**
  * Custom Hook: Qdrant Diagnostics
- * 
+ *
  * For debugging vector database state
  */
 export function useQdrantDiagnostics() {
   return useQuery({
     queryKey: queryKeys.diagnostics.qdrant(),
     queryFn: getQdrantDiagnostics,
-    enabled: process.env.NODE_ENV === 'development', // Only in development
+    enabled: process.env.NODE_ENV === "development", // Only in development
     staleTime: 30 * 1000, // Refresh every 30 seconds
   });
 }
 
 /**
  * Custom Hook: Synthesize Search Results (Phase 1)
- * 
+ *
  * Generates AI-powered research synthesis from search results.
  * Uses LLM to identify themes, key findings, research gaps, and trends.
- * 
+ *
  * @returns Mutation object with mutate function and loading/error states
- * 
+ *
  * Usage:
  * const synthesisMutation = useSynthesizeResults();
  * synthesisMutation.mutate({ query: "transformers", searchResults: [...] });
  */
 export function useSynthesizeResults() {
   return useMutation({
-    mutationFn: ({ query, searchResults, maxPapers }) => 
+    mutationFn: ({ query, searchResults, maxPapers }) =>
       synthesizeSearchResults(query, searchResults, maxPapers),
-    
+
     onMutate: () => {
       // Show loading toast
-      toast.loading('Generating AI synthesis...', {
-        id: 'synthesis-progress'
+      toast.loading("Generating AI synthesis...", {
+        id: "synthesis-progress",
       });
     },
-    
+
     onSuccess: (data) => {
       // Success notification
-      toast.success('Synthesis complete!', {
-        id: 'synthesis-progress',
-        description: `Analyzed ${data.paper_count} papers and identified ${data.themes?.length || 0} themes`,
-        duration: 3000
+      toast.success("Synthesis complete!", {
+        id: "synthesis-progress",
+        description: `Analyzed ${data.paper_count} papers and identified ${
+          data.themes?.length || 0
+        } themes`,
+        duration: 3000,
       });
     },
-    
+
     onError: (error) => {
       // Error notification
-      toast.error('Synthesis failed', {
-        id: 'synthesis-progress',
-        description: error.message || 'Could not generate synthesis. Please try again.',
-        duration: 5000
+      toast.error("Synthesis failed", {
+        id: "synthesis-progress",
+        description:
+          error.message || "Could not generate synthesis. Please try again.",
+        duration: 5000,
       });
+    },
+  });
+}
+
+// ============================================
+// QUIZ HOOKS
+// ============================================
+
+/**
+ * Generate a new quiz
+ */
+
+export function useGenerateQuiz() {
+  const queryClient = useQueryClient(); // Get query client instance
+
+  return useMutation({
+    mutationFn: ({ paperId, config }) => generateQuiz(paperId, config),
+    onSuccess: (data) => {
+      // Cache the generate quiz detail
+      queryClient.setQueryData(queryKeys.quiz.detail(data.id), data);
+
+      // Invalidate user's quiz list
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.quiz.myQuizzes(),
+      });
+      toast.success("Quiz generated successfully! 🎉");
+    },
+    onError: (error) => {
+      toast.error("Failed to generate quiz ❌", {
+        description: error.message || "Please try again.",
+        duration: 2500,
+      })
     }
   });
 }
 
+
+
+/**
+ * Get quiz by ID
+ */
+
+export function useGetQuiz(quizId, enabled = true){
+  return useQuery({
+    queryKey: queryKeys.quiz.detail(quizId),
+    queryFn: () => getQuiz(quizId),
+    enabled: !!quizId && enabled,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes // What is gc time? Garbage collection time
+  });
+}
+
+
+/**
+ * Submit quiz attempt
+ */
+export function useSubmitQuizAttempt() {
+  const queryClient = useQueryClient(); // Get query client instance for cache management
+
+  return useMutation({
+    mutationFn: ({ quizId, attempt }) =>
+      submitQuizAttempt(quizId, attempt),
+    onSuccess: (data, variables) => {
+      // Cache the analytics data for the quiz
+      queryClient.setQueryData(
+        queryKeys.quiz.analytics(variables.quizId),
+        data
+      );
+      toast.success("Quiz submitted successfully! 🎉");
+    },
+    onError: (error) => {
+      toast.error("Failed to submit quiz ❌", {
+        description: error.message || "Please try again.",
+        duration: 2000,
+      })
+    }
+  })
+}
+
+
+/**
+ * Get quiz analytics
+ */
+
+export function useGetQuizAnalytics(quizId, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.quiz.analytics(quizId),
+    queryFn: () => getQuizAnalytics(quizId),
+    enabled: !!quizId && enabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Get user's quizzes
+ */
+
+export function useGetUserQuizzes() {
+  return useQuery({
+    queryKey: queryKeys.quiz.myQuizzes(),
+    queryFn: getUserQuizzes,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Delete a quiz
+ */
+
+export function useDeleteQuiz() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (quizId) => deleteQuiz(quizId),
+    onSuccess: (data, quizId) => {
+      // Remove quiz from user's quiz list cache
+      queryClient.removeQueries({
+        queryKey: queryKeys.quiz.detail(quizId),
+      });
+
+      // Invalidate user's quiz list
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.quiz.myQuizzes(),
+      });
+      toast.success("Quiz deleted successfully! 🗑️");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete quiz ❌", {
+        description: error.message || "Please try again.",
+        duration: 2000,
+      })
+    }
+  })
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  * Query Client Provider Component
- * 
+ *
  * Wrap your app with this component to enable React Query
  */
 export function QueryProvider({ children }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 }
