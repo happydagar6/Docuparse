@@ -690,7 +690,7 @@ export async function getQuiz(quizId) {
 
 
 export async function submitQuizAttempt(quizId, attempt) {
-    return apiRequest(`/api/quiz/${quizId}/submit`, {
+    return apiRequest(`/api/quiz/attempt/submit`, {
         method: 'POST',
         body: JSON.stringify(attempt),
     });
@@ -714,7 +714,7 @@ export async function getQuizAnalytics(quizId) {
  * @returns {Promise<array>} - User's quizzes
  */
 export async function getUserQuizzes(){
-    return apiRequest(`/api/quiz/user`, {
+    return apiRequest(`/api/quiz/list`, {
         method: 'GET',
     });
 }

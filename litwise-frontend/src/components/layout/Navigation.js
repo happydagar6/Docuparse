@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Sparkles,
   Calendar,
+  Lightbulb,
+  Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/lib/stores";
@@ -54,13 +56,13 @@ export function Navigation() {
       hoverColor: "hover:bg-green-100",
     },
     {
-      href: "/study-plan",
-      label: "Study Plan",
-      icon: Calendar,
-      description: "Generate AI study plans",
-      color: "from-teal-500 to-teal-600",
-      bgColor: "bg-teal-50",
-      hoverColor: "hover:bg-teal-100",
+      href: "/papers",
+      label: "Papers",
+      icon: Library,
+      description: "Browse uploaded papers",
+      color: "from-amber-500 to-amber-600",
+      bgColor: "bg-amber-50",
+      hoverColor: "hover:bg-amber-100",
     },
     {
       href: "/search",
@@ -72,40 +74,40 @@ export function Navigation() {
       hoverColor: "hover:bg-purple-100",
     },
     {
+      href: "/study-plan",
+      label: "Study Plan",
+      icon: Calendar,
+      description: "Generate AI study plans",
+      color: "from-teal-500 to-teal-600",
+      bgColor: "bg-teal-50",
+      hoverColor: "hover:bg-teal-100",
+    },
+    {
+      href: "/quiz",
+      label: "Quiz",
+      icon: Lightbulb,
+      description: "Generate interactive quizzes",
+      color: "from-cyan-500 to-blue-600",
+      bgColor: "bg-cyan-50",
+      hoverColor: "hover:bg-cyan-100",
+    },
+    {
       href: "/research-editor",
-      label: "Research Editor",
+      label: "Editor",
       icon: FileText,
-      description: "Write APA formatted papers",
+      description: "Write and edit research papers",
       color: "from-orange-500 to-orange-600",
       bgColor: "bg-orange-50",
       hoverColor: "hover:bg-orange-100",
     },
     {
-      href: "/literature-review",
-      label: "Literature Review",
-      icon: Sparkles,
-      description: "Generate literature reviews",
-      color: "from-pink-500 to-pink-600",
-      bgColor: "bg-pink-50",
-      hoverColor: "hover:bg-pink-100",
-    },
-    {
-      href: "/synthesis",
-      label: "History",
-      icon: Brain,
-      description: "View saved syntheses",
-      color: "from-indigo-500 to-indigo-600",
-      bgColor: "bg-indigo-50",
-      hoverColor: "hover:bg-indigo-100",
-    },
-    {
-      href: "/papers",
-      label: "Papers",
-      icon: FileText,
-      description: "Browse uploaded papers",
-      color: "from-orange-500 to-orange-600",
-      bgColor: "bg-orange-50",
-      hoverColor: "hover:bg-orange-100",
+      href: "/settings",
+      label: "Settings",
+      icon: Settings,
+      description: "Account and app settings",
+      color: "from-slate-500 to-slate-600",
+      bgColor: "bg-slate-50",
+      hoverColor: "hover:bg-slate-100",
     },
   ];
 
@@ -218,23 +220,6 @@ export function Navigation() {
             })}
           </div>
         </div>
-
-        {/* Settings Footer */}
-        <motion.div
-          className="p-4 border-t border-gray-100/50 bg-linear-to-tr from-gray-50 to-white"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 hover:bg-white/80 transition-all duration-200 cursor-pointer border border-gray-100/50">
-            <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
-              <Settings className="h-4 w-4 text-gray-600" />
-            </div>
-            <Link href="/settings" className="text-sm font-medium text-gray-700">
-              Settings
-            </Link>
-          </div>
-        </motion.div>
 
         {/* User Menu */}
         <div className="p-4 border-t border-gray-100/50">
@@ -374,9 +359,51 @@ export function Navigation() {
           animate={{ y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="overflow-x-auto scrollbar-hide">
-            <div className="flex px-2 py-2 min-w-max gap-1">
-              {navigationItems.map((item) => {
+          <div className="grid grid-cols-4 gap-1 p-2">
+            {navigationItems.slice(0, 4).map((item) => {
+              const IconComponent = item.icon;
+              const active = isActive(item.href);
+
+              return (
+                <Link key={item.href} href={item.href}>
+                  <motion.div
+                    className={`
+                      flex flex-col items-center py-2 px-2 rounded-xl transition-all duration-300
+                      ${active ? "text-white" : "text-gray-600"}
+                    `}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <motion.div
+                      className={`p-1.5 rounded-lg mb-1 ${
+                        active
+                          ? `bg-linear-to-r ${item.color} shadow-lg`
+                          : "bg-transparent"
+                      }`}
+                      whileHover={!active ? { scale: 1.1 } : {}}
+                    >
+                      <IconComponent
+                        className={`h-4 w-4 ${
+                          active ? "text-white" : "text-gray-600"
+                        }`}
+                      />
+                    </motion.div>
+                    <span
+                      className={`text-xs font-medium text-center leading-tight ${
+                        active ? "text-gray-900" : "text-gray-600"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  </motion.div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Second row for remaining items */}
+          {navigationItems.length > 4 && (
+            <div className="grid grid-cols-4 gap-1 px-2 pb-2">
+              {navigationItems.slice(4).map((item) => {
                 const IconComponent = item.icon;
                 const active = isActive(item.href);
 
@@ -384,13 +411,13 @@ export function Navigation() {
                   <Link key={item.href} href={item.href}>
                     <motion.div
                       className={`
-                        flex flex-col items-center py-2 px-3 rounded-xl transition-all duration-300 min-w-[70px]
+                        flex flex-col items-center py-2 px-2 rounded-xl transition-all duration-300
                         ${active ? "text-white" : "text-gray-600"}
                       `}
                       whileTap={{ scale: 0.95 }}
                     >
                       <motion.div
-                        className={`p-2 rounded-lg mb-1 ${
+                        className={`p-1.5 rounded-lg mb-1 ${
                           active
                             ? `bg-linear-to-r ${item.color} shadow-lg`
                             : "bg-transparent"
@@ -398,13 +425,13 @@ export function Navigation() {
                         whileHover={!active ? { scale: 1.1 } : {}}
                       >
                         <IconComponent
-                          className={`h-5 w-5 ${
+                          className={`h-4 w-4 ${
                             active ? "text-white" : "text-gray-600"
                           }`}
                         />
                       </motion.div>
                       <span
-                        className={`text-xs font-medium whitespace-nowrap ${
+                        className={`text-xs font-medium text-center leading-tight ${
                           active ? "text-gray-900" : "text-gray-600"
                         }`}
                       >
@@ -415,7 +442,7 @@ export function Navigation() {
                 );
               })}
             </div>
-          </div>
+          )}
         </motion.div>
       </div>
     </>

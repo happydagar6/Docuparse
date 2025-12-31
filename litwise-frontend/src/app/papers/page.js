@@ -33,7 +33,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Lightbulb
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -749,6 +750,16 @@ export default function PapersPage() {
                                 >
                                   <Brain className="h-4 w-4 mr-3 text-indigo-500" />
                                   <span>AI Analysis</span>
+                                </DropdownMenuItem>
+                              )}
+                              
+                              {paper.processing_status === 'completed' && (
+                                <DropdownMenuItem 
+                                  onClick={() => router.push(`/quiz?paperId=${paper.id}&paperTitle=${encodeURIComponent(paper.title || paper.filename || 'Paper')}`)}
+                                  className="cursor-pointer rounded-lg mx-1 focus:bg-cyan-50 focus:text-cyan-700"
+                                >
+                                  <Lightbulb className="h-4 w-4 mr-3 text-cyan-500" />
+                                  <span>Generate Quiz</span>
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuGroup>

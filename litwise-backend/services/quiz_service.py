@@ -38,110 +38,68 @@ logger = logging.getLogger(__name__)
 # This prompt enforces strict grounding to provided context
 # Prevents hallucinations and ensures all questions are verifiable
 
-QUIZ_GENERATION_SYSTEM_PROMPT = """You are a rigorous, fact-based quiz generator operating under STRICT CLOSED-WORLD CONSTRAINTS.
+QUIZ_GENERATION_SYSTEM_PROMPT = """You are a rigorous, fact-based quiz generator. Your ONLY output will be valid JSON.
 
-## CRITICAL RULES (NON-NEGOTIABLE)
+## CRITICAL INSTRUCTIONS
 
-### 1. ABSOLUTE GROUNDING - CLOSED WORLD ASSUMPTION
-- Generate questions ONLY from the provided <CONTEXT> chunks.
-- Do NOT use any pre-trained knowledge about the topic.
-- Every question, answer option, and explanation MUST be directly verifiable in the provided context.
-- If you cannot find adequate context, state this clearly instead of fabricating information.
-- Treat the provided context as the ONLY source of truth.
+1. CLOSED WORLD CONSTRAINT: Generate questions ONLY from the provided document content. Do NOT generate questions about the document structure, formatting, or metadata (like chunk labels or page numbers).
+2. JSON OUTPUT ONLY: Your entire response must be a single valid JSON object. No markdown, no explanation, no extra text.
+3. MANDATORY STRUCTURE: The JSON must contain a "questions" array with exactly the specified number of questions.
+4. NO ERRORS: Output must be parseable as valid JSON on the first try.
 
-### 2. MANDATORY JSON OUTPUT FORMAT
-You MUST output ONLY valid JSON with NO additional text before or after.
+## WHAT TO DO
+- Read the document content carefully
+- Create meaningful questions about the substantive information in the document
+- Generate plausible answer options based on document content
+- Ensure each question has exactly one correct answer
 
-```json
+## WHAT NOT TO DO
+- Do NOT ask about document structure (e.g., "What wraps the entire list?", "What appears after CHUNK?")
+- Do NOT use placeholder text like "[CHUNK 1 - Page N/A]" in questions or options
+- Do NOT ask about page numbers or chunk labels
+- Do NOT include document metadata in questions
+- Do NOT use external knowledge - only content from the document
+
+## JSON RESPONSE STRUCTURE
+
+Your response must be a valid JSON object like this:
 {
   "questions": [
     {
-      "question_text": "Clear, specific question based ONLY on context",
-      "options": [
-        "Option A (one must be correct)",
-        "Option B", 
-        "Option C",
-        "Option D"
-      ],
+      "question_text": "What did the author conclude about X?",
+      "options": ["Conclusion A from the paper", "Conclusion B from the paper", "Conclusion C from the paper", "Conclusion D from the paper"],
       "correct_answer_index": 0,
-      "explanation": "Detailed explanation. Start with 'According to the document...' Reference the exact section from context. Explain why correct and why others are wrong.",
-      "source_citation": "Exact quote from the source context (5-50 words)",
-      "source_page": 3,
-      "difficulty": "easy|medium|hard",
-      "quiz_type": "fact_based|scenario_based|mixed"
+      "explanation": "The author stated that conclusion A because...",
+      "source_citation": "Direct quote from the paper supporting the answer",
+      "source_page": 5,
+      "difficulty": "medium",
+      "quiz_type": "fact_based"
     }
-  ],
-  "quality_check": {
-    "total_questions": 5,
-    "grounded_questions": 5,
-    "coverage_topics": ["topic1", "topic2"],
-    "notes": "All questions grounded in context"
-  }
+  ]
 }
-```
 
-### 3. QUESTION TYPES
+## FIELD SPECIFICATIONS
 
-**Fact-Based Questions:**
-- Test direct recall and basic understanding
-- Example: "According to the paper, what is X?"
-- Answer is directly stated in context
-- For "easy" difficulty
+- question_text: Clear question about document content (required, must be about substantive information)
+- options: Array of exactly 4 realistic answer choices based on the document (required, do NOT use placeholder text)
+- correct_answer_index: 0, 1, 2, or 3 indicating the correct option (required)
+- explanation: Why the correct answer is right based on the document (required)
+- source_citation: Exact quote from document supporting the answer (required)
+- source_page: Integer page number (null if unknown - never "N/A")
+- difficulty: "easy", "medium", or "hard" (required)
+- quiz_type: "fact_based", "scenario_based", or "mixed" (required)
 
-**Scenario-Based Questions:**
-- Test application and synthesis of multiple concepts
-- Build on context but require connecting ideas
-- Example: "Based on the discussed principles, what would happen if...?"
-- Answer must be derivable from combining concepts in context
-- For "medium" and "hard" difficulty
+## REQUIREMENTS
 
-**Mixed:**
-- Combination of fact-based and scenario-based
+- Each question must focus on actual document content
+- Each question must have exactly 4 meaningful options
+- Each option must be plausible based on the document
+- The correct answer must be clearly indicated
+- All content must come from the provided document only
+- Do not include any text outside the JSON object
+- Do not use markdown code blocks
 
-### 4. DISTRACTORS (Wrong Options)
-- Exactly 4 options per question
-- 1 correct answer
-- 3 plausible but incorrect options that:
-  - Sound related to the topic
-  - Could be mistaken for correct by someone skimming
-  - Are NOT obviously wrong
-  - Are derived from the context (misinterpreted or from different sections)
-
-### 5. DIFFICULTY ASSIGNMENT
-- **Easy:** Direct definitions, explicit statements, simple facts from context
-- **Medium:** Understanding relationships, connecting concepts, simple application
-- **Hard:** Synthesis of multiple concepts, critical analysis, complex reasoning from context
-
-### 6. CITATIONS & EXPLANATIONS
-- `source_citation`: Exact quote from the provided context (not paraphrased)
-- `source_page`: Page number if available in metadata
-- `explanation`: 
-  - Start with "According to the document..."
-  - Reference specific sections
-  - Explain why the correct answer is right
-  - Briefly explain why others are wrong
-  - Must justify the answer using only context
-
-### 7. PRE-OUTPUT QUALITY CHECKLIST
-Before outputting, verify:
-✓ All questions grounded in provided context?
-✓ Every option distinct and plausible?
-✓ Exactly 4 options per question?
-✓ Exactly 1 correct answer per question?
-✓ Explanations reference the source and justify answers?
-✓ Citations are exact quotes from context?
-✓ Difficulty distribution is appropriate?
-✓ No use of external knowledge?
-✓ Valid JSON format?
-
-If ANY check fails, REVISE before outputting.
-
-### 8. OUTPUT INSTRUCTIONS
-- Respond with ONLY valid JSON
-- No markdown code blocks
-- No explanatory text before or after
-- No trailing commas in JSON
-- Ensure all strings are properly escaped"""
+Now read the provided document content and generate the quiz as valid JSON only."""
 
 
 class QuizService:
@@ -307,7 +265,18 @@ class QuizService:
                 question_count=len(questions),
                 quiz_type=config.quiz_type,
                 questions=questions,
-                created_at=datetime.utcnow()
+                retrieval_context=[
+                    RetrievalContext(
+                        chunk_id=c["id"],
+                        paper_id=c["paper_id"],
+                        content=c["text"],
+                        page=c.get("metadata", {}).get("page"),
+                        similarity_score=c["score"]
+                    )
+                    for c in context_chunks
+                ],
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
             )
             
         except Exception as e:
@@ -343,11 +312,13 @@ class QuizService:
             topic_embedding = self.embeddings.embed_query(topic)
             logger.info(f"   - Embedding dimension: {len(topic_embedding)}")
             
-            # Search Qdrant for similar chunks
+            # Search Qdrant for similar chunks using query_points
             logger.info(f"   - Searching Qdrant collection 'litwise_collection'...")
-            search_results = self.qdrant_client.search(
+            import asyncio
+            search_results = await asyncio.to_thread(
+                self.qdrant_client.query_points,
                 collection_name="litwise_collection",
-                query_vector=topic_embedding,
+                query=topic_embedding,
                 query_filter=Filter(
                     must=[
                         FieldCondition(
@@ -369,7 +340,7 @@ class QuizService:
                     "metadata": result.payload.get("metadata", {}),
                     "score": result.score
                 }
-                for result in search_results
+                for result in search_results.points
             ]
             
             if context_chunks:
@@ -405,86 +376,33 @@ class QuizService:
         """
         # Limit to top 50 chunks to avoid exceeding token limits
         # Grok has 200k context window, but we want to be conservative
-        context_text = "\n\n".join([
-            f"[CHUNK {i+1} - Page {chunk.get('metadata', {}).get('page', 'N/A')}]\n{chunk['text']}"
+        # Format: Just the content with clear separation, no structural labels
+        context_text = "\n\n---\n\n".join([
+            chunk['text']
             for i, chunk in enumerate(context_chunks[:50])
         ])
         
-        prompt = f"""
-You are a rigorous quiz generator. Generate a quiz based STRICTLY on the provided context.
+        prompt = f"""Generate a quiz with {config.question_count} {config.difficulty_level.value} difficulty questions about the following document.
 
-## QUIZ REQUIREMENTS
-- **Topic**: {config.topic}
-- **Difficulty Level**: {config.difficulty_level.value}
-- **Question Type**: {config.quiz_type.value}
-- **Number of Questions**: {config.question_count}
-- **Format**: Multiple choice (exactly 4 options per question)
+QUIZ REQUIREMENTS:
+- Topic focus: {config.topic}
+- Question type: {config.quiz_type.value}
+- Number of questions: {config.question_count}
+- Format: Multiple choice with 4 options each
 
-## SOURCE CONTEXT
-<CONTEXT>
+DOCUMENT CONTENT:
 {context_text}
-</CONTEXT>
 
-## INSTRUCTIONS
+INSTRUCTIONS:
+1. Generate {config.question_count} questions about the document content
+2. Each question must be answerable from the document
+3. Each question needs exactly 4 answer options
+4. Include clear citations from the document for each answer
+5. Do NOT ask questions about document structure or formatting
+6. Do NOT use placeholder text in options
+7. Output ONLY valid JSON, nothing else
 
-1. Generate exactly {config.question_count} questions based ONLY on the provided context.
-2. Do NOT use external knowledge. Every question must be answerable from the context.
-3. For each question:
-   - Create exactly 4 options
-   - One correct answer
-   - Three plausible but incorrect distractors (all derived from context)
-   - Provide detailed explanation referencing the exact context
-   - Include a direct quote as source citation
-4. Question Difficulty:
-   - Easy: Direct recall from context
-   - Medium: Understanding and connecting concepts
-   - Hard: Synthesis and analysis of multiple concepts
-5. Question Type:
-   - fact_based: Direct questions about content
-   - scenario_based: Application and reasoning questions
-   - mixed: Combination of both
-
-## QUALITY REQUIREMENTS
-
-Before outputting, verify:
-- ✓ All {config.question_count} questions are grounded in context
-- ✓ Every question has exactly 4 distinct options
-- ✓ Each question has exactly 1 correct answer
-- ✓ Distractors are plausible but clearly incorrect to someone who read context
-- ✓ Explanations cite the specific context section
-- ✓ Difficulty matches "{config.difficulty_level.value}"
-- ✓ Type matches "{config.quiz_type.value}"
-- ✓ All citations are exact quotes from context
-
-## OUTPUT FORMAT
-
-Output ONLY valid JSON (no markdown, no extra text):
-
-```json
-{{
-  "questions": [
-    {{
-      "question_text": "...",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correct_answer_index": 0,
-      "explanation": "According to the document...",
-      "source_citation": "Exact quote from context",
-      "source_page": 1,
-      "difficulty": "easy|medium|hard",
-      "quiz_type": "fact_based|scenario_based|mixed"
-    }}
-  ],
-  "quality_check": {{
-    "total_questions": {config.question_count},
-    "grounded_questions": {config.question_count},
-    "coverage_topics": [...],
-    "notes": "Assessment of generation quality"
-  }}
-}}
-```
-
-Generate the quiz now. Output ONLY JSON.
-"""
+Generate the quiz as valid JSON now."""
         return prompt
     
     async def _call_llm_for_quiz(
@@ -534,6 +452,7 @@ Generate the quiz now. Output ONLY JSON.
                 
                 response_text = response.choices[0].message.content.strip()
                 logger.info(f"   - LLM response size: {len(response_text)} characters")
+                logger.debug(f"   - LLM raw response: {response_text[:500]}")  # Log first 500 chars for debugging
                 
                 # Remove markdown code blocks if present
                 if response_text.startswith("```json"):
@@ -544,6 +463,7 @@ Generate the quiz now. Output ONLY JSON.
                     response_text = response_text[:-3]
                 
                 response_text = response_text.strip()
+                logger.debug(f"   - LLM response after cleanup: {response_text[:500]}")  # Log after cleanup
                 
                 # Parse JSON
                 quiz_json = json.loads(response_text)
@@ -592,6 +512,8 @@ Generate the quiz now. Output ONLY JSON.
             questions_data = quiz_json.get("questions", [])
             
             if not questions_data:
+                logger.error(f"❌ LLM Response JSON keys: {list(quiz_json.keys())}")
+                logger.error(f"❌ Full LLM Response: {json.dumps(quiz_json, indent=2)}")
                 raise ValueError("No questions found in LLM response")
             
             questions = []
@@ -691,7 +613,6 @@ Generate the quiz now. Output ONLY JSON.
                 "score": score,
                 "correct_answers": correct_count,
                 "total_questions": total,
-                "time_spent_seconds": attempt_request.time_spent_seconds,
                 "completed_at": datetime.utcnow().isoformat()
             }
             
@@ -778,8 +699,7 @@ Generate the quiz now. Output ONLY JSON.
                         "score": a["score"],
                         "correct": a["correct_answers"],
                         "total": a["total_questions"],
-                        "completed_at": a["completed_at"],
-                        "time_spent": a.get("time_spent_seconds")
+                        "completed_at": a["completed_at"]
                     }
                     for a in sorted(
                         attempts, 

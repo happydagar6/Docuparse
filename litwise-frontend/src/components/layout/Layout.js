@@ -45,7 +45,7 @@ export function RootLayout({ children }) {
       <InteractiveFooter />
       
       {/* Mobile padding for bottom navigation */}
-      <div className="lg:hidden h-16" />
+      <div className="lg:hidden h-32" />
       
       {/* Notification System */}
       <NotificationSystem />

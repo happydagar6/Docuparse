@@ -26,6 +26,7 @@ import {
   getQdrantDiagnostics,
   synthesizeSearchResults,
   generateQuiz,
+  getQuiz,
   submitQuizAttempt,
   getQuizAnalytics,
   getUserQuizzes,
@@ -557,7 +558,11 @@ export function useGetQuizAnalytics(quizId, enabled = true) {
 export function useGetUserQuizzes() {
   return useQuery({
     queryKey: queryKeys.quiz.myQuizzes(),
-    queryFn: getUserQuizzes,
+    queryFn: async () => {
+      const response = await getUserQuizzes();
+      // Backend returns { quizzes: [...] }, extract the array
+      return response.quizzes || [];
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -591,19 +596,6 @@ export function useDeleteQuiz() {
     }
   })
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

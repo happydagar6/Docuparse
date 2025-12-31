@@ -6,7 +6,7 @@ Endpoints for creating, retrieving, and evaluating quizzes
 
 from fastapi import APIRouter, HTTPException, Depends
 from auth_middleware import get_current_user, AuthUser
-from models import QuizConfig, QuizResponse, QuizAttemptRequest, QuizAttemptResponse
+from models.quiz import QuizConfig, QuizResponse, QuizAttemptRequest, QuizAttemptResponse
 from services.quiz_service import quiz_service
 from workflow.db import supabase
 import logging
@@ -55,8 +55,25 @@ async def generate_quiz(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Access denied")
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate quiz")
+        error_msg = str(e)
+        logger.error(f"Quiz generation failed: {error_msg}", exc_info=True)
+        
+        # Provide more helpful error messages
+        if "XAI_API_KEY" in error_msg or "api_key" in error_msg.lower():
+            raise HTTPException(
+                status_code=500, 
+                detail="Quiz service not configured. Missing XAI API key. Please check backend environment variables."
+            )
+        elif "QDRANT" in error_msg or "qdrant" in error_msg.lower():
+            raise HTTPException(
+                status_code=500,
+                detail="Vector database not accessible. Please ensure Qdrant is running and configured correctly."
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to generate quiz: {error_msg[:100]}"
+            )
 
 
 @router.get("/list")

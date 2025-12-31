@@ -245,7 +245,6 @@ class QuizAttemptRequest(BaseModel):
     """Submit quiz attempt"""
     quiz_id: str
     responses: Dict[int, int] = Field(..., description="question_index -> selected_option_index")
-    time_spent_seconds: Optional[int] = None
 
 
 class QuizAttemptResponse(BaseModel):

@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from models import (
     SearchQuery,
     ProcessingResponse,
@@ -93,9 +92,6 @@ app.include_router(notes_router)
 
 # Include quiz router (quiz generation)
 app.include_router(quiz_router)
-
-# Mount static files for uploaded figures (serve images)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():

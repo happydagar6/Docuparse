@@ -37,6 +37,29 @@ class QuizQuestion(BaseModel):
     difficulty: DifficultyLevel = Field(..., description="Question difficulty")
     quiz_type: QuizType = Field(..., description="Type of question")
     
+    @field_validator('source_page', mode='before')
+    @classmethod
+    def validate_source_page(cls, v):
+        """Convert invalid page values (like 'N/A') to None"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            # Convert string values like 'N/A', 'n/a', or other non-numeric strings to None
+            if v.lower() in ('n/a', 'na', 'none', ''):
+                return None
+            # Try to convert string numbers to int
+            try:
+                return int(v)
+            except (ValueError, TypeError):
+                return None
+        if isinstance(v, int):
+            return v
+        # For any other type, try to convert to int
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
+    
     
 class QuizConfig(BaseModel):
     """Quiz generation configuration"""
@@ -79,7 +102,6 @@ class QuizAttemptRequest(BaseModel):
     """Submit quiz attempt with user responses"""
     quiz_id: str = Field(..., description="Quiz ID")
     responses: Dict[int, int] = Field(..., description="Mapping of question_index to selected_option_index")
-    time_spent_seconds: Optional[int] = Field(None, description="Time taken to complete quiz")
     
     
 class QuizAttemptResponse(BaseModel):

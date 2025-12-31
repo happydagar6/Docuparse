@@ -18,7 +18,8 @@ import {
   ArrowRight,
   BookOpen,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Lightbulb
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,12 +73,12 @@ export default function Home() {
       color: 'bg-green-500'
     },
     {
-      icon: FileText,
-      title: 'Document Library',
-      description: 'Browse and manage your collection of documents and papers',
-      action: () => router.push('/papers'),
-      buttonText: 'View Library',
-      color: 'bg-purple-500'
+      icon: Lightbulb,
+      title: 'Generate Quizzes',
+      description: 'Create interactive quizzes from your documents to test understanding',
+      action: () => router.push('/quiz'),
+      buttonText: 'Create Quiz',
+      color: 'bg-cyan-500'
     },
   ];
 
