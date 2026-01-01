@@ -19,8 +19,9 @@ import uuid
 import json
 from datetime import datetime
 
-# Import authentication middleware
+# Import authentication middleware and rate limiting middleware
 from auth_middleware import get_current_user, AuthUser
+from middleware.rate_limit_middleware import RateLimitMiddleware
 
 # Import all the routes here
 from routes.chat import router as chat_router
@@ -59,6 +60,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
 
 @app.get("/health")
 def health_check():

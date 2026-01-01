@@ -452,25 +452,81 @@ CREATE POLICY "Users can delete their own notes"
   FOR DELETE
   USING (auth.uid() = user_id);
 
--- =====================================================
--- GRANT SERVICE ROLE BYPASS (for backend API)
--- =====================================================
--- Service role can bypass RLS for admin operations
--- This is already enabled by default in Supabase
 
--- =====================================================
--- VERIFICATION QUERIES
--- =====================================================
--- Run these to verify RLS is properly configured:
 
--- Check if RLS is enabled on all tables:
--- SELECT tablename, rowsecurity 
--- FROM pg_tables 
--- WHERE schemaname = 'public' 
--- AND tablename IN ('users', 'papers', 'paper_citations', 'chat_sessions', 'chat_messages', 'chat_memory', 'synthesis_history', 'study_plans', 'literature_reviews', 'citation_relationships');
 
--- View all policies:
--- SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
--- FROM pg_policies
--- WHERE schemaname = 'public'
--- ORDER BY tablename, policyname;
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================
+
+-- Enable RLS
+ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_feedback ENABLE ROW LEVEL SECURITY;
+
+-- Quizzes RLS Policies
+CREATE POLICY "Users can view their own quizzes"
+  ON quizzes FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create quizzes for their papers"
+  ON quizzes FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id AND
+    EXISTS (
+      SELECT 1 FROM papers 
+      WHERE papers.id = quizzes.paper_id 
+      AND papers.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their own quizzes"
+  ON quizzes FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own quizzes"
+  ON quizzes FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Quiz Attempts RLS Policies
+CREATE POLICY "Users can view their own attempts"
+  ON quiz_attempts FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create attempts for their quizzes"
+  ON quiz_attempts FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id AND
+    EXISTS (
+      SELECT 1 FROM quizzes 
+      WHERE quizzes.id = quiz_attempts.quiz_id 
+      AND quizzes.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update their own attempts"
+  ON quiz_attempts FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Quiz Feedback RLS Policies
+CREATE POLICY "Users can view feedback for their attempts"
+  ON quiz_feedback FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM quiz_attempts 
+      WHERE quiz_attempts.id = quiz_feedback.attempt_id 
+      AND quiz_attempts.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create feedback for their attempts"
+  ON quiz_feedback FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM quiz_attempts 
+      WHERE quiz_attempts.id = quiz_feedback.attempt_id 
+      AND quiz_attempts.user_id = auth.uid()
+    )
+  );

@@ -66,7 +66,7 @@ export const chatApi = {
 
   // Stream chat response with abort support
   streamChat: async (sessionId, message, onChunk, abortSignal = null) => {
-    console.log('Starting chat stream for session:', sessionId, 'message:', message);
+    // Removed console.log for chat stream start
     
     const token = await getAuthToken();
     const headers = { 'Content-Type': 'application/json' };
@@ -82,7 +82,7 @@ export const chatApi = {
       signal: abortSignal, // Add abort signal support
     });
 
-    console.log('Stream response status:', response.status);
+    // Removed console.log for stream response status
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -113,7 +113,7 @@ export const chatApi = {
     } catch (error) {
       // If aborted, don't throw error - it's intentional
       if (error.name === 'AbortError') {
-        console.log('Stream aborted by user');
+        // Removed console.log for stream aborted by user
         onChunk({ type: 'aborted', message: 'Generation stopped by user' });
         return;
       }

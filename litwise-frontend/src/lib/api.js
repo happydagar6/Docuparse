@@ -61,6 +61,23 @@ export async function apiRequest(endpoint, options = {}) {
             ...options,
         });
 
+        // Handle 429 Rate Limiting
+        if (response.status === 429){
+            const errorData = await response.json().catch(() => ({
+                detail: "Too many requests. Please try again later."
+            }));
+            const retryAfter = response.headers.get("Retry-After");
+            const waitTime = response ? parseInt(retryAfter) : 60;
+
+            const error = new Error(
+                `Rate limit exceeded. Please wait ${waitTime} seconds before retrying.`
+            );
+            error.status = 429;
+            error.retryAfter = waitTime;
+            error.detail = errorData.detail;
+            throw error;
+        }
+
         // Handle HTTP errors
         if(!response.ok){
             const errorData = await response.json().catch(() => ({

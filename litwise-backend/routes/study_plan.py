@@ -4,11 +4,15 @@ from services.study_plan_service import study_plan_service
 from workflow.db import supabase
 from datetime import datetime
 from auth_middleware import get_current_user, AuthUser
+from services.rate_limiter_service import rate_limit_dependency
 
 router = APIRouter(prefix="/api/study-plan", tags=["Study Plan"])
 
 @router.post("/generate", response_model=StudyPlanResponse)
-async def generate_study_plan(request: StudyPlanRequest, current_user: AuthUser = Depends(get_current_user)):
+async def generate_study_plan(request: StudyPlanRequest, 
+current_user: AuthUser = Depends(get_current_user),
+rate_limit_check = Depends(rate_limit_dependency)
+):
     """Generate a study plan for a paper. User must own the paper."""
     
     # Get paper details and verify ownership

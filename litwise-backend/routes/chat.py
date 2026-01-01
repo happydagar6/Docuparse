@@ -10,6 +10,8 @@ from chat_pipeline import rag_pipeline
 from workflow.db import supabase
 from auth_middleware import get_current_user, AuthUser
 
+from services.rate_limiter_service import rate_limit_dependency
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 @router.post("/sessions", response_model=ChatSession)
@@ -112,8 +114,18 @@ async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(ge
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat messages: {str(e)}")
 
 @router.post("/stream")
-async def stream_chat(request: ChatRequest, current_user: AuthUser = Depends(get_current_user)):
+async def stream_chat(
+    request: ChatRequest, 
+    current_user: AuthUser = Depends(get_current_user),
+    rate_limit_check = Depends(rate_limit_dependency)):
     """Stream chat response with real-time updates. User must own the associated paper."""
+    
+    # Rate limit already checked by middleware, but we have info available
+    if not rate_limit_check["allowed"]:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Try again in {rate_limit_check['remaining']}"
+        )
     try:
         session_id = request.session_id
         if not session_id:

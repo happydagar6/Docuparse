@@ -269,21 +269,31 @@ const ChatInterface = ({ paper }) => {
       );
     } catch (error) {
       console.error('Chat error:', error);
-      toast.error('Failed to send message', {
-        description: 'Click to retry',
-        action: {
-          label: 'Retry',
-          onClick: () => {
-            setMessage(userMessage);
-            // Remove failed state
-            setFailedMessageIds(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(optimisticId);
-              return newSet;
-            });
+      
+      // Handle rate limit errors specifically
+      if (error.status === 429) {
+        const waitTime = error.retryAfter || 60;
+        toast.error('Too Many Requests', {
+          description: `Rate limit exceeded. Please wait ${waitTime} seconds before sending another message.`,
+          duration: 5000,
+        });
+      } else {
+        toast.error('Failed to send message', {
+          description: 'Click to retry',
+          action: {
+            label: 'Retry',
+            onClick: () => {
+              setMessage(userMessage);
+              // Remove failed state
+              setFailedMessageIds(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(optimisticId);
+                return newSet;
+              });
+            },
           },
-        },
-      });
+        });
+      }
       // Reset all streaming-related state
       setIsStreaming(false);
       setStreamingMessage('');

@@ -9,6 +9,7 @@ from auth_middleware import get_current_user, AuthUser
 from models.quiz import QuizConfig, QuizResponse, QuizAttemptRequest, QuizAttemptResponse
 from services.quiz_service import quiz_service
 from workflow.db import supabase
+from services.rate_limiter_service import rate_limit_dependency
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,8 @@ router = APIRouter(prefix="/api/quiz", tags=["Quiz Generator"])
 @router.post("/generate", response_model=QuizResponse)
 async def generate_quiz(
     request: QuizConfig,
-    current_user: AuthUser = Depends(get_current_user)
+    current_user: AuthUser = Depends(get_current_user),
+    rate_limit_check = Depends(rate_limit_dependency)
 ):
     """
     Generate a quiz from a paper
