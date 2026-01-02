@@ -5,12 +5,25 @@
  * Main page for writing research papers with citation support
  */
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ResearchEditor from '@/components/editor/ResearchEditor';
 import { Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiRequest } from '@/lib/api';
+
+// Lazy load ResearchEditor component
+const ResearchEditor = dynamic(
+  () => import('@/components/editor/ResearchEditor'),
+  { 
+    loading: () => (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    ),
+    ssr: false
+  }
+);
 
 export default function ResearchEditorPage() {
     const router = useRouter();

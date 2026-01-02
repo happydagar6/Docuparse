@@ -78,7 +78,7 @@ export function PageLayout({
         </div>
       )}
       
-      <div className={`${fullWidth ? 'p-4 sm:p-6' : 'max-w-7xl mx-auto p-4 sm:p-6'} ${!title ? 'pt-20 lg:pt-6' : ''} pb-6`}>
+      <div className={`${fullWidth ? 'p-4 sm:p-6' : 'max-w-7xl mx-auto p-4 sm:p-6'} ${!title ? 'pt-20 lg:pt-6' : ''} pb-32 lg:pb-6`}>
         {children}
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import QuizConfigForm from '@/components/quiz/QuizConfigForm';
 import { useGetUserQuizzes, usePapers } from '@/lib/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

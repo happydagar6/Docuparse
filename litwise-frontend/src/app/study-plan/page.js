@@ -2,39 +2,45 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { getStudyPlans, deleteStudyPlan } from '@/app/api/study-plan';
 import { PageLayout } from '@/components/layout/Layout';
-import PlanGenerator from '@/components/study-plan/PlanGenerator';
-import PlanDisplay from '@/components/study-plan/PlanDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
 import { 
   Calendar, 
   FileText, 
-  History, 
   Sparkles, 
   Clock,
-  BookOpen,
-  ChevronRight,
-  GraduationCap,
-  Trash2,
-  Loader2
+  Trash2
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Lazy load heavy components
+const PlanGenerator = dynamic(() => import('@/components/study-plan/PlanGenerator'), {
+  loading: () => <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>
+});
+const PlanDisplay = dynamic(() => import('@/components/study-plan/PlanDisplay'), {
+  loading: () => <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>
+});
+
+// Additional icons
+const LazyIcons = dynamic(() => import('lucide-react').then(mod => ({
+  BookOpen: mod.BookOpen,
+  ChevronRight: mod.ChevronRight,
+  GraduationCap: mod.GraduationCap,
+  Loader2: mod.Loader2
+})), { ssr: false });
+
+import { formatDistanceToNow } from 'date-fns';
+import { GraduationCap } from 'lucide-react';
+import { History } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Loader2 } from 'lucide-react';
 
 export default function StudyPlanPage() {
   const [currentPlan, setCurrentPlan] = useState(null);

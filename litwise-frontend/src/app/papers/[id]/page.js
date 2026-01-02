@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen, Link2, Sparkles, Users, Hash, Tag, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 

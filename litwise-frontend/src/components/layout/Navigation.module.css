@@ -1,0 +1,39 @@
+/* Navigation styles for smooth transitions without animations */
+
+/* Desktop Navigation */
+.navItem {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navItem:hover {
+  transform: translateX(2px);
+}
+
+.navItem.active {
+  transform: translateX(0);
+}
+
+/* Mobile Bottom Tab */
+.mobileTab {
+  transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobileTab:active {
+  transform: scale(0.95);
+  transition: transform 100ms ease-out;
+}
+
+/* Mobile Menu */
+.mobileDrawer {
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawerItem {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawerItem:active {
+  background-color: rgba(59, 130, 246, 0.1);
+}

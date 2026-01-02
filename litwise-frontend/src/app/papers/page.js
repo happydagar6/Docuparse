@@ -8,21 +8,20 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { 
   FileText, 
   Search, 
+  Upload,
+  Eye,
+  Trash2,
+  MoreVertical,
+  Loader2,
+  Sparkles,
   Calendar,
-  Filter,
   Grid,
   List,
-  MoreVertical,
-  Eye,
-  Download,
-  Trash2,
-  Upload,
   BookOpen,
-  Sparkles,
   TrendingUp,
   ChevronDown,
   ChevronUp,
@@ -33,15 +32,25 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Loader2,
   Lightbulb
 } from 'lucide-react';
+
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Lazy load CitationExport component
+const CitationExport = dynamic(() => import('@/components/citations/CitationExport'), {
+  loading: () => <Skeleton className="h-12 w-auto" />,
+  ssr: false
+});
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormattedSummary } from '@/components/ui/formatted-content';
-import { ProcessingBadge, ProcessingStatus } from '@/components/ProcessingStatus';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Lazy load heavy components
+const ProcessingBadge = dynamic(() => import('@/components/ProcessingStatus').then(mod => ({ default: mod.ProcessingBadge })));
+const ProcessingStatus = dynamic(() => import('@/components/ProcessingStatus').then(mod => ({ default: mod.ProcessingStatus })));
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -66,8 +75,6 @@ import {
 import { usePapers, useDeletePaper } from '@/lib/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import CitationExport from '@/components/citations/CitationExport';
-
 
 
 export default function PapersPage() {
@@ -596,7 +603,7 @@ export default function PapersPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             {visiblePapers.map((paper, index) => (
               <motion.div
                 key={paper.id}

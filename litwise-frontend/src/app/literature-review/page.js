@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import dynamic from 'next/dynamic';
 import { deleteLiteratureReview, getLiteratureReviews } from '@/lib/literature-review-api';
 import { toast } from 'sonner';
 import { PageLayout } from '../../components/layout/Layout';
@@ -10,9 +11,15 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Clock, Trash2, BookOpen, Loader2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
-import ReviewGenerator from '../../components/literature/literature-review';
-import ReviewDisplay from '../../components/literature/ReviewDisplay';
 import { formatDistanceToNow } from 'date-fns';
+
+// Lazy load heavy components
+const ReviewGenerator = dynamic(() => import('../../components/literature/literature-review'), {
+  loading: () => <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-blue-500" /></div>
+});
+const ReviewDisplay = dynamic(() => import('../../components/literature/ReviewDisplay'), {
+  loading: () => <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-blue-500" /></div>
+});
 
 export default function LiteratureReviewPage() {
     const [currentReview, setCurrentReview] = useState(null);

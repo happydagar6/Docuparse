@@ -7,21 +7,26 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { 
   Brain, 
-  Calendar, 
   FileText, 
   Trash2, 
   Eye, 
   Loader2,
-  AlertCircle,
-  Search,
-  Filter,
-  Tag,
-  ChevronDown,
-  ChevronUp
+  Search
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Lazy load remaining icons
+const LazyIcons = dynamic(() => import('lucide-react').then(mod => ({
+  Calendar: mod.Calendar,
+  AlertCircle: mod.AlertCircle,
+  Filter: mod.Filter,
+  Tag: mod.Tag,
+  ChevronDown: mod.ChevronDown,
+  ChevronUp: mod.ChevronUp
+})), { ssr: false });
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

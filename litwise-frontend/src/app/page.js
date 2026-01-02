@@ -8,13 +8,12 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { Suspense } from 'react';
 import { 
   Upload, 
   Search, 
   FileText, 
-  Brain, 
-  Zap,
+  Brain,
   ArrowRight,
   BookOpen,
   ChevronDown,
@@ -24,7 +23,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/Layout';
-import MinimalFooter from '@/components/layout/MinimalFooter';
 import { usePapers } from '@/lib/react-query';
 
 export default function Home() {
@@ -108,11 +106,8 @@ export default function Home() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-linear-to-br from-blue-200/30 to-purple-200/30 rounded-full blur-3xl -z-10"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-linear-to-tr from-pink-200/30 to-orange-200/30 rounded-full blur-3xl -z-10"></div>
         
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
+        {/* Remove animation from initial render to avoid LCP delay - render immediately */}
+        <div>
           <div className="inline-block mb-4 px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full">
             <span className="text-sm font-medium text-primary">✨ AI-Powered Research Platform</span>
           </div>
@@ -148,7 +143,7 @@ export default function Home() {
               Search Papers
             </Button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Stats */}
@@ -162,11 +157,9 @@ export default function Home() {
           ];
           
           return (
-            <motion.div
+            <div
               key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 + 0.2 }}
+              className="transform transition-all duration-300 hover:scale-105"
             >
               <Card className="border-2 hover:border-primary/50 hover:shadow-lg transition-all duration-200 relative overflow-hidden">
                 <div className={`absolute top-0 right-0 w-32 h-32 bg-linear-to-br ${gradients[index]} opacity-10 rounded-full blur-2xl`}></div>
@@ -182,7 +175,7 @@ export default function Home() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -203,12 +196,9 @@ export default function Home() {
             ];
             
             return (
-              <motion.div
+              <div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 + 0.4 }}
-                className="group"
+                className="group transform transition-all duration-300 hover:scale-105"
               >
                 <Card className="h-full border-2 hover:border-primary/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden">
                   <div className={`absolute top-0 right-0 w-40 h-40 bg-linear-to-br ${gradients[index].bg} opacity-5 group-hover:opacity-10 rounded-full blur-3xl transition-opacity`}></div>
@@ -231,46 +221,41 @@ export default function Home() {
                     </Button>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Recent Papers */}
-      {safePapers.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="mt-12"
-        >
-          <Card className="border-2 shadow-md">
-            <CardHeader className="bg-linear-to-br from-gray-50 to-transparent border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-3 text-xl">
-                  <div className="p-2 bg-linear-to-br from-blue-500 to-purple-500 rounded-lg">
-                    <BookOpen className="h-5 w-5 text-white" />
-                  </div>
-                  Recent Papers
-                </CardTitle>
-                <span className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
-                  {Math.min(visiblePapersCount, safePapers.length)} of {safePapers.length}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Paper List - shows only visiblePapers */}
-                {visiblePapers.map((paper, idx) => (
-                  <motion.div
-                    key={paper.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="group flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-primary hover:shadow-md hover:bg-primary/5 transition-all duration-200 cursor-pointer"
-                    onClick={() => router.push(`/papers/${paper.id}`)}
-                  >
+      {/* Recent Papers - Deferred with Suspense */}
+      <Suspense fallback={null}>
+        {safePapers.length > 0 && (
+          <div
+            className="mt-12"
+          >
+            <Card className="border-2 shadow-md">
+              <CardHeader className="bg-linear-to-br from-gray-50 to-transparent border-b">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <div className="p-2 bg-linear-to-br from-blue-500 to-purple-500 rounded-lg">
+                      <BookOpen className="h-5 w-5 text-white" />
+                    </div>
+                    Recent Papers
+                  </CardTitle>
+                  <span className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
+                    {Math.min(visiblePapersCount, safePapers.length)} of {safePapers.length}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Paper List - shows only visiblePapers */}
+                  {visiblePapers.map((paper, idx) => (
+                    <div
+                      key={paper.id}
+                      className="group flex items-center justify-between p-4 border-2 border-gray-200 rounded-xl hover:border-primary hover:shadow-md hover:bg-primary/5 transition-all duration-200 cursor-pointer"
+                      onClick={() => router.push(`/papers/${paper.id}`)}
+                    >
                     <div className="flex items-center gap-4">
                       <div className="p-2.5 bg-linear-to-br from-blue-500 to-cyan-500 rounded-lg group-hover:scale-110 transition-transform">
                         <FileText className="h-6 w-6 text-white" />
@@ -293,51 +278,51 @@ export default function Home() {
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
-                  </motion.div>
-                ))}
-                
-                {/* Show More / Show Less Buttons */}
-                <div className="flex items-center justify-center gap-3 pt-4">
-                  {hasMorePapers && (
-                    <Button
-                      variant="outline"
-                      onClick={handleShowMorePapers}
-                      className="flex items-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                      Show More ({safePapers.length - visiblePapersCount} remaining)
-                    </Button>
-                  )}
+                    </div>
+                  ))}
                   
-                  {showingMorePapers && (
+                  {/* Show More / Show Less Buttons */}
+                  <div className="flex items-center justify-center gap-3 pt-4">
+                    {hasMorePapers && (
+                      <Button
+                        variant="outline"
+                        onClick={handleShowMorePapers}
+                        className="flex items-center gap-2 border-2 hover:border-primary hover:bg-primary/5 transition-all"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                        Show More ({safePapers.length - visiblePapersCount} remaining)
+                      </Button>
+                    )}
+                    
+                    {showingMorePapers && (
+                      <Button
+                        variant="ghost"
+                        onClick={handleShowLessPapers}
+                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                        Show Less
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* View All Papers Link */}
+                  <div className="pt-4 border-t">
                     <Button
                       variant="ghost"
-                      onClick={handleShowLessPapers}
-                      className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                      onClick={() => router.push('/papers')}
+                      className="w-full text-primary hover:text-primary hover:bg-primary/5 font-semibold group"
                     >
-                      <ChevronUp className="h-4 w-4" />
-                      Show Less
+                      View All Papers in Library
+                      <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                     </Button>
-                  )}
+                  </div>
                 </div>
-                
-                {/* View All Papers Link */}
-                <div className="pt-4 border-t">
-                  <Button
-                    variant="ghost"
-                    onClick={() => router.push('/papers')}
-                    className="w-full text-primary hover:text-primary hover:bg-primary/5 font-semibold group"
-                  >
-                    View All Papers in Library
-                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </Suspense>
 
     </PageLayout>
   );
