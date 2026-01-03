@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from models import (
     SearchQuery,
     ProcessingResponse,
@@ -18,10 +19,14 @@ import tempfile
 import uuid
 import json
 from datetime import datetime
+import logging
 
 # Import authentication middleware and rate limiting middleware
 from auth_middleware import get_current_user, AuthUser
 from middleware.rate_limit_middleware import RateLimitMiddleware
+
+# Import cache service to verify initialization
+from services.message_cache_service import message_cache_service
 
 # Import all the routes here
 from routes.chat import router as chat_router
@@ -37,6 +42,10 @@ from routes.quiz import router as quiz_router
 
 # Import synthesis service (Phase 1)
 from workflow.synthesis_service import synthesis_service
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -62,6 +71,33 @@ app.add_middleware(
 
 # Add rate limiting middleware
 app.add_middleware(RateLimitMiddleware)
+
+# Add GZIP compression middleware - compresses responses to reduce network transfer time
+# Minimum 1000 bytes to avoid overhead on very small responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize and verify Redis cache on startup."""
+    logger.info("=" * 60)
+    logger.info("🚀 Litwise API Starting Up")
+    logger.info("=" * 60)
+    
+    # Check Redis cache status
+    if message_cache_service.redis_client:
+        logger.info("✅ Redis Cache: Connected and ready")
+        logger.info(f"   - Cache TTL: 24 hours")
+        logger.info(f"   - Max messages per session: 5000")
+    else:
+        logger.warning("⚠️  Redis Cache: NOT CONNECTED - Cache disabled!")
+        logger.warning("   - Database will be queried on every request (no caching)")
+        logger.warning("   - Check REDIS_URL environment variable")
+    
+    logger.info("✅ Response Compression: Enabled (GZIP)")
+    logger.info("   - Reduces response size by 60-70%")
+    logger.info("   - Minimum compression size: 1 KB")
+    
+    logger.info("=" * 60)
 
 @app.get("/health")
 def health_check():

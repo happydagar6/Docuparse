@@ -344,6 +344,27 @@ create table public.chat_memory (
 create index IF not exists idx_chat_memory_session_id on public.chat_memory using btree (session_id) TABLESPACE pg_default;
 
 
+-- database.sql - Add indexes for optimal query performance
+
+-- Index on chat_messages for efficient filtering and sorting
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created 
+ON chat_messages(session_id, created_at DESC);
+
+-- Composite index for pagination queries
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_pagination 
+ON chat_messages(session_id, created_at DESC, id);
+
+-- Index for user-based queries (session ownership verification)
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_paper_user 
+ON chat_sessions(paper_id, user_id);
+
+-- Index for recent sessions
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated 
+ON chat_sessions(user_id, updated_at DESC);
+
+-- Optimize message count queries
+CREATE INDEX IF NOT EXISTS idx_chat_messages_count 
+ON chat_messages(session_id);
 
 
 

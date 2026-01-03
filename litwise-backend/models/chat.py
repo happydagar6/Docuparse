@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-import uuid
 
 class ChatMessage(BaseModel):
     id: Optional[str] = None
@@ -11,6 +10,21 @@ class ChatMessage(BaseModel):
     sources: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: Optional[datetime] = None
     
+    
+class PaginatedMessages(BaseModel):
+    """Response model for paginated chat messages"""
+    messages: List[ChatMessage]
+    has_more: bool # Whether more messages exist
+    next_cursor: Optional[str] = None # Cursor for next page retrieval
+    total_count: int # Total number of messages in the session
+    
+
+class MessageCursor(BaseModel):
+    """Cursor based pagination model for chat messages"""
+    session_id: str
+    timestamp: datetime
+    message_id: str
+
 class ChatSession(BaseModel):
     id: Optional[str] = None
     paper_id: str

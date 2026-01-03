@@ -49,6 +49,44 @@ export const chatApi = {
     return response.json();
   },
 
+
+  // Get paginated chat messages for a session
+  getPaginatedMessages: async (sessionId, limit = 20, cursor = null, direction = 'before') => {
+    const token = await getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const params = new URLSearchParams({
+      limit,
+      direction,
+    });
+    if (cursor) params.append('cursor', cursor);
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/chat/sessions/${sessionId}/messages/paginated?${params}`,
+      { headers }
+    );
+    
+    if(!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  // Get message count for a session
+  getMessageCount: async (sessionId) => {
+    const token = await getAuthToken(); // Get auth token
+    const headers = {}; // Prepare headers
+    if (token) headers['Authorization'] = `Bearer ${token}`; // Add auth header if token exists
+
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages/count`, { headers });
+    if(!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  },
+
   // Get messages for a session
   getSessionMessages: async (sessionId) => {
     const token = await getAuthToken();
