@@ -3,7 +3,7 @@ Note Models
 Pydantic models for notes functionality
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -70,8 +70,7 @@ class NoteResponse(NoteBase):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NoteListResponse(BaseModel):

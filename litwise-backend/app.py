@@ -1,6 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from contextlib import asynccontextmanager
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 from models import (
     SearchQuery,
     ProcessingResponse,
@@ -47,36 +51,88 @@ from workflow.synthesis_service import synthesis_service
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize Sentry for error tracking
+def init_sentry():
+    """
+    Initialize Sentry error tracking.
+    
+    Sentry captures and reports all errors in production.
+    - Development: Disabled if SENTRY_DSN not set
+    - Production: Enabled with SENTRY_DSN environment variable
+    
+    Tracks:
+    - Unhandled exceptions
+    - HTTP errors (4xx, 5xx)
+    - Performance metrics
+    - User feedback
+    """
+    sentry_dsn = os.getenv("SENTRY_DSN", "")
+    environment = os.getenv("ENVIRONMENT", "development")
+    
+    if not sentry_dsn:
+        logger.info("⚠️  Sentry: NOT CONFIGURED (no SENTRY_DSN)")
+        logger.info("   - Error tracking disabled")
+        logger.info("   - Production errors will go unseen")
+        return
+    
+    try:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[
+                FastApiIntegration(),
+                StarletteIntegration(),
+            ],
+            # Sample 10% of transactions (performance monitoring)
+            traces_sample_rate=0.1,
+            # Sample 100% of errors (all errors are captured)
+            sample_rate=1.0,
+            environment=environment,
+            # Release info (optional, helps track deployments)
+            release=os.getenv("APP_VERSION", "1.0.0"),
+            # Enable sending server name for debugging
+            server_name=os.getenv("SERVER_NAME", "litwise-api"),
+        )
+        logger.info("✅ Sentry: Connected and monitoring errors")
+        logger.info(f"   - Environment: {environment}")
+        logger.info(f"   - Capturing 100% of errors")
+        logger.info(f"   - Performance sampling: 10%")
+    except Exception as e:
+        logger.error(f"❌ Sentry initialization failed: {e}")
 
-app = FastAPI(
-    title="Litwise API", 
-    version="1.0.0",
-    # Increase max request body size to 40MB (to handle 35MB PDFs with multipart overhead)
-    max_request_size=40 * 1024 * 1024
-)
 
-# CORS configuration - MUST be added before routes
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev server
-        "http://127.0.0.1:3000",  # Alternative localhost
-        "https://localhost:3000",  # HTTPS variant
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# Initialize Sentry before creating the app
+init_sentry()
 
-# Add rate limiting middleware
-app.add_middleware(RateLimitMiddleware)
+# CORS configuration - support both local development and production
+def get_allowed_origins():
+    """
+    Get allowed origins from environment variable or use defaults for development.
+    
+    Environment variable: ALLOWED_ORIGINS (comma-separated list)
+    Default for development: http://localhost:3000, http://127.0.0.1:3000, https://localhost:3000
+    
+    Examples:
+    - Development (default): ALLOWED_ORIGINS not set
+    - Production: ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+    """
+    env_origins = os.getenv("ALLOWED_ORIGINS", "")
+    
+    if env_origins:
+        # Production: split by comma and strip whitespace
+        origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        logger.info(f"✅ CORS Origins (from environment): {origins}")
+        return origins
+    else:
+        # Development: default localhost origins
+        default_origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://localhost:3000",
+        ]
+        logger.info(f"ℹ️  CORS Origins (default development): {default_origins}")
+        return default_origins
 
-# Add GZIP compression middleware - compresses responses to reduce network transfer time
-# Minimum 1000 bytes to avoid overhead on very small responses
-app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-@app.on_event("startup")
 async def startup_event():
     """Initialize and verify Redis cache on startup."""
     logger.info("=" * 60)
@@ -93,11 +149,56 @@ async def startup_event():
         logger.warning("   - Database will be queried on every request (no caching)")
         logger.warning("   - Check REDIS_URL environment variable")
     
+    # Check Sentry error monitoring
+    if sentry_sdk.Hub.current.client:
+        logger.info("✅ Error Monitoring: Sentry is active")
+        logger.info(f"   - All exceptions will be tracked")
+        logger.info(f"   - Dashboard: https://sentry.io")
+    else:
+        logger.warning("⚠️  Error Monitoring: Sentry is disabled")
+        logger.warning("   - Production errors will NOT be captured")
+        logger.warning("   - Set SENTRY_DSN environment variable")
+    
     logger.info("✅ Response Compression: Enabled (GZIP)")
     logger.info("   - Reduces response size by 60-70%")
     logger.info("   - Minimum compression size: 1 KB")
     
     logger.info("=" * 60)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    await startup_event()
+    yield
+    # Shutdown (if needed in future)
+
+
+app = FastAPI(
+    title="Litwise API", 
+    version="1.0.0",
+    # Increase max request body size to 40MB (to handle 35MB PDFs with multipart overhead)
+    max_request_size=40 * 1024 * 1024,
+    lifespan=lifespan
+)
+
+# CORS configuration - MUST be added before routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_allowed_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
+
+# Add GZIP compression middleware - compresses responses to reduce network transfer time
+# Minimum 1000 bytes to avoid overhead on very small responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 @app.get("/health")
 def health_check():

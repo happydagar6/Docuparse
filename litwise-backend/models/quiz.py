@@ -29,7 +29,7 @@ class QuizOption(BaseModel):
 class QuizQuestion(BaseModel):
     """Single quiz question with multiple choice answers"""
     question_text: str = Field(..., description="The question")
-    options: List[str] = Field(..., min_items=4, max_items=4, description="4 multiple choice options")
+    options: List[str] = Field(..., min_length=4, max_length=4, description="4 multiple choice options")
     correct_answer_index: int = Field(..., ge=0, le=3, description="Index of correct answer (0-3)")
     explanation: str = Field(..., description="Detailed explanation of the correct answer")
     source_citation: str = Field(..., description="Citation/reference from the source material")

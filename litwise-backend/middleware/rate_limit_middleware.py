@@ -98,10 +98,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 
             # Add rate limit headers to response
             response = await call_next(request)
+            from datetime import timezone
             response.headers["X-RateLimit-Limit"] = str(check_result['limit'])
             response.headers["X-RateLimit-Remaining"] = str(check_result['remaining'])
             response.headers["X-RateLimit-Reset"] = str(
-                datetime.utcnow().timestamp() + check_result['reset_in']
+                datetime.now(timezone.utc).timestamp() + check_result['reset_in']
             )
             return response
         

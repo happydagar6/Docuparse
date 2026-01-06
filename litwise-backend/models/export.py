@@ -46,7 +46,7 @@ class TableContent(BaseModel):
     type: Literal["table"] = Field(default="table", description="Content type identifier")
     number: int = Field(..., ge=1, description="Table number for ordering")
     title: str = Field(..., min_length=1, description="Table title (will be italicized)")
-    rows: List[List[str]] = Field(..., min_items=1, description="Table data as list of rows")
+    rows: List[List[str]] = Field(..., min_length=1, description="Table data as list of rows")
     header_rows: int = Field(default=1, description="Number of header rows (usually 1)")
     note: Optional[str] = Field(None, description="Table note/footer (optional)")
 
@@ -86,11 +86,11 @@ class APAExportRequest(BaseModel):
     """Request model for APA document export"""
     title: str = Field(..., min_length=1, description="Paper title")
     running_head: str = Field(..., max_length=50, description="Short title for header (max 50 chars)")
-    authors: List[str] = Field(..., min_items=1, description="List of author names")
+    authors: List[str] = Field(..., min_length=1, description="List of author names")
     affiliation: Optional[str] = Field("Independent Researcher", description="Author affiliation")
     abstract: Optional[str] = Field(None, description="Abstract text (max 250 words recommended)")
     keywords: Optional[List[str]] = Field(default_factory=list, description="List of keywords (3-5 recommended)")
-    content: List[Union[ParagraphContent, HeadingContent, TableContent, FigureContent]] = Field(..., min_items=1, description="List of content items (paragraphs, headings, tables, and figures)")
+    content: List[Union[ParagraphContent, HeadingContent, TableContent, FigureContent]] = Field(..., min_length=1, description="List of content items (paragraphs, headings, tables, and figures)")
     references_metadata: Dict[str, ReferenceMetadata] = Field(
         default_factory=dict,
         description="Map of paper_id to reference metadata"

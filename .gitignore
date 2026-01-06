@@ -30,6 +30,12 @@ litwise-frontend/build
 litwise-frontend/.vercel
 litwise-frontend/*.tsbuildinfo
 litwise-frontend/next-env.d.ts
+
+# Testing
+litwise-frontend/.jest-cache/
+litwise-frontend/test-results/
+litwise-frontend/testsprite/results/
+litwise-frontend/testsprite/diffs/
 litwise-frontend/npm-debug.log*
 litwise-frontend/yarn-debug.log*
 litwise-frontend/yarn-error.log*

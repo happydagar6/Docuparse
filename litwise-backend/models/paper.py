@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from fastapi import UploadFile
 
@@ -24,10 +24,11 @@ class SearchFilters(BaseModel):
     has_equations: Optional[bool] = Field(None, description="Filter papers with equations/formulas")
     venue: Optional[str] = Field(None, description="Filter by conference or journal name")
 
-    @validator('year_to')
-    def validate_year_range(cls, v, values):
-        if v is not None and 'year_from' in values and values['year_from'] is not None:
-            if v < values['year_from']:
+    @field_validator('year_to', mode='after')
+    @classmethod
+    def validate_year_range(cls, v, info):
+        if v is not None and 'year_from' in info.data and info.data['year_from'] is not None:
+            if v < info.data['year_from']:
                 raise ValueError('year_to must be greater than or equal to year_from')
         return v
     
@@ -83,7 +84,8 @@ class SynthesisRequest(BaseModel):
     search_results: List[Dict[str, Any]] = Field(..., description="Search results to synthesize")
     max_papers: int = Field(default=20, ge=10, le=100, description="Maximum number of chunks to analyze (10-100)")
     
-    @validator('search_results')
+    @field_validator('search_results', mode='after')
+    @classmethod
     def validate_results(cls, v):
         if not v or len(v) == 0:
             raise ValueError('search_results cannot be empty')

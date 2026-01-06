@@ -57,7 +57,8 @@ class RateLimiterService:
     @staticmethod
     def _get_window_time(window_type: str = "minute") -> str:
         """Get current window time for grouping requests"""
-        now = datetime.utcnow()
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
         if window_type == "minute":
             return now.strftime("%Y%m%d%H%M")
         elif window_type == "hour":
