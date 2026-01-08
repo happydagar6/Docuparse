@@ -167,7 +167,7 @@ export function UploadForm({ onUploadSuccess }) {
             Upload Research Paper
           </CardTitle>
           <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base px-2">
-            Transform your PDF into an intelligent, searchable research companion
+            Transform your documents into an intelligent, searchable research companion
           </p>
         </motion.div>
       </CardHeader>
@@ -224,7 +224,7 @@ export function UploadForm({ onUploadSuccess }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,application/pdf"
+            accept=".pdf,.txt,.md,.markdown,.csv,.tsv"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -250,7 +250,7 @@ export function UploadForm({ onUploadSuccess }) {
                 </motion.div>
                 <div>
                   <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-                    Drop your PDF here
+                    Drop your document here
                   </p>
                   <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-3 sm:mb-4">
                     or{' '}
@@ -265,7 +265,7 @@ export function UploadForm({ onUploadSuccess }) {
                   </p>
                   <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/40 max-w-md mx-auto">
                     <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
-                      <strong>Supported:</strong> PDF files up to 35MB
+                      <strong>Supported:</strong> PDF, TXT, MD, CSV files up to 50MB
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[10px] sm:text-xs text-gray-500">
                       <div className="flex items-center gap-1">

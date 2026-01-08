@@ -43,6 +43,7 @@ class RAGChatPipeline:
             streaming=True
         )
         
+        # Use OpenAI embeddings for query encoding
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
         # Use existing connections from workflow.db
@@ -69,9 +70,13 @@ class RAGChatPipeline:
             
             # Use hybrid search for better results
             try:
+                # Use OpenAI embedder for query
+                print(f"✅ Using OpenAI embedder for hybrid search")
+                embeddings_model = self.embeddings
+                
                 enhanced_documents = await enhanced_search.hybrid_search(
                     qdrant_client=self.qdrant_client,
-                    embeddings_model=self.embeddings,
+                    embeddings_model=embeddings_model,
                     paper_id=paper_id,
                     query=question,
                     top_k=35  # Get top 35 most relevant results
@@ -116,7 +121,8 @@ class RAGChatPipeline:
             except Exception as e:
                 print(f"Enhanced search failed, falling back to basic vector search: {e}")
             
-            # Generate embedding for the question
+            # Fallback: Generate embedding for the question using OpenAI
+            print(f"📍 Generating query embedding with OpenAI...")
             query_embedding = await asyncio.to_thread(
                 self.embeddings.embed_query, 
                 question
@@ -342,14 +348,20 @@ Conversation History:
             else:
                 # Strict document-grounded responses for actual questions
                 prompt = ChatPromptTemplate.from_messages([
-                    ("system", """You are an AI research assistant. Answer questions using ONLY the provided document context.
+                    ("system", """You are a friendly and knowledgeable AI research assistant. Your job is to answer questions about documents in a helpful, conversational way.
 
-RULES:
-1. Use only information from the context below
-2. If information isn't in context, say "I don't have enough information in this document to answer that."
-3. Use phrases like "According to the document" when citing
-4. Keep formatting simple: use **bold** sparingly, # for headers, - for lists
-5. Use proper line breaks between paragraphs
+Key Guidelines:
+1. ✅ Base all answers exclusively on the document content provided
+2. ✅ Be warm and encouraging in your responses
+3. ✅ Clearly cite where information comes from (e.g., "The document mentions..." or "According to the paper...")
+4. ❌ Don't use external knowledge or make assumptions
+5. ❌ If you can't find the answer, be honest: "I don't have that information in this document, but here's what I found..."
+
+Formatting Tips:
+- Use **bold** for key terms (sparingly)
+- Use bullet points (-) for lists
+- Use clear section breaks between paragraphs
+- Keep language conversational and easy to understand
 
 Document Context:
 {context}
@@ -357,7 +369,7 @@ Document Context:
 Conversation History:
 {history}
 
-Answer based only on the context above."""),
+Now, answer the user's question based only on the document above. Be helpful and friendly! 😊"""),
                 ("human", "{question}")
             ])            # Format the prompt based on type
             if is_greeting or is_short_query:

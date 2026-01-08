@@ -46,6 +46,11 @@ import { PageLayout } from '@/components/layout/Layout';
 import { getSynthesisHistory, deleteSynthesis } from '@/lib/api';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { AlertCircle } from 'lucide-react';
+import { Calendar } from 'lucide-react';
+import { Tag } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 
 export default function SynthesisHistoryPage() {
   const router = useRouter();

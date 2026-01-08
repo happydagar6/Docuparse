@@ -22,7 +22,7 @@ import os
 import tempfile
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 # Import authentication middleware and rate limiting middleware
@@ -251,65 +251,58 @@ async def upload_paper(
     title: str = None,
     current_user: AuthUser = Depends(get_current_user)
 ):
-    """Upload and extract text and metadata from PDF (without AI processing). Requires authentication."""
+    """Upload and extract text/metadata from various document formats. Requires authentication."""
+    from workflow.document_processors.factory import process_document, ProcessorRegistry
+    
     try:
         # Generate unique ID for paper
         paper_id = str(uuid.uuid4())
 
-        # Validate file type
-        if not file.content_type or file.content_type != "application/pdf":
-            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        # Extract file extension and MIME type
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else None
+        mime_type = file.content_type
+        
+        # Validate file type using registry
+        if not ProcessorRegistry.get_processor(file_extension, mime_type):
+            supported = ProcessorRegistry.get_supported_extensions()
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type '{file_extension}'. Supported: {', '.join(supported)}"
+            )
 
-        # Read file content first
+        # Read file content
         content = await file.read()
         file_size = len(content)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
 
         try:
-            # Extract text, page info, and multi-modal content (images, tables)
-            text, page_info, multimodal_content = extract_multimodal_from_pdf(tmp_path)
-            if not text or len(text.strip()) < 10:
+            # Process document using appropriate processor
+            print(f"🚀 Processing {file_extension} file: {file.filename}")
+            processed_doc = process_document(tmp_path, file_extension, mime_type)
+            
+            # Validate extraction
+            if not processed_doc.full_text or len(processed_doc.full_text.strip()) < 10:
                 raise HTTPException(
-                    status_code=400, detail="Could not extract meaningful text from PDF"
+                    status_code=400, 
+                    detail=f"Could not extract meaningful text from {file_extension} file"
                 )
-
-            # Extract metadata using AI-powered hybrid approach (DOI + AI)
-            print("🤖 Using AI-powered metadata extraction...")
-            from services.ai_citation_service import ai_citation_service
             
-            citation_result = await ai_citation_service.generate_citation_from_pdf(tmp_path)
+            print(f"✅ Extraction complete: {len(processed_doc.full_text)} chars")
+            print(f"   File type: {processed_doc.file_type}")
+            print(f"   Sections/Pages: {len(processed_doc.page_info)}")
+            if processed_doc.processing_notes:
+                for note in processed_doc.processing_notes:
+                    print(f"   ⚠️  {note}")
             
-            # Extract metadata from citation result
-            paper_metadata = {}
-            if citation_result.get('success') and citation_result.get('metadata'):
-                metadata = citation_result['metadata']
-                paper_metadata = {
-                    'extracted_title': metadata.get('title'),
-                    'authors': [{'name': author} for author in metadata.get('authors', [])],
-                    'publication_year': metadata.get('year'),
-                    'doi': metadata.get('doi'),
-                    'journal_or_conference': metadata.get('journal'),
-                    'keywords': [],
-                    'abstract': None,
-                    'extraction_source': citation_result.get('source')  # 'crossref' or 'ai'
-                }
-                print(f"✅ AI extraction successful ({citation_result.get('source')}): {len(metadata.get('authors', []))} authors, year: {metadata.get('year')}")
-            else:
-                # If AI extraction fails, use minimal fallback
-                print("⚠️ AI extraction failed, using minimal fallback...")
-                paper_metadata = {
-                    'extracted_title': None,
-                    'authors': [],
-                    'publication_year': None,
-                    'doi': None,
-                    'journal_or_conference': None,
-                    'keywords': [],
-                    'abstract': None,
-                    'extraction_source': 'fallback'
-                }
+            # Extract variables from processed document
+            text = processed_doc.full_text
+            page_info = processed_doc.page_info
+            multimodal_content = processed_doc.multimodal_content
+            paper_metadata = processed_doc.metadata or {}
 
         finally:
             os.unlink(tmp_path)  # Cleanup
@@ -319,15 +312,16 @@ async def upload_paper(
         if file.filename:
             clean_filename = os.path.splitext(file.filename)[0]
 
-        # Use actual filename first, then extracted title as fallback
+        # Determine final title
         final_title = (
             title
             or clean_filename
+            or paper_metadata.get("title")
             or paper_metadata.get("extracted_title")
             or "Untitled Document"
         )
 
-        # Store in Supabase papers table (without AI summary)
+        # Store in Supabase papers table
         paper_data = {
             "id": paper_id,
             "title": final_title,
@@ -337,16 +331,17 @@ async def upload_paper(
             "user_id": current_user.id,  # Set authenticated user ID
             "file_size": file_size,
             "filename": file.filename,
+            "file_type": file_extension.lstrip('.') if file_extension else 'unknown',  # NEW: Store file type
             "processing_status": "uploaded",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             # Add extracted metadata (authors as JSONB, not string!)
             "authors": paper_metadata.get("authors", []),  # Store as JSONB array
             "publication_year": paper_metadata.get("publication_year"),
             "doi": paper_metadata.get("doi"),
             "keywords": paper_metadata.get("keywords", []),
-            "journal_or_conference": paper_metadata.get("journal_or_conference"),
+            "journal_or_conference": paper_metadata.get("journal") or paper_metadata.get("journal_or_conference"),
             "abstract": paper_metadata.get("abstract"),
-            # Phase 1.1: Content type flags for filtering
+            # Content type flags for filtering
             "has_images": len(multimodal_content.get("images", [])) > 0,
             "has_tables": len(multimodal_content.get("tables", [])) > 0,
             "has_equations": multimodal_content.get("has_equations", False),
@@ -370,7 +365,7 @@ async def upload_paper(
             paper_metadata_for_embedding = {
                 "id": paper_id,
                 "title": final_title,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "authors": paper_metadata.get("authors", []),
                 "publication_year": paper_metadata.get("publication_year"),
             }
@@ -444,7 +439,8 @@ async def upload_paper(
             "id": paper_id,
             "title": paper_data["title"],
             "status": "uploaded",
-            "message": "Paper uploaded successfully! Metadata extracted. You can start chatting now.",
+            "file_type": file_extension.lstrip('.') if file_extension else 'unknown',
+            "message": f"{file_extension.upper()} file uploaded successfully! You can start chatting now.",
             "metadata": {
                 "authors": paper_metadata.get("authors", []),
                 "year": paper_metadata.get("publication_year"),

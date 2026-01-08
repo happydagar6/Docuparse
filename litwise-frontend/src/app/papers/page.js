@@ -631,9 +631,8 @@ export default function PapersPage() {
                     transition={{ duration: 8, repeat: Infinity }}
                   />
                   
-                  <CardHeader className="pb-4 relative z-10">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <CardHeader className="pb-4 relative z-10 flex flex-row items-start justify-between gap-3">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                         <motion.div
                           className="bg-linear-to-br from-blue-500 to-purple-500 rounded-xl p-3 shrink-0"
                           whileHover={{ scale: 1.1, rotate: 5 }}
@@ -642,15 +641,18 @@ export default function PapersPage() {
                           <FileText className="h-6 w-6 text-white" />
                         </motion.div>
                         <div className="min-w-0 flex-1">
-                          <CardTitle className="text-xl font-bold line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                          <CardTitle className="text-xl font-bold line-clamp-2 mb-3 group-hover:text-blue-600 transition-colors">
                             {paper.title || paper.filename || 'Untitled Paper'}
                           </CardTitle>
+                          {paper.filename && (
+                            <div className="mb-3 bg-gray-100 px-3 py-2 rounded-lg w-full min-w-0 overflow-hidden">
+                              <p className="text-xs font-semibold text-gray-600 mb-1">File:</p>
+                              <p className="text-sm text-gray-700 break-all line-clamp-2" title={paper.filename}>
+                                {paper.filename}
+                              </p>
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                            {paper.filename && (
-                              <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg truncate max-w-[200px]" title={paper.filename}>
-                                📄 {paper.filename}
-                              </span>
-                            )}
                             {paper.file_size && (
                               <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">
                                 💾 {(paper.file_size / (1024 * 1024)).toFixed(2)} MB
@@ -667,7 +669,7 @@ export default function PapersPage() {
                       </div>
                       
                       {/* Enhanced Interactive Dropdown Menu */}
-                      <div className="flex gap-1 transition-all duration-300" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-1 transition-all duration-300 shrink-0 relative z-50" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <motion.div
@@ -677,7 +679,7 @@ export default function PapersPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-10 w-10 rounded-xl hover:bg-gray-100 data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600 transition-all duration-200"
+                                className="h-10 w-10 rounded-xl hover:bg-gray-100 data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600 transition-all duration-200 shrink-0"
                               >
                                 <MoreVertical className="h-5 w-5" />
                               </Button>
@@ -689,11 +691,11 @@ export default function PapersPage() {
                             sideOffset={5}
                           >
                             {/* Paper Title Header */}
-                            <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
-                              <div className="bg-linear-to-br from-blue-500 to-purple-500 rounded-lg p-1.5">
+                            <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2 min-w-0">
+                              <div className="bg-linear-to-br from-blue-500 to-purple-500 rounded-lg p-1.5 shrink-0">
                                 <FileText className="h-4 w-4 text-white" />
                               </div>
-                              <span className="truncate text-sm font-semibold max-w-[180px]">
+                              <span className="text-sm font-semibold wrap-break-word min-w-0">
                                 {paper.title || paper.filename || 'Untitled'}
                               </span>
                             </DropdownMenuLabel>
@@ -848,7 +850,6 @@ export default function PapersPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                    </div>
                   </CardHeader>
                   
                   <CardContent className="relative z-10">

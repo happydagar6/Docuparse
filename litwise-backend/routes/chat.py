@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import base64
 
@@ -12,7 +12,15 @@ from workflow.db import supabase
 from auth_middleware import get_current_user, AuthUser
 
 from services.rate_limiter_service import rate_limit_dependency
-from services.message_cache_service import cache_get, cache_set, cache_invalidate
+from services.message_cache_service import (
+    cache_get, 
+    cache_set, 
+    cache_invalidate,
+    get_cached_session_paper,
+    cache_session_paper,
+    get_cached_paper_ownership,
+    cache_paper_ownership
+)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -35,8 +43,8 @@ async def create_chat_session(paper_id: str, current_user: AuthUser = Depends(ge
             "id": str(uuid.uuid4()),
             "paper_id": paper_id,
             "title": session_title,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         result = supabase_client.table("chat_sessions").insert(session_data).execute()
@@ -78,13 +86,30 @@ async def get_paginated_chat_messages(
     try:
         supabase_client = supabase
         
-        # Verify session ownership
-        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-        if not session_result.data:
-            raise HTTPException(status_code=404, detail="Chat session not found")
+        # STEP 1: Check cached session-to-paper mapping
+        paper_id = get_cached_session_paper(session_id)
         
-        paper_check = supabase_client.table("papers").select("id").eq("id", session_result.data[0]["paper_id"]).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        if paper_id is None:
+            # Cache miss - query database for session
+            session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+            if not session_result.data:
+                raise HTTPException(status_code=404, detail="Chat session not found")
+            
+            paper_id = session_result.data[0]["paper_id"]
+            # Cache the session-to-paper mapping (15 min TTL)
+            cache_session_paper(session_id, paper_id)
+        
+        # STEP 2: Check cached paper ownership
+        owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
+        
+        if owns_paper is None:
+            # Cache miss - query database for ownership
+            paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+            owns_paper = bool(paper_check.data)
+            # Cache the ownership status (15 min TTL)
+            cache_paper_ownership(paper_id, current_user.id, owns_paper)
+        
+        if not owns_paper:
             raise HTTPException(status_code=403, detail="Access denied")
         
         # CHECK REDIS CACHE FIRST (L2 Cache)
@@ -187,15 +212,25 @@ async def get_message_count(
     try:
         supabase_client = supabase
         
-        # Verify access
-        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-        if not session_result.data:
-            raise HTTPException(status_code=404, detail="Not found")
+        # Check cached session-to-paper mapping
+        paper_id = get_cached_session_paper(session_id)
         
-        paper_check = supabase_client.table("papers").select("id").eq(
-            "id", session_result.data[0]["paper_id"]
-        ).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        if paper_id is None:
+            session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+            if not session_result.data:
+                raise HTTPException(status_code=404, detail="Not found")
+            paper_id = session_result.data[0]["paper_id"]
+            cache_session_paper(session_id, paper_id)
+        
+        # Check cached paper ownership
+        owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
+        
+        if owns_paper is None:
+            paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+            owns_paper = bool(paper_check.data)
+            cache_paper_ownership(paper_id, current_user.id, owns_paper)
+        
+        if not owns_paper:
             raise HTTPException(status_code=404, detail="Access denied")
         
         # Count-only query (very fast with index)
@@ -235,13 +270,25 @@ async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(ge
     try:
         supabase_client = supabase
         
-        # Verify session exists and user owns the paper
-        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-        if not session_result.data:
-            raise HTTPException(status_code=404, detail="Chat session not found")
+        # Check cached session-to-paper mapping
+        paper_id = get_cached_session_paper(session_id)
         
-        paper_check = supabase_client.table("papers").select("id").eq("id", session_result.data[0]["paper_id"]).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        if paper_id is None:
+            session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+            if not session_result.data:
+                raise HTTPException(status_code=404, detail="Chat session not found")
+            paper_id = session_result.data[0]["paper_id"]
+            cache_session_paper(session_id, paper_id)
+        
+        # Check cached paper ownership
+        owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
+        
+        if owns_paper is None:
+            paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+            owns_paper = bool(paper_check.data)
+            cache_paper_ownership(paper_id, current_user.id, owns_paper)
+        
+        if not owns_paper:
             raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         result = supabase_client.table("chat_messages").select("*").eq(
@@ -322,7 +369,7 @@ async def stream_chat(
             "session_id": session_id,
             "role": "user",
             "content": request.message,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
         
         supabase_client.table("chat_messages").insert(user_message_data).execute()
@@ -358,7 +405,7 @@ async def stream_chat(
                             "session_id": session_id,
                             "role": "assistant",
                             "content": f"Error: {chunk.get('error')}",
-                            "created_at": datetime.now().isoformat()
+                            "created_at": datetime.now(timezone.utc).isoformat()
                         }
                         supabase_client.table("chat_messages").insert(error_message_data).execute()
                         return
@@ -370,14 +417,14 @@ async def stream_chat(
                     "role": "assistant",
                     "content": full_response,
                     "sources": sources,
-                    "created_at": datetime.now().isoformat()
+                    "created_at": datetime.now(timezone.utc).isoformat()
                 }
                 
                 supabase_client.table("chat_messages").insert(assistant_message_data).execute()
                 
                 # Update session timestamp
                 supabase_client.table("chat_sessions").update({
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }).eq("id", session_id).execute()
                 
                 # INVALIDATE REDIS CACHE - New message added
@@ -409,13 +456,25 @@ async def delete_chat_session(session_id: str, current_user: AuthUser = Depends(
     try:
         supabase_client = supabase
         
-        # Verify session exists and user owns the paper
-        session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-        if not session_result.data:
-            raise HTTPException(status_code=404, detail="Chat session not found")
+        # Check cached session-to-paper mapping
+        paper_id = get_cached_session_paper(session_id)
         
-        paper_check = supabase_client.table("papers").select("id").eq("id", session_result.data[0]["paper_id"]).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        if paper_id is None:
+            session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
+            if not session_result.data:
+                raise HTTPException(status_code=404, detail="Chat session not found")
+            paper_id = session_result.data[0]["paper_id"]
+            cache_session_paper(session_id, paper_id)
+        
+        # Check cached paper ownership
+        owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
+        
+        if owns_paper is None:
+            paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
+            owns_paper = bool(paper_check.data)
+            cache_paper_ownership(paper_id, current_user.id, owns_paper)
+        
+        if not owns_paper:
             raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         # Delete session (cascades to messages and memory)

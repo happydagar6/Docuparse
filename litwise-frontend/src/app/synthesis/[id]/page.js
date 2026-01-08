@@ -10,7 +10,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
-  Brain, 
   Loader2, 
   AlertCircle, 
   ArrowLeft,

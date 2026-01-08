@@ -330,6 +330,113 @@ class MessageCacheService:
         except Exception:
             return False
 
+    def get_session_paper_id(self, session_id: str) -> Optional[str]:
+        """
+        Get cached session-to-paper mapping.
+        
+        Args:
+            session_id: Chat session ID
+            
+        Returns:
+            Paper ID if cached, None if not found
+        """
+        if not self.redis_client:
+            return None
+
+        try:
+            cache_key = f"auth:session:{session_id}:paper_id"
+            paper_id = self.redis_client.get(cache_key)
+            
+            if paper_id:
+                logger.info(f"✅ Auth Cache HIT: session {session_id[:8]}... -> paper {paper_id[:8]}...")
+                return paper_id
+            
+            return None
+
+        except Exception as e:
+            logger.warning(f"❌ Error retrieving session auth cache: {e}")
+            return None
+
+    def set_session_paper_id(self, session_id: str, paper_id: str, ttl_seconds: int = 900) -> bool:
+        """
+        Cache session-to-paper mapping (15 min TTL default).
+        
+        Args:
+            session_id: Chat session ID
+            paper_id: Paper ID
+            ttl_seconds: Cache expiration time (default 900s = 15min)
+            
+        Returns:
+            True if cache set successfully
+        """
+        if not self.redis_client:
+            return False
+
+        try:
+            cache_key = f"auth:session:{session_id}:paper_id"
+            self.redis_client.setex(cache_key, ttl_seconds, paper_id)
+            logger.info(f"✅ Auth Cache SET: session {session_id[:8]}... -> paper {paper_id[:8]}... (TTL: {ttl_seconds}s)")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error setting session auth cache: {e}")
+            return False
+
+    def check_paper_ownership(self, paper_id: str, user_id: str) -> Optional[bool]:
+        """
+        Get cached paper ownership status.
+        
+        Args:
+            paper_id: Paper ID
+            user_id: User ID
+            
+        Returns:
+            True if user owns paper, False if not, None if not cached
+        """
+        if not self.redis_client:
+            return None
+
+        try:
+            cache_key = f"auth:paper:{paper_id}:user:{user_id}"
+            ownership = self.redis_client.get(cache_key)
+            
+            if ownership is not None:
+                result = ownership == "1"
+                logger.info(f"✅ Auth Cache HIT: paper {paper_id[:8]}... owned by user {user_id[:8]}... = {result}")
+                return result
+            
+            return None
+
+        except Exception as e:
+            logger.warning(f"❌ Error retrieving ownership auth cache: {e}")
+            return None
+
+    def set_paper_ownership(self, paper_id: str, user_id: str, owns: bool, ttl_seconds: int = 900) -> bool:
+        """
+        Cache paper ownership status (15 min TTL default).
+        
+        Args:
+            paper_id: Paper ID
+            user_id: User ID
+            owns: Whether user owns the paper
+            ttl_seconds: Cache expiration time (default 900s = 15min)
+            
+        Returns:
+            True if cache set successfully
+        """
+        if not self.redis_client:
+            return False
+
+        try:
+            cache_key = f"auth:paper:{paper_id}:user:{user_id}"
+            self.redis_client.setex(cache_key, ttl_seconds, "1" if owns else "0")
+            logger.info(f"✅ Auth Cache SET: paper {paper_id[:8]}... owned by user {user_id[:8]}... = {owns} (TTL: {ttl_seconds}s)")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error setting ownership auth cache: {e}")
+            return False
+
 
 # Singleton instance - use this throughout the application
 message_cache_service = MessageCacheService()
@@ -371,3 +478,25 @@ def cache_invalidate(session_id: str) -> bool:
 def cache_stats() -> Dict:
     """Get cache statistics."""
     return message_cache_service.get_stats()
+
+
+# Authorization cache convenience functions
+
+def get_cached_session_paper(session_id: str) -> Optional[str]:
+    """Get cached session-to-paper mapping."""
+    return message_cache_service.get_session_paper_id(session_id)
+
+
+def cache_session_paper(session_id: str, paper_id: str, ttl_seconds: int = 900) -> bool:
+    """Cache session-to-paper mapping (15 min TTL default)."""
+    return message_cache_service.set_session_paper_id(session_id, paper_id, ttl_seconds)
+
+
+def get_cached_paper_ownership(paper_id: str, user_id: str) -> Optional[bool]:
+    """Get cached paper ownership status."""
+    return message_cache_service.check_paper_ownership(paper_id, user_id)
+
+
+def cache_paper_ownership(paper_id: str, user_id: str, owns: bool, ttl_seconds: int = 900) -> bool:
+    """Cache paper ownership status (15 min TTL default)."""
+    return message_cache_service.set_paper_ownership(paper_id, user_id, owns, ttl_seconds)

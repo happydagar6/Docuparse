@@ -393,18 +393,26 @@ const ChatInterface = ({ paper }) => {
       {/* Chat Area */}
       <Card className="flex-1 md:col-span-3 flex flex-col overflow-hidden border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-3 shrink-0 p-3 md:p-5 border-b border-slate-200/50 bg-linear-to-r from-white via-slate-50/50 to-white">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm md:text-base flex items-center gap-2 font-semibold text-slate-900">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-sm md:text-base flex items-center gap-2 font-semibold text-slate-900 min-w-0 flex-1">
               <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 shrink-0">
                 <Bot className="h-4 w-4 text-white" />
               </div>
               <span className="truncate max-w-[120px] md:max-w-none">AI Chat</span>
               {activeSessionId && (
-                <Badge variant="outline" className="ml-2 text-xs bg-blue-50 text-blue-700 border-blue-200 font-medium">
+                <Badge variant="outline" className="ml-2 text-xs bg-blue-50 text-blue-700 border-blue-200 font-medium truncate">
                   {sessions.find(s => s.id === activeSessionId)?.title}
                 </Badge>
               )}
             </CardTitle>
+            
+            {/* Paper Name - Always visible on right */}
+            <div className="hidden lg:flex items-start gap-2 shrink-0 min-w-0 flex-1">
+              <span className="text-xs text-slate-500 mt-1 shrink-0">📄</span>
+              <span className="text-xs text-slate-500 wrap-break-word line-clamp-2 min-w-0" title={paper.title || paper.filename}>
+                {paper.title || paper.filename || 'Paper'}
+              </span>
+            </div>
             
             {/* Mobile Sessions Button */}
             <div className="flex items-center gap-2 md:hidden">

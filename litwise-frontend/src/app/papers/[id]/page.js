@@ -88,7 +88,7 @@ export default function PaperPage() {
           <CardHeader className="p-4 md:p-6">
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
               <div className="space-y-3 flex-1 min-w-0">
-                <CardTitle className="text-lg sm:text-xl md:text-3xl text-slate-900 wrap-break-word">
+                <CardTitle className="text-lg sm:text-xl md:text-3xl text-slate-900 break-words">
                   {paper.title}
                 </CardTitle>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">

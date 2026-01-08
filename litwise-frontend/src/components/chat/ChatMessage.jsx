@@ -4,48 +4,11 @@ import React, { memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Bot, FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { FormattedContent } from '@/components/ui/formatted-content';
 import { Button } from '@/components/ui/button';
 
 const ChatMessage = memo(({ message, onRetry }) => {
   const isUser = message.role === 'user';
-  
-  // Handle both timestamp and created_at fields with error handling
-  let timestamp;
-  try {
-    const dateValue = message.created_at || message.timestamp;
-    if (!dateValue) {
-      timestamp = new Date(); // Fallback to current time
-    } else {
-      timestamp = new Date(dateValue);
-      // Check if the date is valid
-      if (isNaN(timestamp.getTime())) {
-        timestamp = new Date(); // Fallback to current time
-      }
-    }
-  } catch (error) {
-    console.warn('Invalid date in message:', error);
-    timestamp = new Date(); // Fallback to current time
-  }
-
-  // Format time intelligently
-  const formatMessageTime = (date) => {
-    const now = new Date();
-    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-    
-    if (diffInMinutes < 1) {
-      return 'Just now';
-    } else if (diffInMinutes < 60) {
-      return `${diffInMinutes}m ago`;
-    } else if (isToday(date)) {
-      return format(date, 'h:mm a');
-    } else if (isYesterday(date)) {
-      return `Yesterday, ${format(date, 'h:mm a')}`;
-    } else {
-      return format(date, 'MMM d, h:mm a');
-    }
-  };
 
   return (
     <div className={`flex gap-2 md:gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -118,7 +81,7 @@ const ChatMessage = memo(({ message, onRetry }) => {
           )}
         </div>
         
-        {/* Timestamp with pending state */}
+        {/* Icons for message role indicator */}
         <p className="text-xs text-slate-500 mt-1.5 md:mt-2 flex items-center gap-1.5">
           {message.isPending ? (
             <>
@@ -132,7 +95,6 @@ const ChatMessage = memo(({ message, onRetry }) => {
               ) : (
                 <Bot className="h-3 w-3" />
               )}
-              <span>{formatMessageTime(timestamp)}</span>
             </>
           )}
         </p>

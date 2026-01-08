@@ -94,28 +94,30 @@ export async function apiRequest(endpoint, options = {}) {
 
 
 /**
- * Upload PDF file to backend (without AI processing)
+ * Upload document file to backend
+ * 
+ * Supports: PDF, TXT, MD, CSV files
  * 
  * Flow:
- * 1. Create FormData with PDF file
+ * 1. Create FormData with document file
  * 2. POST to /upload endpoint
  * 3. Backend extracts text → stores in Supabase/Qdrant
- * 4. Returns paper metadata (without AI summary)
+ * 4. Returns paper metadata
  * 
- * @param {File} file - PDF file to upload
+ * @param {File} file - Document file to upload
  * @param {function} onProgress - Progress callback (optional)
  * @returns {Promise<object>} - Upload result with paper data
  */
 
 export async function uploadPaper(file, onProgress){
     const formData = new FormData(); // Create FormData
-    formData.append('file', file); // Append PDF file
+    formData.append('file', file); // Append document file
     
     // Extract clean title from filename (remove extension and clean up)
     let title = '';
     if (file.name) {
-        // Remove .pdf extension
-        title = file.name.replace(/\.pdf$/i, '');
+        // Remove file extension
+        title = file.name.replace(/\.(pdf|txt|md|markdown|csv|tsv)$/i, '');
         // Replace underscores and hyphens with spaces
         title = title.replace(/[_-]/g, ' ');
         // Clean up extra spaces
@@ -353,28 +355,47 @@ export async function deleteSynthesis(synthesisId) {
 /**
  * Utility function to validate file before upload
  * 
+ * Supports multiple document formats: PDF, TXT, MD, CSV
+ * 
  * @param {File} file - File to validate
  * @throws {Error} - If validation fails
+ * @returns {boolean} - True if valid
  */
+export function validatePDFFile(file) {
+    const maxSize = 50 * 1024 * 1024; // 50MB limit (increased for text/csv files)
+    const allowedExtensions = ['pdf', 'txt', 'md', 'markdown', 'csv', 'tsv'];
+    const allowedTypes = [
+        'application/pdf',
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'text/tab-separated-values'
+    ];
 
-
-export function validatePDFFile(file){
-    const maxSize = 35 * 1024 * 1024; // 35MB limit
-    const allowedTypes = ['application/pdf'];
-
-    if(!file){
+    if (!file) {
         throw new Error('No file selected');
     }
 
-    if(!allowedTypes.includes(file.type)){
-        throw new Error("Please select a valid PDF file");
+    // Get file extension
+    const extension = file.name.split('.').pop().toLowerCase();
+    
+    // Check extension
+    if (!allowedExtensions.includes(extension)) {
+        throw new Error(`File type not supported. Allowed: ${allowedExtensions.join(', ')}`);
     }
 
-    if(file.size > maxSize){
-        throw new Error("File size exceeds 35MB limit");
+    // Check MIME type (with fallback for extension check)
+    if (!allowedTypes.includes(file.type) && file.type !== '') {
+        console.warn(`MIME type ${file.type} not in allowlist, but extension ${extension} is valid`);
     }
+
+    // Check size
+    if (file.size > maxSize) {
+        throw new Error("File size exceeds 50MB limit");
+    }
+    
     return true;
-};
+}
 
 
 

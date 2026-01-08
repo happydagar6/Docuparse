@@ -2,12 +2,11 @@
 
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import QuizConfigForm from '@/components/quiz/QuizConfigForm';
 import { useGetUserQuizzes, usePapers } from '@/lib/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, BookOpen, Sparkles, Trophy, Clock, Target } from 'lucide-react';
+import { Loader2, BookOpen, Sparkles, Trophy, Clock, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function QuizPage() {

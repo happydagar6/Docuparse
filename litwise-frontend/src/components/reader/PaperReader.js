@@ -675,7 +675,7 @@ export function PaperReader({ paper, onBack }) {
                         <Card className="border-blue-200 bg-blue-50/30">
                           <CardContent className="p-4 sm:p-6">
                             <div className="flex items-start gap-4">
-                              <div className="flex-shrink-0">
+                              <div className="shrink-0">
                                 <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
                                   <Sparkles className="h-5 w-5 text-white" />
                                 </div>
@@ -686,7 +686,7 @@ export function PaperReader({ paper, onBack }) {
                                 </h3>
                                 {paper.authors && paper.authors.length > 0 && (
                                   <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-2">
-                                    <Users className="h-4 w-4 flex-shrink-0" />
+                                    <Users className="h-4 w-4 shrink-0" />
                                     <span>
                                       {paper.authors.map(a => a.name || a).slice(0, 3).join(', ')}
                                       {paper.authors.length > 3 && ` et al.`}
@@ -695,13 +695,13 @@ export function PaperReader({ paper, onBack }) {
                                 )}
                                 {paper.publication_year && (
                                   <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-2">
-                                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                                    <Calendar className="h-4 w-4 shrink-0" />
                                     <span>{paper.publication_year}</span>
                                   </div>
                                 )}
                                 {paper.doi && (
                                   <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 mb-4">
-                                    <Link2 className="h-4 w-4 flex-shrink-0" />
+                                    <Link2 className="h-4 w-4 shrink-0" />
                                     <a 
                                       href={`https://doi.org/${paper.doi.replace('doi:', '').replace('https://doi.org/', '').trim()}`}
                                       target="_blank"

@@ -103,6 +103,7 @@ create table public.papers (
   page_info jsonb null,
   file_size integer null default 0,
   filename text null,
+  file_type varchar(10) null default 'pdf',
   authors jsonb null default '[]'::jsonb,
   publication_year integer null,
   doi text null,
@@ -171,6 +172,8 @@ where
 create index IF not exists idx_papers_has_equations on public.papers using btree (has_equations) TABLESPACE pg_default
 where
   (has_equations = true);
+
+create index IF not exists idx_papers_file_type on public.papers using btree (file_type) TABLESPACE pg_default;
 
 create trigger update_papers_updated_at BEFORE
 update on papers for EACH row
