@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { getSupabaseClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { createContext, useContext, useEffect, useState } from 'react';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext({
   user: null,
@@ -13,14 +13,14 @@ const AuthContext = createContext({
   signOut: async () => {},
   resetPassword: async () => {},
   updatePassword: async () => {},
-})
+});
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context
+  return context;
 }
 
 export function AuthProvider({ children }) {
@@ -34,20 +34,20 @@ export function AuthProvider({ children }) {
     // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) throw error
+        if (error) throw error;
         
-        setSession(session)
-        setUser(session?.user ?? null)
+        setSession(session);
+        setUser(session?.user ?? null);
       } catch (error) {
         console.error('Error loading auth session:', error)
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    initializeAuth()
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -65,9 +65,9 @@ export function AuthProvider({ children }) {
     )
 
     return () => {
-      subscription.unsubscribe()
+      subscription.unsubscribe();
     }
-  }, [router, supabase])
+  }, [router, supabase]);
 
   const value = {
     user,
@@ -82,16 +82,16 @@ export function AuthProvider({ children }) {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
     signIn: async (email, password) => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
     signInWithGoogle: async () => {
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -100,12 +100,12 @@ export function AuthProvider({ children }) {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       })
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
     signOut: async () => {
       const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      if (error) throw error;
       router.push('/auth')
     },
     resetPassword: async (email) => {
@@ -119,10 +119,10 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       })
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

@@ -65,8 +65,9 @@ class RAGChatPipeline:
             
             print(f"Retrieving context for paper: {paper_id}, question: {question}")
             
-            # Import enhanced search system
+            # Import enhanced search system and financial RAG pipeline
             from workflow.enhanced_search import enhanced_search
+            from workflow.financial_rag_pipeline import financial_rag
             
             # Use hybrid search for better results
             try:
@@ -91,6 +92,23 @@ class RAGChatPipeline:
                     if not high_relevance_docs:
                         print("⚠️ No high-relevance results found, using best available")
                         high_relevance_docs = enhanced_documents[:3]  # Use top 3 as fallback
+                    
+                    # ✨ NEW: Process financial questions with deterministic calculations
+                    financial_results = await asyncio.to_thread(
+                        financial_rag.process_financial_question,
+                        question,
+                        high_relevance_docs
+                    )
+                    
+                    # Store financial processing results in state
+                    state["financial_calculations"] = financial_results.get("calculated_results")
+                    state["normalized_tables"] = financial_results.get("normalized_tables")
+                    state["question_metadata"] = financial_results.get("question_metadata")
+                    state["financial_context"] = financial_results.get("context_for_llm")
+                    
+                    print(f"✅ Financial processing complete. Question type: {financial_results.get('question_metadata', {}).get('type')}")
+                    if financial_results.get("calculated_results"):
+                        print(f"✅ Generated {len(financial_results['calculated_results'])} verified calculations")
                     
                     # Convert to expected format
                     context = []
@@ -555,13 +573,40 @@ Now, answer the user's question based only on the document above. Be helpful and
         try:
             print("Starting LLM streaming response")
             
-            # Prepare context (same as in generate_response) with explicit page information
-            context_text = ""
-            if state.get("context", []):
-                context_text = "\n\n".join([
-                    f"[Page {item['metadata'].get('page', 'unknown')}] {item['content']}\n(Relevance Score: {item['relevance_score']:.2f})"
-                    for item in state.get("context", [])
-                ])
+            # ✨ NEW: Use financial context if available, otherwise use standard context
+            if state.get("financial_context"):
+                print("✅ Using financial context with verified calculations")
+                context_text = state.get("financial_context")
+            elif state.get("context", []):
+                # Enhanced context formatting with chunk type awareness
+                context_parts = []
+                
+                for idx, item in enumerate(state.get("context", []), 1):
+                    metadata = item.get('metadata', {})
+                    page = metadata.get('page', 'unknown')
+                    chunk_type = metadata.get('type', 'text')
+                    content = item['content']
+                    
+                    # Structured formatting based on chunk type
+                    if chunk_type == 'table':
+                        table_type = metadata.get('table_type', 'table')
+                        context_parts.append(
+                            f"📊 [{chunk_type.upper()}] Page {page}\n"
+                            f"Type: {table_type}\n"
+                            f"{content}"
+                        )
+                    elif chunk_type == 'image':
+                        context_parts.append(
+                            f"🖼️ [IMAGE] Page {page}\n"
+                            f"{content}"
+                        )
+                    else:
+                        context_parts.append(
+                            f"📄 [TEXT] Page {page}\n"
+                            f"{content}"
+                        )
+                
+                context_text = "\n\n" + "="*80 + "\n".join(["\n"] + context_parts)
             else:
                 context_text = "No relevant context found in this document."
             
@@ -593,25 +638,98 @@ RECENT EXCHANGES (Last {len(recent_history)} messages):
                 role = "Human" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role}: {msg['content']}\n"
 
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an AI research assistant. Answer questions using ONLY the provided document context.
+            # ✨ NEW: Adapt prompt based on question type
+            question_metadata = state.get("question_metadata", {})
+            has_calculations = state.get("financial_calculations") is not None
+            
+            if has_calculations:
+                # Financial analysis prompt - LLM explains, doesn't calculate
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", """You are a senior financial analyst AI assistant. Your role is to EXPLAIN pre-computed calculations with precision and context.
 
-RULES:
-1. Use only information from the context below
-2. If information isn't in context, say "I don't have enough information in this document to answer that."
-3. Use phrases like "According to the document" when citing
-4. Keep formatting simple: use **bold** sparingly, # for headers, - for lists
-5. Use proper line breaks between paragraphs
+🎯 PRIMARY OBJECTIVE:
+Provide accurate, well-cited financial analysis using ONLY verified calculations and document data.
 
-Document Context:
+📋 CRITICAL RULES:
+1. ✅ Use EXACT values from "VERIFIED CALCULATIONS" - DO NOT recalculate
+2. ✅ ALWAYS cite sources: "(Source: [Table/Note Name], Page [X])"
+3. ✅ For margins: Express in both percentage AND basis points when showing changes
+4. ✅ Show the calculation formula once, then use the exact result
+5. ❌ NEVER perform arithmetic yourself - all math is pre-computed
+6. ❌ NEVER round or approximate provided values
+7. ❌ NEVER claim insufficient data if calculations exist
+
+🧠 CHAIN-OF-THOUGHT REASONING:
+Before answering, mentally verify:
+- [ ] Do I have the required calculations?
+- [ ] Are all values sourced from verified data?
+- [ ] Have I cited page numbers and table names?
+- [ ] Does my explanation make business sense?
+
+⚠️ HANDLING INCOMPLETE DATA:
+If data is missing for part of the question:
+- ✅ Answer what you CAN with available data
+- ✅ Explicitly state what's missing: "Data for [X] is not available in this document"
+- ❌ Don't claim "not enough information" if you have PARTIAL data
+
+📊 RESPONSE STRUCTURE:
+1. **Direct Answer**: Lead with the specific answer
+2. **Calculation Details**: Show formula with exact numbers (cite source)
+3. **Business Context**: Explain what it means (1-2 sentences)
+4. **Additional Insights**: Trends, comparisons, or implications (if relevant)
+
+💡 EXAMPLE RESPONSE:
+"The UTOP margin for Zone North America in 2024 was **22.27%** (calculated as 5,640 ÷ 25,336, Source: Note 3.1 Revenue and Results Table, Page 20). 
+
+This represents an **increase of 7.7 basis points** compared to 2023's margin of 22.20%. The improvement indicates stronger operational efficiency in the North American market, potentially driven by cost optimization initiatives or favorable product mix shifts."
+
+📄 Document Context with Verified Calculations:
 {context}
 
-Conversation History:
+💬 Conversation History:
 {history}
 
-Answer based only on the context above."""),
-                ("human", "{question}")
-            ])
+Now, apply this framework to answer the question with precision and clarity."""),
+                    ("human", "{question}")
+                ])
+            else:
+                # Enhanced standard research assistant prompt
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", """You are an expert AI research assistant specialized in document analysis and academic literature review.
+
+🎯 PRIMARY OBJECTIVE:
+Provide accurate, well-sourced answers using ONLY the document content provided below.
+
+📋 CORE PRINCIPLES:
+1. ✅ **Document Grounding**: Base ALL answers exclusively on provided context
+2. ✅ **Source Attribution**: Always cite page numbers: "(Page X)" or "(Pages X-Y)"
+3. ✅ **Honest Uncertainty**: If information isn't in the document, clearly state: "This document doesn't contain information about [topic]"
+4. ✅ **Partial Answers**: If you have SOME relevant info, share it and note what's missing
+5. ❌ **No External Knowledge**: Don't use information not in the document
+6. ❌ **No Assumptions**: Don't infer or extrapolate beyond what's explicitly stated
+
+📊 RESPONSE STRUCTURE:
+1. **Direct Answer**: Start with the most relevant information
+2. **Supporting Details**: Add context, quotes, or elaboration
+3. **Source Citations**: Include page numbers for ALL claims
+4. **Caveats** (if any): Note limitations or missing information
+
+💬 TONE & STYLE:
+- Be conversational yet professional
+- Use **bold** for key terms (sparingly)
+- Use bullet points for lists
+- Keep paragraphs short (2-3 sentences max)
+- Be helpful and encouraging
+
+📄 Document Context:
+{context}
+
+💬 Conversation History:
+{history}
+
+Answer the question using only the document above. Be precise, helpful, and always cite your sources!"""),
+                    ("human", "{question}")
+                ])
             
             formatted_prompt = prompt.format_messages(
                 context=context_text,
@@ -626,6 +744,47 @@ Answer based only on the context above."""),
                     full_response += chunk.content
                     print(f"Streaming chunk: {chunk.content}")
                     yield {"type": "token", "content": chunk.content}
+            
+            # ✨ NEW: Validate response for financial accuracy
+            if has_calculations:
+                try:
+                    print("🔍 Validating financial response accuracy...")
+                    from workflow.financial_rag_pipeline import financial_rag
+                    
+                    is_valid, issues, correction_prompt = await asyncio.to_thread(
+                        financial_rag.validate_response,
+                        full_response,
+                        state.get("financial_calculations"),
+                        question_metadata
+                    )
+                    
+                    if not is_valid:
+                        print(f"⚠️ Validation found {len(issues)} issues. Generating correction...")
+                        
+                        # Generate corrected response
+                        if correction_prompt:
+                            correction_messages = [
+                                SystemMessage(content=correction_prompt),
+                                HumanMessage(content=state.get("question", ""))
+                            ]
+                            
+                            corrected_response = ""
+                            yield {"type": "token", "content": "\n\n[Correcting calculation errors...]\n\n"}
+                            
+                            async for chunk in self.openai_llm.astream(correction_messages):
+                                if chunk.content:
+                                    corrected_response += chunk.content
+                                    yield {"type": "token", "content": chunk.content}
+                            
+                            full_response = corrected_response
+                            print("✅ Response corrected with verified calculations")
+                    else:
+                        print("✅ Response validation passed")
+                
+                except Exception as validation_error:
+                    # Don't let validation errors break the response
+                    print(f"⚠️ Validation failed but continuing: {validation_error}")
+                    logger.error(f"Validation error: {validation_error}", exc_info=True)
             
             # Save complete message to state for memory saving
             state["full_response"] = full_response

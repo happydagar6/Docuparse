@@ -139,11 +139,12 @@ class CSVProcessor(BaseDocumentProcessor):
         
         return page_info
     
-    def extract_multimodal(self, file_path: str) -> Dict:
+    def extract_multimodal(self, file_path: str, page_info: List[Dict] = None) -> Dict:
         """Extract table structure as multimodal content.
         
         Args:
             file_path: Path to CSV file
+            page_info: Ignored for CSV files
         
         Returns:
             Dict with table structure

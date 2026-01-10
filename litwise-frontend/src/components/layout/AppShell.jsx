@@ -1,14 +1,19 @@
-'use client'
+"use client";
 
-import { usePathname } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
-import { RootLayout } from './Layout'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { Loader2 } from 'lucide-react'
-import { Suspense } from 'react'
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { RootLayout } from "./Layout";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { Loader2 } from "lucide-react";
+import { Suspense } from "react";
 
 // Routes that should NOT have the app shell (navigation, sidebar, etc.)
-const authRoutes = ['/auth', '/auth/signup', '/auth/callback', '/auth/reset-password']
+const authRoutes = [
+  "/auth",
+  "/auth/signup",
+  "/auth/callback",
+  "/auth/reset-password",
+];
 
 // Loading fallback for content while shell loads
 function ShellLoadingFallback() {
@@ -24,37 +29,31 @@ function ShellLoadingFallback() {
         <p className="text-gray-500">Loading your workspace...</p>
       </div>
     </div>
-  )
+  );
 }
 
 export function AppShell({ children }) {
-  const { user, loading } = useAuth()
-  const pathname = usePathname()
-  
-  const isAuthRoute = authRoutes.some(route => pathname?.startsWith(route))
-  
+  const { user, loading } = useAuth();
+  const pathname = usePathname();
+
+  const isAuthRoute = authRoutes.some((route) => pathname?.startsWith(route));
+
   // Show loading screen while checking auth
   if (loading) {
-    return <ShellLoadingFallback />
+    return <ShellLoadingFallback />;
   }
-  
+
   // For auth routes (login, signup, etc.) - render without app shell
   if (isAuthRoute) {
-    return (
-      <ProtectedRoute>
-        {children}
-      </ProtectedRoute>
-    )
+    return <ProtectedRoute>{children}</ProtectedRoute>;
   }
-  
+
   // For protected app routes - render with full app shell and suspense boundary
   return (
     <ProtectedRoute>
       <Suspense fallback={null}>
-        <RootLayout>
-          {children}
-        </RootLayout>
+        <RootLayout>{children}</RootLayout>
       </Suspense>
     </ProtectedRoute>
-  )
+  );
 }

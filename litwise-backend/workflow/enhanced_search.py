@@ -315,8 +315,18 @@ class EnhancedSearchSystem:
         return final_results
     
     async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]], 
-                           top_k: int = 25) -> List[Tuple[Dict, float]]:
-        """Simple re-ranking based on query term overlap and diversity"""
+                           top_k: int = 25, boost_tables: bool = False) -> List[Tuple[Dict, float]]:
+        """
+        Simple re-ranking based on query term overlap and diversity
+        
+        ✅ FIX: Add table boosting for financial queries
+        
+        Args:
+            query: User query
+            results: Combined search results
+            top_k: Number of results to return
+            boost_tables: Whether to boost table chunks (for financial queries)
+        """
         if not results:
             return []
         
@@ -345,7 +355,22 @@ class EnhancedSearchSystem:
                 # Calculate content quality score (longer content often better)
                 content_quality = min(len(content) / 1000, 1.0) * 0.1  # 10% bonus max
                 
-                final_score = score + overlap_bonus + content_quality
+                # ✅ FIX: Boost table chunks for financial queries
+                table_bonus = 0.0
+                if boost_tables:
+                    metadata = doc.get('metadata', {})
+                    content_type = metadata.get('type', '')
+                    
+                    # Strong boost for table chunks
+                    if content_type == 'table':
+                        table_bonus = 0.3  # 30% bonus for tables
+                    
+                    # Additional boost for financial table types
+                    table_type = metadata.get('table_type', '')
+                    if table_type in ['balance_sheet', 'income_statement', 'cash_flow', 'segment_report']:
+                        table_bonus += 0.2  # Extra 20% for financial statements
+                
+                final_score = score + overlap_bonus + content_quality + table_bonus
                 enhanced_results.append((doc, final_score))
             
             # Sort by enhanced score
@@ -361,22 +386,31 @@ class EnhancedSearchSystem:
     async def hybrid_search(self, qdrant_client, embeddings_model, paper_id: Optional[str], 
                           query: str, top_k: int = 25, use_query_expansion: bool = True) -> List[Dict]:
         """
-        Complete hybrid search pipeline:
+        Complete hybrid search pipeline with smart top_k for financial queries:
         1. Query expansion (acronyms + synonyms)
         2. Vector + BM25 search (retrieve ~50 candidates)
         3. Simple re-ranking (narrow to top_k)
+        
+        ✅ FIX: Increase top_k for financial/table queries to prevent data loss
         
         Args:
             qdrant_client: Qdrant client instance
             embeddings_model: Model for generating embeddings
             paper_id: Paper ID to search within (None for cross-paper search)
             query: Search query
-            top_k: Number of final results
+            top_k: Number of final results (will be adjusted for financial queries)
             use_query_expansion: Whether to expand query with synonyms/acronyms
             
         Returns:
             List of enhanced documents with relevance scores
         """
+        # ✅ FIX: Detect financial queries and increase top_k
+        is_financial_query = self._is_financial_query(query)
+        if is_financial_query:
+            original_top_k = top_k
+            top_k = max(50, top_k * 2)  # At least 50 results for financial queries
+            print(f"💰 Financial query detected! Increasing top_k: {original_top_k} → {top_k}")
+        
         search_type = "cross-paper" if paper_id is None else f"paper-specific ({paper_id})"
         print(f"🔍 Starting hybrid search ({search_type}) for: '{query}'")
         
@@ -384,7 +418,7 @@ class EnhancedSearchSystem:
         expanded_query = self.expand_query(query) if use_query_expansion else query
         
         # Step 2: Retrieve larger candidate set
-        candidate_size = 50
+        candidate_size = 50 if not is_financial_query else 75  # More candidates for financial
         
         # Parallel vector and BM25 search
         vector_task = self.vector_search(
@@ -411,8 +445,8 @@ class EnhancedSearchSystem:
         combined_results = self.combine_search_results(vector_results, bm25_results, alpha=0.7)
         print(f"🔗 Combined: {len(combined_results)} unique results")
         
-        # Step 4: Re-rank with simple overlap scoring
-        final_results = await self.simple_rerank(query, combined_results, top_k)
+        # Step 4: Re-rank with simple overlap scoring + table boosting
+        final_results = await self.simple_rerank(query, combined_results, top_k, boost_tables=is_financial_query)
         
         # Step 5: Add diversity scoring for cross-paper search
         if paper_id is None and len(final_results) > 0:
@@ -428,8 +462,28 @@ class EnhancedSearchSystem:
             doc_copy['search_method'] = 'hybrid+rerank' if bm25_results else 'vector+rerank'
             enhanced_documents.append(doc_copy)
         
-        print(f"✅ Hybrid search complete: {len(enhanced_documents)} final results")
+        print(f"✅ Enhanced hybrid search found {len(enhanced_documents)} relevant results")
         return enhanced_documents
+    
+    def _is_financial_query(self, query: str) -> bool:
+        """
+        Detect if query is asking for financial/numeric data
+        
+        ✅ FIX: Identify queries that need comprehensive table retrieval
+        """
+        query_lower = query.lower()
+        
+        financial_keywords = [
+            'margin', 'revenue', 'profit', 'sales', 'utop', 'ebitda', 'ebit',
+            'cash flow', 'capex', 'opex', 'balance sheet', 'assets', 'liabilities',
+            'equity', 'debt', 'ratio', 'calculate', 'compare', 'growth',
+            'change', 'delta', 'difference', 'reconcil', 'movement',
+            'yoy', 'year-over-year', 'bps', 'basis points', 'percentage',
+            'increase', 'decrease', 'total', 'net', 'gross',
+            'financial', 'accounting', 'fiscal', 'quarter', 'annual'
+        ]
+        
+        return any(kw in query_lower for kw in financial_keywords)
     
     def _apply_diversity_scoring(self, results: List[Tuple[Dict, float]], 
                                  top_k: int) -> List[Tuple[Dict, float]]:

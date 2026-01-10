@@ -91,7 +91,7 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, list[dict]]:
 
 def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
     """
-    Extract text AND multi-modal content from PDF
+    Extract text AND multi-modal content from PDF with layout-aware processing
     
     Returns:
         tuple: (full_text, page_info_list, multimodal_content)
@@ -101,12 +101,12 @@ def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
     """
     print(f"🚀 Starting full multi-modal extraction from: {file_path}")
     
-    # Exrtact text (existing function)
+    # Extract text (existing function)
     full_text, page_info = extract_text_from_pdf(file_path)
     
-    # Extact multi-modal content
+    # Extract multi-modal content with page information for layout awareness
     from workflow.multimodal_extractor import multimodal_extractor
-    multimodal_content = multimodal_extractor.extract_all(file_path)
+    multimodal_content = multimodal_extractor.extract_all(file_path, page_info)  # ✨ Pass page_info
     
     print(f"✅ Multi-modal extraction complete")
     print(f"   Text: {len(full_text)} chars")
@@ -290,9 +290,13 @@ def find_chunk_page(chunk_start_pos: int, chunk_end_pos: int, page_info: list[di
     
     return closest_page
 
-def chunk_text(text: str, chunk_size: int = 1800, chunk_overlap: int = 350) -> list[tuple[str, int, int]]:
+def chunk_text(text: str, chunk_size: int = 3000, chunk_overlap: int = 400) -> list[tuple[str, int, int]]:
     """
     Split text into chunks with position tracking.
+    
+    Optimized for financial documents:
+    - chunk_size=3000 (~750 tokens) - larger for complete financial context
+    - chunk_overlap=400 (~100 tokens, 13% overlap) - reduced waste vs 19%
     
     Returns:
         List of tuples: (chunk_text, start_position, end_position)
@@ -301,7 +305,7 @@ def chunk_text(text: str, chunk_size: int = 1800, chunk_overlap: int = 350) -> l
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         length_function=len,
-        separators=["\n\n", "\n", " ", ""],
+        separators=["\n\n", "\n", ". ", " ", ""],  # Added period-space for better sentence breaks
     )
     
     # Get chunks with metadata (includes start positions)
@@ -707,26 +711,35 @@ def store_multimodal_embeddings(
     if tables:
         print(f"📊 Step 3: Processing {len(tables)} tables...")
         
-        # Generate embeddings for table text representations
-        table_texts = [t['text_representation'] for t in tables]
+        # Use markdown table format for better LLM understanding
+        # Fallback to text_representation if markdown not available
+        table_texts = [
+            t.get('markdown_table') or t['text_representation'] 
+            for t in tables
+        ]
         print(f"🔄 Generating embeddings for {len(table_texts)} tables...")
         table_embeddings = generate_embeddings_batch(table_texts, batch_size=100)
         
         # Create table points
         for i, (table, vector) in enumerate(zip(tables, table_embeddings)):
+            # Use markdown table for content if available (better for LLM)
+            table_content = table.get('markdown_table') or table['text_representation']
+            
             chunk_metadata = metadata.copy()
             chunk_metadata.update({
-                "content": table['text_representation'],
+                "content": table_content,  # ✅ Use markdown table
                 "chunk_id": f"table_{i}",
                 "type": "table",  # IMPORTANT: Mark as table
-                "page": table['page'],
+                "page": table.get('page', 1),
                 "paper_id": paper_id,
                 "table_hash": table['hash'],
                 "table_rows": table['row_count'],
                 "table_cols": table['col_count'],
-                # Store structured data
+                # Store structured data for precise retrieval
                 "table_headers": table['headers'],
-                "table_rows_data": table['rows'][:20]  # Limit stored rows
+                "table_rows_data": table['rows'],  # ✅ Store ALL rows (not limited)
+                "table_markdown": table.get('markdown_table', ''),  # ✅ Full markdown
+                "table_format": "markdown" if 'markdown_table' in table else "text"
             })
             
             points.append(PointStruct(
@@ -736,13 +749,13 @@ def store_multimodal_embeddings(
             ))
             
             documents_for_bm25.append({
-                'content': table['text_representation'],
+                'content': table_content,  # ✅ Use structured content
                 'metadata': chunk_metadata,
                 'chunk_id': f"table_{i}",
-                'page': table['page']
+                'page': table.get('page', 1)
             })
         
-        print(f"✅ Prepared {len(tables)} table chunks")
+        print(f"✅ Prepared {len(tables)} table chunks with structured markdown format")
     
     # Step 4: Upsert all points to Qdrant in batches to avoid timeout
     print(f"💾 Step 4: Storing {len(points)} total chunks (text + images + tables) to Qdrant...")

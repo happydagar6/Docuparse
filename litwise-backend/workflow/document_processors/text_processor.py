@@ -122,11 +122,12 @@ class TextProcessor(BaseDocumentProcessor):
         
         return sections
     
-    def extract_multimodal(self, file_path: str) -> Dict:
+    def extract_multimodal(self, file_path: str, page_info: List[Dict] = None) -> Dict:
         """Text files don't have multimodal content.
         
         Args:
             file_path: Path to text file
+            page_info: Ignored for text files
         
         Returns:
             Dict with empty images/tables lists

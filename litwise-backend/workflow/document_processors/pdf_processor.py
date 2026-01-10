@@ -76,11 +76,12 @@ class PDFProcessor(BaseDocumentProcessor):
             self.logger.error(f"PDF extraction failed: {e}")
             raise
     
-    def extract_multimodal(self, file_path: str) -> Dict:
-        """Extract images and tables using existing multimodal_extractor.
+    def extract_multimodal(self, file_path: str, page_info: List[Dict] = None) -> Dict:
+        """Extract images and tables using existing multimodal_extractor with layout awareness.
         
         Args:
             file_path: Path to PDF file
+            page_info: Page information for layout-aware processing (page-span detection)
         
         Returns:
             Dict with 'images', 'tables', 'has_equations' keys
@@ -90,8 +91,8 @@ class PDFProcessor(BaseDocumentProcessor):
         """
         from ..multimodal_extractor import multimodal_extractor
         
-        self.logger.info("Extracting multimodal content (images, tables)")
-        multimodal_content = multimodal_extractor.extract_all(file_path)
+        self.logger.info("Extracting multimodal content (images, tables) with layout awareness")
+        multimodal_content = multimodal_extractor.extract_all(file_path, page_info)
         
         self.logger.info(
             f"Multimodal extraction complete - "
@@ -102,7 +103,7 @@ class PDFProcessor(BaseDocumentProcessor):
         return multimodal_content
     
     def extract_metadata(self, file_path: str) -> Dict:
-        """Extract PDF metadata using AI-powered citation service.
+        """Extract PDF metadata using PyPDF2 (synchronous fallback).
         
         Args:
             file_path: Path to PDF file
@@ -114,30 +115,42 @@ class PDFProcessor(BaseDocumentProcessor):
             Exception: If metadata extraction fails
         """
         try:
-            from services.ai_citation_service import ai_citation_service
+            import PyPDF2
             
-            self.logger.info("Extracting metadata using AI citation service")
+            self.logger.info("Extracting metadata from PDF")
             
-            # Use existing AI-powered extraction
-            citation_result = ai_citation_service.generate_citation_from_pdf(file_path)
+            metadata = {
+                'title': None,
+                'authors': [],
+                'publication_year': None,
+                'doi': None,
+                'journal': None,
+                'abstract': None,
+                'keywords': [],
+                'extraction_source': 'pypdf2'
+            }
             
-            if citation_result.get('success') and citation_result.get('metadata'):
-                metadata = citation_result['metadata']
-                return {
-                    'title': metadata.get('title'),
-                    'authors': [{'name': author} for author in metadata.get('authors', [])],
-                    'publication_year': metadata.get('year'),
-                    'doi': metadata.get('doi'),
-                    'journal': metadata.get('journal'),
-                    'abstract': metadata.get('abstract'),
-                    'keywords': metadata.get('keywords', []),
-                    'extraction_source': citation_result.get('source', 'ai_citation')
-                }
+            # Extract metadata from PDF
+            try:
+                with open(file_path, 'rb') as pdf_file:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    
+                    # Extract PDF metadata if available
+                    if pdf_reader.metadata:
+                        pdf_meta = pdf_reader.metadata
+                        metadata['title'] = pdf_meta.get('/Title') or pdf_meta.get('Title')
+                        metadata['authors'] = [{'name': pdf_meta.get('/Author') or pdf_meta.get('Author')}] if (pdf_meta.get('/Author') or pdf_meta.get('Author')) else []
+                        metadata['keywords'] = (pdf_meta.get('/Keywords') or pdf_meta.get('Keywords') or '').split(',') if (pdf_meta.get('/Keywords') or pdf_meta.get('Keywords')) else []
+                    
+                    # Note: ⚠️ For full AI-powered extraction, use async api in RAG pipeline
+                    self.logger.debug(f"Extracted {len(pdf_reader.pages)} pages from PDF")
             
-            self.logger.warning("AI citation extraction returned no metadata")
-            return {}
+            except Exception as e:
+                self.logger.debug(f"PyPDF2 extraction failed: {e}")
+            
+            return metadata
         
         except Exception as e:
-            self.logger.warning(f"Metadata extraction failed: {e}")
-            # Return empty dict - not critical for processing
+            self.logger.debug(f"Metadata extraction failed: {e} - continuing without metadata")
+            # Return empty dict - metadata is optional
             return {}

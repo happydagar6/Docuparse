@@ -1,8 +1,8 @@
 /**
  * Search Form Component
- * 
+ *
  * Provides semantic search interface for uploaded papers.
- * 
+ *
  * COMPONENT LOGIC FLOW:
  * 1. User enters search query
  * 2. User clicks "Search Papers" button (manual trigger)
@@ -10,7 +10,7 @@
  * 4. Backend generates embeddings → queries Qdrant → returns relevant papers
  * 5. Results displayed with similarity scores
  * 6. User selects papers and manually triggers synthesis
- * 
+ *
  * FEATURES:
  * - Manual search (button click required)
  * - Paper selection with checkboxes
@@ -21,47 +21,53 @@
  * - Empty states and loading indicators
  */
 
-'use client';
+"use client";
 
-import { useState, useActionState, useOptimistic, useCallback, startTransition } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  FileText, 
-  Clock, 
-  Settings, 
-  X, 
+import {
+  useState,
+  useActionState,
+  useOptimistic,
+  useCallback,
+  startTransition,
+} from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  FileText,
+  Clock,
+  Settings,
+  X,
   Loader2,
   AlertCircle,
-  Brain  // Phase 1: Synthesis icon
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Slider } from '@/components/ui/slider';
-import { FormattedSummary } from '@/components/ui/formatted-content';
-import { useSearchPapers, useSynthesizeResults } from '@/lib/react-query';  // Phase 1: Add synthesis hook
-import { useSearchStore } from '@/lib/stores';
-import { SynthesisPanel } from '@/components/search/SynthesisPanel';  // Phase 1: Import synthesis panel
+  Brain, // Phase 1: Synthesis icon
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
+import { FormattedSummary } from "@/components/ui/formatted-content";
+import { useSearchPapers, useSynthesizeResults } from "@/lib/react-query"; // Phase 1: Add synthesis hook
+import { useSearchStore } from "@/lib/stores";
+import { SynthesisPanel } from "@/components/search/SynthesisPanel"; // Phase 1: Import synthesis panel
 
 export function SearchForm({ onResultClick }) {
   // Local state for search input
-  const [searchInput, setSearchInput] = useState('');
-  
+  const [searchInput, setSearchInput] = useState("");
+
   // Phase 2 Stage 1: NL parsing state
   const [useNLParsing, setUseNLParsing] = useState(true);
   const [parsedQuery, setParsedQuery] = useState(null);
-  
+
   // Phase 1: Synthesis state
   const [synthesis, setSynthesis] = useState(null);
   const [showSynthesis, setShowSynthesis] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState([]);
   const [synthesisLimit, setSynthesisLimit] = useState(20);
-  
+
   // Advanced filter state
   const [filters, setFilters] = useState({
-    author: '',
+    author: "",
     yearFrom: null,
     yearTo: null,
     keywords: [],
@@ -70,9 +76,9 @@ export function SearchForm({ onResultClick }) {
     hasTables: false,
     hasEquations: false,
     // Phase 1.2: Venue filter
-    venue: ''
+    venue: "",
   });
-  
+
   // Zustand store for search state
   const {
     query,
@@ -83,7 +89,7 @@ export function SearchForm({ onResultClick }) {
     showAdvancedSearch,
     setQuery,
     clearSearch,
-    toggleAdvancedSearch
+    toggleAdvancedSearch,
   } = useSearchStore();
 
   // React 19.2: useOptimistic for immediate UI feedback
@@ -92,24 +98,30 @@ export function SearchForm({ onResultClick }) {
     searchResults || [],
     (state, newResult) => [...state, newResult]
   );
-  
+
   // React Query mutation for search
   const searchMutation = useSearchPapers();
-  
+
   // Phase 1: React Query mutation for synthesis
   const synthesisMutation = useSynthesizeResults();
 
   // React 19.2: useActionState for form handling
   const [searchState, searchAction, isPending] = useActionState(
     async (prevState, formData) => {
-      const searchQuery = formData.get('query') || searchInput;
+      const searchQuery = formData.get("query") || searchInput;
       if (!searchQuery.trim()) {
-        return { error: 'Please enter a search query' };
+        return { error: "Please enter a search query" };
       }
 
       // Validate year range if provided
-      if (filters.yearFrom && filters.yearTo && filters.yearFrom > filters.yearTo) {
-        return { error: 'Year range "From" must be less than or equal to "To"' };
+      if (
+        filters.yearFrom &&
+        filters.yearTo &&
+        filters.yearFrom > filters.yearTo
+      ) {
+        return {
+          error: 'Year range "From" must be less than or equal to "To"',
+        };
       }
 
       try {
@@ -117,7 +129,7 @@ export function SearchForm({ onResultClick }) {
         startTransition(() => {
           setQuery(searchQuery);
         });
-        
+
         // Build filters object for API
         const searchFilters = {};
         if (filters.author?.trim()) {
@@ -146,30 +158,31 @@ export function SearchForm({ onResultClick }) {
         if (filters.venue?.trim()) {
           searchFilters.venue = filters.venue.trim();
         }
-        
+
         // Execute search mutation with filters + NL parsing flag
-        const result = await searchMutation.mutateAsync({ 
+        const result = await searchMutation.mutateAsync({
           query: searchQuery,
-          filters: Object.keys(searchFilters).length > 0 ? searchFilters : undefined,
-          use_nl_parsing: useNLParsing,  // Phase 2 Stage 1
-          debug: process.env.NODE_ENV === 'development' 
+          filters:
+            Object.keys(searchFilters).length > 0 ? searchFilters : undefined,
+          use_nl_parsing: useNLParsing, // Phase 2 Stage 1
+          debug: process.env.NODE_ENV === "development",
         });
-        
+
         // Phase 2 Stage 1: Extract parsed query info from response
         let searchResults = result;
-        if (result && typeof result === 'object' && result.parsed_query) {
+        if (result && typeof result === "object" && result.parsed_query) {
           setParsedQuery(result.parsed_query);
           searchResults = result.results || [];
         } else {
           setParsedQuery(null);
           searchResults = Array.isArray(result) ? result : [];
         }
-        
+
         // Phase 1: Auto-select all papers after search (manual synthesis trigger)
         if (searchResults && searchResults.length > 0) {
-          const allIds = searchResults.map((r, index) => 
-            r.chunk_id || r.id || `result-${index}`
-          ).filter(Boolean);
+          const allIds = searchResults
+            .map((r, index) => r.chunk_id || r.id || `result-${index}`)
+            .filter(Boolean);
           setSelectedPapers(allIds);
           setSynthesis(null); // Clear previous synthesis
         } else {
@@ -177,16 +190,16 @@ export function SearchForm({ onResultClick }) {
           setSynthesis(null);
         }
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           query: searchQuery,
           resultCount: searchResults?.length || 0,
-          filtersApplied: Object.keys(searchFilters).length > 0
+          filtersApplied: Object.keys(searchFilters).length > 0,
         };
       } catch (error) {
-        console.error('Search failed:', error);
-        return { 
-          error: error.message || 'Search failed. Please try again.' 
+        console.error("Search failed:", error);
+        return {
+          error: error.message || "Search failed. Please try again.",
         };
       }
     },
@@ -212,7 +225,7 @@ export function SearchForm({ onResultClick }) {
    * Clear search and reset form
    */
   const handleClear = () => {
-    setSearchInput('');
+    setSearchInput("");
     clearSearch();
     setSelectedPapers([]);
     setSynthesis(null);
@@ -222,9 +235,9 @@ export function SearchForm({ onResultClick }) {
    * Toggle paper selection
    */
   const togglePaperSelection = (paperId) => {
-    setSelectedPapers(prev => {
+    setSelectedPapers((prev) => {
       if (prev.includes(paperId)) {
-        return prev.filter(id => id !== paperId);
+        return prev.filter((id) => id !== paperId);
       } else {
         return [...prev, paperId];
       }
@@ -235,9 +248,9 @@ export function SearchForm({ onResultClick }) {
    * Select all papers
    */
   const selectAllPapers = () => {
-    const allIds = optimisticResults.map((r, index) => 
-      r.chunk_id || r.id || `result-${index}`
-    ).filter(Boolean);
+    const allIds = optimisticResults
+      .map((r, index) => r.chunk_id || r.id || `result-${index}`)
+      .filter(Boolean);
     setSelectedPapers(allIds);
   };
 
@@ -263,19 +276,21 @@ export function SearchForm({ onResultClick }) {
 
       // Apply synthesis limit (slice to max allowed chunks)
       const limitedResults = selectedResults.slice(0, synthesisLimit);
-      
-      console.log(`📊 Synthesis: Selected ${selectedResults.length} chunks, limited to ${limitedResults.length} by slider`);
+
+      console.log(
+        `📊 Synthesis: Selected ${selectedResults.length} chunks, limited to ${limitedResults.length} by slider`
+      );
 
       const synthesisData = await synthesisMutation.mutateAsync({
         query: query || searchInput,
         searchResults: limitedResults,
-        maxPapers: synthesisLimit  // Pass limit to backend
+        maxPapers: synthesisLimit, // Pass limit to backend
       });
-      
+
       setSynthesis(synthesisData);
       setShowSynthesis(true);
     } catch (error) {
-      console.error('Manual synthesis failed:', error);
+      console.error("Manual synthesis failed:", error);
     }
   };
 
@@ -283,10 +298,10 @@ export function SearchForm({ onResultClick }) {
    * Calculate relevance score color
    */
   const getScoreColor = (score) => {
-    if (score > 0.8) return 'text-green-600';
-    if (score > 0.6) return 'text-blue-600';
-    if (score > 0.4) return 'text-yellow-600';
-    return 'text-gray-600';
+    if (score > 0.8) return "text-green-600";
+    if (score > 0.6) return "text-blue-600";
+    if (score > 0.4) return "text-yellow-600";
+    return "text-gray-600";
   };
 
   return (
@@ -299,7 +314,7 @@ export function SearchForm({ onResultClick }) {
             Semantic Search
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent>
           <form action={searchAction} data-search-form className="space-y-4">
             {/* Main Search Input */}
@@ -313,7 +328,7 @@ export function SearchForm({ onResultClick }) {
                 onChange={handleInputChange}
                 className="pl-10 pr-20"
               />
-              
+
               {/* Action buttons */}
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
                 {searchInput && (
@@ -327,7 +342,7 @@ export function SearchForm({ onResultClick }) {
                     <X className="h-3 w-3" />
                   </Button>
                 )}
-                
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -339,13 +354,13 @@ export function SearchForm({ onResultClick }) {
                 </Button>
               </div>
             </div>
-            
+
             {/* Advanced Search */}
             <AnimatePresence>
               {showAdvancedSearch && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
+                  animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                   className="p-4 bg-gray-50 rounded-lg space-y-3"
                 >
@@ -355,11 +370,16 @@ export function SearchForm({ onResultClick }) {
                       <label className="block text-xs text-gray-600 mb-1">
                         Author
                       </label>
-                      <Input 
-                        placeholder="Author name" 
+                      <Input
+                        placeholder="Author name"
                         size="sm"
                         value={filters.author}
-                        onChange={(e) => setFilters(prev => ({ ...prev, author: e.target.value }))}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            author: e.target.value,
+                          }))
+                        }
                       />
                     </div>
                     <div>
@@ -367,40 +387,59 @@ export function SearchForm({ onResultClick }) {
                         Year Range
                       </label>
                       <div className="flex gap-2">
-                        <Input 
-                          placeholder="From" 
+                        <Input
+                          placeholder="From"
                           size="sm"
                           type="number"
                           min="1900"
                           max="2100"
-                          value={filters.yearFrom || ''}
-                          onChange={(e) => setFilters(prev => ({ ...prev, yearFrom: e.target.value ? parseInt(e.target.value) : null }))}
+                          value={filters.yearFrom || ""}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              yearFrom: e.target.value
+                                ? parseInt(e.target.value)
+                                : null,
+                            }))
+                          }
                         />
-                        <Input 
-                          placeholder="To" 
+                        <Input
+                          placeholder="To"
                           size="sm"
                           type="number"
                           min="1900"
                           max="2100"
-                          value={filters.yearTo || ''}
-                          onChange={(e) => setFilters(prev => ({ ...prev, yearTo: e.target.value ? parseInt(e.target.value) : null }))}
+                          value={filters.yearTo || ""}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              yearTo: e.target.value
+                                ? parseInt(e.target.value)
+                                : null,
+                            }))
+                          }
                         />
                       </div>
                     </div>
-                    
+
                     {/* Phase 1.2: Venue Filter */}
                     <div className="md:col-span-2">
                       <label className="block text-xs text-gray-600 mb-1">
                         Conference or Journal
                       </label>
-                      <Input 
-                        placeholder="e.g., NeurIPS, ICML, ICLR, CVPR, ACL, Nature..." 
+                      <Input
+                        placeholder="e.g., NeurIPS, ICML, ICLR, CVPR, ACL, Nature..."
                         size="sm"
                         value={filters.venue}
-                        onChange={(e) => setFilters(prev => ({ ...prev, venue: e.target.value }))}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            venue: e.target.value,
+                          }))
+                        }
                       />
                     </div>
-                    
+
                     {/* Phase 1.1: Content Filters */}
                     <div className="md:col-span-2">
                       <label className="block text-xs text-gray-600 mb-2">
@@ -408,23 +447,38 @@ export function SearchForm({ onResultClick }) {
                       </label>
                       <div className="flex flex-wrap gap-4">
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox 
+                          <Checkbox
                             checked={filters.hasImages}
-                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasImages: checked }))}
+                            onCheckedChange={(checked) =>
+                              setFilters((prev) => ({
+                                ...prev,
+                                hasImages: checked,
+                              }))
+                            }
                           />
                           <span className="text-sm">Has Images</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox 
+                          <Checkbox
                             checked={filters.hasTables}
-                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasTables: checked }))}
+                            onCheckedChange={(checked) =>
+                              setFilters((prev) => ({
+                                ...prev,
+                                hasTables: checked,
+                              }))
+                            }
                           />
                           <span className="text-sm">Has Tables</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox 
+                          <Checkbox
                             checked={filters.hasEquations}
-                            onCheckedChange={(checked) => setFilters(prev => ({ ...prev, hasEquations: checked }))}
+                            onCheckedChange={(checked) =>
+                              setFilters((prev) => ({
+                                ...prev,
+                                hasEquations: checked,
+                              }))
+                            }
                           />
                           <span className="text-sm">Has Equations</span>
                         </label>
@@ -432,23 +486,40 @@ export function SearchForm({ onResultClick }) {
                     </div>
                   </div>
                   {/* Clear filters button */}
-                  {(filters.author || filters.yearFrom || filters.yearTo || filters.venue || filters.hasImages || filters.hasTables || filters.hasEquations) && (
+                  {(filters.author ||
+                    filters.yearFrom ||
+                    filters.yearTo ||
+                    filters.venue ||
+                    filters.hasImages ||
+                    filters.hasTables ||
+                    filters.hasEquations) && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setFilters({ author: '', yearFrom: null, yearTo: null, keywords: [], hasImages: false, hasTables: false, hasEquations: false, venue: '' })}
+                      onClick={() =>
+                        setFilters({
+                          author: "",
+                          yearFrom: null,
+                          yearTo: null,
+                          keywords: [],
+                          hasImages: false,
+                          hasTables: false,
+                          hasEquations: false,
+                          venue: "",
+                        })
+                      }
                       className="text-xs"
                     >
                       <X className="h-3 w-3 mr-1" />
                       Clear Filters
                     </Button>
                   )}
-                  
+
                   {/* Phase 2 Stage 1: NL Parsing Toggle */}
                   <div className="pt-2 border-t">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox 
+                      <Checkbox
                         checked={useNLParsing}
                         onCheckedChange={setUseNLParsing}
                       />
@@ -463,55 +534,61 @@ export function SearchForm({ onResultClick }) {
                 </motion.div>
               )}
             </AnimatePresence>
-            
+
             {/* Phase 2 Stage 1: Parsed Query Display */}
             <AnimatePresence>
-              {parsedQuery && parsedQuery.parsed_elements && parsedQuery.parsed_elements.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-3 bg-blue-50 border border-blue-200 rounded-lg"
-                >
-                  <div className="flex items-start gap-2">
-                    <Brain className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-blue-900 mb-1">
-                        Auto-detected filters from your query:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {parsedQuery.parsed_elements.map((element, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            {element}
-                          </span>
-                        ))}
-                      </div>
-                      {parsedQuery.semantic_query !== parsedQuery.original_query && (
-                        <p className="text-xs text-blue-700 mt-1.5">
-                          Searching for: <span className="font-medium">{parsedQuery.semantic_query}</span>
+              {parsedQuery &&
+                parsedQuery.parsed_elements &&
+                parsedQuery.parsed_elements.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                  >
+                    <div className="flex items-start gap-2">
+                      <Brain className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-blue-900 mb-1">
+                          Auto-detected filters from your query:
                         </p>
-                      )}
+                        <div className="flex flex-wrap gap-1.5">
+                          {parsedQuery.parsed_elements.map((element, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {element}
+                            </span>
+                          ))}
+                        </div>
+                        {parsedQuery.semantic_query !==
+                          parsedQuery.original_query && (
+                          <p className="text-xs text-blue-700 mt-1.5">
+                            Searching for:{" "}
+                            <span className="font-medium">
+                              {parsedQuery.semantic_query}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setParsedQuery(null)}
+                        className="h-6 w-6 p-0 shrink-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setParsedQuery(null)}
-                      className="h-6 w-6 p-0 shrink-0"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                )}
             </AnimatePresence>
-            
+
             {/* Submit Button */}
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={!searchInput.trim() || isPending}
               className="w-full"
             >
@@ -536,7 +613,8 @@ export function SearchForm({ onResultClick }) {
             )}
             {searchState?.success && (
               <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
-                Found {searchState.resultCount} result(s) for &quot;{searchState.query}&quot;
+                Found {searchState.resultCount} result(s) for &quot;
+                {searchState.query}&quot;
                 {searchState.filtersApplied && (
                   <span className="ml-1 text-xs">(with filters applied)</span>
                 )}
@@ -545,30 +623,32 @@ export function SearchForm({ onResultClick }) {
           </form>
         </CardContent>
       </Card>
-      
+
       {/* Search History */}
-      {searchHistory.length > 0 && !optimisticResults.length && !isSearching && (
-        <Card>
-          <CardContent className="pt-6">
-            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Recent Searches
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {searchHistory.map((historyQuery, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleHistoryClick(historyQuery)}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-                >
-                  {historyQuery}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
+      {searchHistory.length > 0 &&
+        !optimisticResults.length &&
+        !isSearching && (
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Recent Searches
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {searchHistory.map((historyQuery, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleHistoryClick(historyQuery)}
+                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                  >
+                    {historyQuery}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       {/* Phase 1: AI Research Synthesis Panel */}
       {synthesis && showSynthesis && optimisticResults.length > 0 && (
         <SynthesisPanel
@@ -579,7 +659,7 @@ export function SearchForm({ onResultClick }) {
           maxPapers={synthesisLimit}
         />
       )}
-      
+
       {/* Search Results */}
       <AnimatePresence>
         {optimisticResults.length > 0 && (
@@ -598,12 +678,15 @@ export function SearchForm({ onResultClick }) {
                     </Button>
                   </div>
                 </CardTitle>
-                
+
                 {/* Paper Selection Controls */}
                 <div className="mt-4 flex items-center justify-between bg-linear-to-r from-purple-50 to-blue-50 p-3 rounded-lg border border-purple-200">
                   <div className="flex items-center gap-3">
                     <Checkbox
-                      checked={selectedPapers.length === optimisticResults.length && optimisticResults.length > 0}
+                      checked={
+                        selectedPapers.length === optimisticResults.length &&
+                        optimisticResults.length > 0
+                      }
                       onCheckedChange={(checked) => {
                         if (checked) {
                           selectAllPapers();
@@ -619,7 +702,7 @@ export function SearchForm({ onResultClick }) {
                       ({selectedPapers.length} selected)
                     </span>
                   </div>
-                  
+
                   {selectedPapers.length > 0 && (
                     <div className="flex flex-col gap-3">
                       {/* Synthesis Limit Slider */}
@@ -629,7 +712,8 @@ export function SearchForm({ onResultClick }) {
                             Synthesis Scope
                           </label>
                           <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
-                            {Math.min(selectedPapers.length, synthesisLimit)} chunks
+                            {Math.min(selectedPapers.length, synthesisLimit)}{" "}
+                            chunks
                           </span>
                         </div>
                         <Slider
@@ -642,12 +726,14 @@ export function SearchForm({ onResultClick }) {
                         />
                         <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                           <span>10 (Fast)</span>
-                          <span className="text-purple-600 font-medium">{synthesisLimit}</span>
+                          <span className="text-purple-600 font-medium">
+                            {synthesisLimit}
+                          </span>
                           <span>100 (Comprehensive)</span>
                         </div>
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         size="sm"
                         onClick={handleSynthesizeSelected}
                         disabled={synthesisMutation.isPending}
@@ -661,7 +747,15 @@ export function SearchForm({ onResultClick }) {
                         ) : (
                           <>
                             <Brain className="h-3 w-3 mr-2" />
-                            Synthesize {Math.min(selectedPapers.length, synthesisLimit)} Chunk{Math.min(selectedPapers.length, synthesisLimit) > 1 ? 's' : ''}
+                            Synthesize{" "}
+                            {Math.min(
+                              selectedPapers.length,
+                              synthesisLimit
+                            )}{" "}
+                            Chunk
+                            {Math.min(selectedPapers.length, synthesisLimit) > 1
+                              ? "s"
+                              : ""}
                           </>
                         )}
                       </Button>
@@ -669,81 +763,103 @@ export function SearchForm({ onResultClick }) {
                   )}
                 </div>
               </CardHeader>
-              
+
               <CardContent>
                 <div className="space-y-4">
                   {optimisticResults.map((result, index) => {
                     // Use chunk_id as unique identifier (each chunk is unique even if from same paper)
-                    const uniqueId = result.chunk_id || result.id || `result-${index}`;
+                    const uniqueId =
+                      result.chunk_id || result.id || `result-${index}`;
                     const isSelected = selectedPapers.includes(uniqueId);
-                    
+
                     return (
-                    <motion.div
-                      key={uniqueId}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`p-4 border rounded-lg transition-all ${
-                        result.isOptimistic 
-                          ? 'border-blue-200 bg-blue-50' 
-                          : isSelected
-                          ? 'border-purple-400 bg-purple-50 shadow-md'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* Selection Checkbox */}
-                        <div className="pt-1">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              togglePaperSelection(uniqueId);
-                            }}
-                            disabled={result.isOptimistic}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                        
-                        <div className="flex-1 cursor-pointer" onClick={() => !result.isOptimistic && onResultClick?.(result)}>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText className="h-4 w-4 text-blue-500" />
-                            <h4 className="font-medium text-gray-900">
-                              {result.title || result.metadata?.title || 'Untitled Paper'}
-                            </h4>
+                      <motion.div
+                        key={uniqueId}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className={`p-4 border rounded-lg transition-all ${
+                          result.isOptimistic
+                            ? "border-blue-200 bg-blue-50"
+                            : isSelected
+                            ? "border-purple-400 bg-purple-50 shadow-md"
+                            : "border-gray-200 hover:border-purple-300"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Selection Checkbox */}
+                          <div className="pt-1">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                togglePaperSelection(uniqueId);
+                              }}
+                              disabled={result.isOptimistic}
+                              onClick={(e) => e.stopPropagation()}
+                            />
                           </div>
-                          
-                          {result.summary && (
-                            <div className="text-sm text-gray-600 mb-2 line-clamp-3">
-                              <FormattedSummary summary={result.summary} />
+
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() =>
+                              !result.isOptimistic && onResultClick?.(result)
+                            }
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <FileText className="h-4 w-4 text-blue-500" />
+                                  <h4 className="font-medium text-gray-900">
+                                    {result.title ||
+                                      result.metadata?.title ||
+                                      "Untitled Paper"}
+                                  </h4>
+                                </div>
+
+                                {result.summary && (
+                                  <div className="text-sm text-gray-600 mb-2 line-clamp-3">
+                                    <FormattedSummary
+                                      summary={result.summary}
+                                    />
+                                  </div>
+                                )}
+
+                                {result.metadata && (
+                                  <div className="text-xs text-gray-500">
+                                    {result.metadata.created_at && (
+                                      <span>
+                                        Uploaded{" "}
+                                        {new Date(
+                                          result.metadata.created_at
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Relevance Score */}
+                              <div className="ml-4 text-right">
+                                <div
+                                  className={`text-sm font-medium ${getScoreColor(
+                                    result.score || result.relevance_score || 0
+                                  )}`}
+                                >
+                                  {(
+                                    (result.score ||
+                                      result.relevance_score ||
+                                      0) * 100
+                                  ).toFixed(1)}
+                                  %
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  relevance
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          
-                          {result.metadata && (
-                            <div className="text-xs text-gray-500">
-                              {result.metadata.created_at && (
-                                <span>
-                                  Uploaded {new Date(result.metadata.created_at).toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Relevance Score */}
-                        <div className="ml-4 text-right">
-                          <div className={`text-sm font-medium ${getScoreColor(result.score || result.relevance_score || 0)}`}>
-                            {((result.score || result.relevance_score || 0) * 100).toFixed(1)}%
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            relevance
                           </div>
                         </div>
-                      </div>
-                        </div>
-                      </div>
-                    </motion.div>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -752,7 +868,7 @@ export function SearchForm({ onResultClick }) {
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Search Error */}
       {searchError && (
         <motion.div
@@ -769,9 +885,9 @@ export function SearchForm({ onResultClick }) {
                   </p>
                   <p className="text-sm text-red-600">{searchError}</p>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleClear}
                   className="ml-auto"
                 >
@@ -782,26 +898,30 @@ export function SearchForm({ onResultClick }) {
           </Card>
         </motion.div>
       )}
-      
+
       {/* No Results */}
-      {optimisticResults.length === 0 && !isPending && query && !searchError && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <Search className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h4 className="font-medium text-gray-900 mb-2">
-                No papers found
-              </h4>
-              <p className="text-sm text-gray-600">
-                Try adjusting your search terms or upload more papers to expand your collection.
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      {optimisticResults.length === 0 &&
+        !isPending &&
+        query &&
+        !searchError && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <Search className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h4 className="font-medium text-gray-900 mb-2">
+                  No papers found
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Try adjusting your search terms or upload more papers to
+                  expand your collection.
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
     </div>
   );
 }

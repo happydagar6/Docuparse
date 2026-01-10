@@ -108,10 +108,10 @@ class BaseDocumentProcessor(ABC):
             if not full_text or len(full_text.strip()) < 10:
                 raise ValueError("Extracted text is empty or too short")
             
-            # Step 2: Extract multimodal content
+            # Step 2: Extract multimodal content with page_info for layout awareness
             self.logger.info(f"Extracting multimodal content")
             try:
-                multimodal_content = self.extract_multimodal(file_path)
+                multimodal_content = self.extract_multimodal(file_path, page_info)
             except Exception as e:
                 self.logger.warning(f"Multimodal extraction failed: {e}")
                 multimodal_content = {'images': [], 'tables': []}
