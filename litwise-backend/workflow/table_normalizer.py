@@ -6,7 +6,6 @@ Extracts tables from retrieved chunks and converts to structured data
 import re
 import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple
-from decimal import Decimal
 import logging
 
 logger = logging.getLogger(__name__)
@@ -252,7 +251,38 @@ class TableNormalizer:
         """
         df = df.copy()
         
+        # ✅ FIX: Flatten multi-index columns if present
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = ['_'.join(col).strip() for col in df.columns.values]
+            logger.debug("Flattened multi-index columns")
+        
+        # ✅ FIX: Flatten multi-index rows if present
+        if isinstance(df.index, pd.MultiIndex):
+            df.reset_index(drop=True, inplace=True)
+            logger.debug("Flattened multi-index rows")
+        
         for col in df.columns:
+            # ✅ FIX: Check if column itself is a DataFrame (happens with very complex nested tables)
+            if isinstance(df[col], pd.DataFrame):
+                logger.debug(f"Column '{col}' is a DataFrame, flattening to first column")
+                df[col] = df[col].iloc[:, 0]  # Extract first column from nested DataFrame
+            
+            # ✅ FIX: Check if column contains nested Series/DataFrames (complex PDF tables)
+            if hasattr(df[col], 'dtype') and df[col].dtype == object:
+                # Sample first non-null value to detect nesting
+                sample = df[col].dropna()
+                if len(sample) > 0:
+                    first_val = sample.iloc[0]
+                    if isinstance(first_val, (pd.Series, pd.DataFrame)):
+                        logger.debug(
+                            f"Column '{col}' contains nested {type(first_val).__name__} from complex PDF table structure. "
+                            f"Extracting first element."
+                        )
+                        df[col] = df[col].apply(
+                            lambda x: x.iloc[0] if isinstance(x, (pd.Series, pd.DataFrame)) else x
+                        )
+            
+            # Apply normalization
             df[col] = df[col].apply(self._normalize_value)
         
         return df
@@ -267,35 +297,35 @@ class TableNormalizer:
             "22.27%" → 0.2227
             "1,234" → 1234
         """
-        # ✅ FIX: Handle Series/array inputs (edge case in nested DataFrames)
+        # ✅ FIX: Handle Series inputs (should be rare after _normalize_dataframe flattening)
         if isinstance(value, pd.Series):
-            # If it's a Series, return it as-is or convert first element
             if len(value) == 0:
                 return None
-            # For single-element Series, extract the value
             if len(value) == 1:
                 value = value.iloc[0]
             else:
-                # Multi-element Series shouldn't happen in normalization
-                logger.warning(f"Unexpected Series in _normalize_value: {value}")
-                return str(value)
+                # Multi-element Series - shouldn't happen after pre-processing
+                logger.debug(f"Multi-element Series in normalize_value (length={len(value)}), using first element")
+                value = value.iloc[0]
         
-        # ✅ FIX: Use pd.isna() safely for scalar values only
+        # ✅ FIX: Use pd.isna() safely for scalar values
         try:
             if pd.isna(value):
                 return None
         except (ValueError, TypeError):
-            # If pd.isna() fails, value is likely not a standard type
             pass
         
-        # Check for empty or placeholder values
-        if value == '' or value == '-':
-            return None
-        
+        # If already numeric, return as float
         if isinstance(value, (int, float)):
             return float(value)
         
+        # Convert to string for further processing
         value_str = str(value).strip()
+        
+        # Check for empty or placeholder values
+        # ✅ FIX: Handle multi-dash separators (common in financial tables: '---', '------------')
+        if value_str == '' or value_str.strip('-') == '':
+            return None
         
         # Check for parentheses (negative numbers in accounting)
         is_negative = False

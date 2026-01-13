@@ -21,11 +21,11 @@ export const FormattedContent = memo(function FormattedContent({ content, classN
   }, [content]);
 
   if (!formattedElements) {
-    return <div className={cn('text-gray-500', className)}>No content available</div>;
+    return <div className={cn('text-slate-500 text-sm', className)}>No content available</div>;
   }
 
   return (
-    <div className={cn('formatted-content prose prose-gray max-w-none', className)}>
+    <div className={cn('formatted-content prose prose-sm md:prose max-w-none text-slate-700', className)}>
       {formattedElements}
     </div>
   );
@@ -63,7 +63,7 @@ function formatText(text) {
         // Empty line - end current paragraph or list
         if (currentParagraph.length > 0) {
           formattedElements.push(
-            <p key={`p-${index}`} className="mb-3 leading-relaxed">
+            <p key={`p-${index}`} className="mb-3 md:mb-4 leading-relaxed text-slate-700">
               {formatInlineContent(currentParagraph.join(' '))}
             </p>
           );
@@ -77,14 +77,14 @@ function formatText(text) {
       if (trimmedLine.startsWith('### ')) {
         if (currentParagraph.length > 0) {
           formattedElements.push(
-            <p key={`p-before-h3-${index}`} className="mb-3 leading-relaxed">
+            <p key={`p-before-h3-${index}`} className="mb-3 md:mb-4 leading-relaxed text-slate-700">
               {formatInlineContent(currentParagraph.join(' '))}
             </p>
           );
           currentParagraph = [];
         }
         formattedElements.push(
-          <h3 key={`h3-${index}`} className="text-lg font-semibold mb-2 mt-4 text-gray-800">
+          <h3 key={`h3-${index}`} className="text-base md:text-lg font-semibold mb-2.5 md:mb-3 mt-4 md:mt-5 text-slate-800 scroll-mt-20">
             {trimmedLine.replace('### ', '')}
           </h3>
         );
@@ -95,14 +95,14 @@ function formatText(text) {
       if (trimmedLine.startsWith('## ')) {
         if (currentParagraph.length > 0) {
           formattedElements.push(
-            <p key={`p-before-h2-${index}`} className="mb-3 leading-relaxed">
+            <p key={`p-before-h2-${index}`} className="mb-3 md:mb-4 leading-relaxed text-slate-700">
               {formatInlineContent(currentParagraph.join(' '))}
             </p>
           );
           currentParagraph = [];
         }
         formattedElements.push(
-          <h2 key={`h2-${index}`} className="text-xl font-semibold mb-3 mt-5 text-gray-900">
+          <h2 key={`h2-${index}`} className="text-lg md:text-xl font-bold mb-3 md:mb-4 mt-5 md:mt-6 text-slate-900 scroll-mt-20">
             {trimmedLine.replace('## ', '')}
           </h2>
         );
@@ -113,14 +113,14 @@ function formatText(text) {
       if (trimmedLine.startsWith('# ')) {
         if (currentParagraph.length > 0) {
           formattedElements.push(
-            <p key={`p-before-h1-${index}`} className="mb-3 leading-relaxed">
+            <p key={`p-before-h1-${index}`} className="mb-3 md:mb-4 leading-relaxed text-slate-700">
               {formatInlineContent(currentParagraph.join(' '))}
             </p>
           );
           currentParagraph = [];
         }
         formattedElements.push(
-          <h1 key={`h1-${index}`} className="text-2xl font-bold mb-4 mt-6 text-gray-900">
+          <h1 key={`h1-${index}`} className="text-xl md:text-2xl font-bold mb-4 md:mb-5 mt-6 md:mt-8 text-slate-900 scroll-mt-20">
             {trimmedLine.replace('# ', '')}
           </h1>
         );
@@ -132,7 +132,7 @@ function formatText(text) {
       if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ') || trimmedLine.startsWith('• ')) {
         if (currentParagraph.length > 0) {
           formattedElements.push(
-            <p key={`p-before-list-${index}`} className="mb-3 leading-relaxed">
+            <p key={`p-before-list-${index}`} className="mb-3 md:mb-4 leading-relaxed text-slate-700">
               {formatInlineContent(currentParagraph.join(' '))}
             </p>
           );
@@ -146,9 +146,9 @@ function formatText(text) {
 
         const listContent = trimmedLine.replace(/^[-*•]\s*/, '');
         formattedElements.push(
-          <div key={`li-${index}`} className="flex items-start mb-2">
-            <span className="text-primary mr-2 mt-1 text-sm">•</span>
-            <span className="flex-1">{formatInlineContent(listContent)}</span>
+          <div key={`li-${index}`} className="flex items-start mb-2.5 md:mb-3 gap-2.5 md:gap-3 group">
+            <span className="text-blue-600 font-semibold mt-0.5 shrink-0 group-hover:text-blue-700 transition-colors">•</span>
+            <span className="flex-1 text-slate-700">{formatInlineContent(listContent)}</span>
           </div>
         );
         return;
@@ -162,7 +162,7 @@ function formatText(text) {
     // Handle remaining paragraph
     if (currentParagraph.length > 0) {
       formattedElements.push(
-        <p key="final-p" className="mb-3 leading-relaxed">
+        <p key="final-p" className="mb-3 md:mb-4 leading-relaxed text-slate-700">
           {formatInlineContent(currentParagraph.join(' '))}
         </p>
       );
@@ -185,7 +185,7 @@ function formatInlineContent(text) {
     // Bold text **text**
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
-        <strong key={index} className="font-semibold text-gray-900">
+        <strong key={index} className="font-semibold text-slate-900">
           {part.slice(2, -2)}
         </strong>
       );
@@ -194,7 +194,7 @@ function formatInlineContent(text) {
     // Italic text *text*
     if (part.startsWith('*') && part.endsWith('*') && !part.includes('**')) {
       return (
-        <em key={index} className="italic text-gray-800">
+        <em key={index} className="italic text-slate-800">
           {part.slice(1, -1)}
         </em>
       );
@@ -212,7 +212,7 @@ function formatInlineContent(text) {
  */
 export function FormattedSummary({ summary, className = '' }) {
   if (!summary) {
-    return <div className={cn('text-gray-500', className)}>Summary not available</div>;
+    return <div className={cn('text-slate-500 text-sm', className)}>Summary not available</div>;
   }
 
   // Handle string summary
@@ -277,16 +277,18 @@ export function FormattedSummary({ summary, className = '' }) {
     }
 
     return (
-      <div className={cn('space-y-4', className)}>
+      <div className={cn('space-y-4 md:space-y-5', className)}>
         {sections.map((section, index) => (
-          <div key={index}>
-            <h4 className="font-medium text-gray-900 mb-2">{section.title}</h4>
-            <FormattedContent content={section.content} />
+          <div key={index} className="rounded-lg border border-slate-200 p-3 md:p-4 bg-slate-50/50">
+            <h4 className="font-semibold text-slate-900 mb-2 md:mb-2.5 text-sm md:text-base">{section.title}</h4>
+            <div className="text-xs md:text-sm text-slate-700">
+              <FormattedContent content={section.content} />
+            </div>
           </div>
         ))}
       </div>
     );
   }
 
-  return <div className={cn('text-gray-500', className)}>Invalid summary format</div>;
+  return <div className={cn('text-slate-500 text-sm', className)}>Invalid summary format</div>;
 }

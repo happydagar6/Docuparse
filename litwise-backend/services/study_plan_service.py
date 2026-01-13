@@ -1,7 +1,6 @@
 import json
 import uuid
 from datetime import datetime
-from typing import Optional
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from models.study_plan import StudyPlanRequest, StudyPlanResponse, WeekPlan, DayPlan
@@ -18,7 +17,7 @@ class StudyPlanService:
             api_key=os.getenv("QDRANT_API_KEY"),
             check_compatibility=False
         )
-
+        
     async def get_paper_context(self, paper_id: str, limit: int = 15) -> str:
         """Retrieve paper content from RAG system"""
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue

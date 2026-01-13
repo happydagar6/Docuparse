@@ -93,14 +93,14 @@ const InfiniteScrollChat = ({
     }
 
     // Add streaming message if currently streaming
-    if (isStreaming && streamingMessage) {
+    if (isStreaming) {
       allMessages.push({
         id: `streaming-${streamingId}`,
         role: "assistant",
         content: streamingMessage,
         sources: sources || [],
         created_at: new Date().toISOString(),
-        isPending: true,
+        isPending: !streamingMessage, // Show reasoning indicator when no content yet
       });
     }
     return allMessages;
@@ -137,6 +137,7 @@ const InfiniteScrollChat = ({
           <ChatMessage
             key={message.id}
             message={message}
+            isStreaming={isStreaming}
             isPending={message.isPending}
             isFailed={message.isFailed}
           />

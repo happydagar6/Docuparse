@@ -6,9 +6,13 @@ Uses existing PyPDF2, PyMuPDF, and pdfplumber infrastructure.
 """
 
 import PyPDF2
+import warnings
 from typing import Dict, List, Tuple
 from .base_processor import BaseDocumentProcessor
 from ..utils import sanitize_text
+
+# ✅ Suppress PyPDF2 advanced encoding warnings (informational only, doesn't affect extraction)
+warnings.filterwarnings('ignore', category=PyPDF2.errors.PdfReadWarning)
 
 
 class PDFProcessor(BaseDocumentProcessor):

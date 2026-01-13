@@ -1,7 +1,7 @@
 """
 Multi-Modal Content Extractor for PDFs
 Extracts: Images, Tables, Figures with page tracking
-Uses: PyMuPDF (fitz) for images, LlamaParse for structured tables, PyMuPDF for equations
+Uses: PyMuPDF (fitz) for images, tables (find_tables()), and equations
 Features: Layout-aware parsing, page-spanning table merging, smart chunking
 """
 
@@ -99,14 +99,15 @@ class MultiModalExtractor:
         
     def extract_tables(self, pdf_path: str, page_info: List[Dict] = None) -> List[Dict]:
         """
-        Extract tables from PDF using LlamaParse with layout-aware processing.
+        Extract tables from PDF using PyMuPDF's find_tables() with layout-aware processing.
         
-        ✨ NEW FEATURES:
+        ✨ FEATURES:
+        - Automatic table detection using PyMuPDF's find_tables() method
         - Merges tables that span across pages
         - Chunks large tables (>30 rows) with repeated headers
         - Enriches metadata for better retrieval
         
-        LlamaParse preserves table structure and headers, which is critical for
+        PyMuPDF preserves table structure and headers, which is critical for
         financial tables (Balance Sheets, Segment Reporting, etc.) where the
         relationship between headers and values must be maintained.
         
@@ -122,86 +123,54 @@ class MultiModalExtractor:
         print(f"📊 Starting layout-aware table extraction from: {pdf_path}")
         
         try:
-            # Import LlamaParse
-            from llama_parse import LlamaParse
+            # ✅ Using PyMuPDF find_tables() method (FREE - no API credits required)
+            logger.info("📊 Extracting tables using PyMuPDF find_tables()...")
+            print("📊 Extracting tables using PyMuPDF find_tables().")
             
+            # Extract tables using PyMuPDF's built-in table detection
             tables = []
+            doc = fitz.open(pdf_path)
             
-            # Get API key from environment
-            api_key = os.getenv('LLAMA_CLOUD_API_KEY')
-            if not api_key:
-                logger.warning("LLAMA_CLOUD_API_KEY not set in environment. Tables will not be extracted.")
-                print("⚠️  LLAMA_CLOUD_API_KEY environment variable not set. Skipping table extraction.")
-                print("   Set it with: export LLAMA_CLOUD_API_KEY=your_api_key")
-                return []
-            
-            # Initialize LlamaParse with COMPREHENSIVE instructions for all table types
-            # Using new API parameters (parsing_instruction is deprecated)
-            parser = LlamaParse(
-                api_key=api_key,  # ✅ Explicitly pass the API key
-                result_type="markdown",  # Get markdown output for structured tables
-                system_prompt=(
-                    "You are an expert document parser. Your task is to extract ALL tables from documents "
-                    "and output them as strictly formatted Markdown tables. Be thorough and comprehensive - "
-                    "do not skip any tables regardless of their type or size."
-                ),
-                user_prompt=(
-                    "Extract ALL tables from the document and output them as strictly formatted Markdown tables. "
-                    "This includes:\n"
-                    "- Financial tables (Balance Sheets, Income Statements, Segment Reports)\n"
-                    "- Performance metrics and KPI tables\n"
-                    "- Comparison tables (e.g., 2020 vs 2019)\n"
-                    "- Unit cost and fee tables\n"
-                    "- Summary and breakdown tables\n"
-                    "- Any table with rows and columns, even if simple\n\n"
-                    "Requirements:\n"
-                    "1. Preserve ALL columns and rows without any flattening or truncation\n"
-                    "2. Maintain header-to-value relationships (headers must be in first row)\n"
-                    "3. Include all rows, never sample or summarize - include every single data row\n"
-                    "4. For nested/complex headers, preserve the full header structure\n"
-                    "5. Use pipe (|) delimiters for markdown format with proper alignment\n"
-                    "6. Ensure each cell value is complete and not truncated\n"
-                    "7. For currency/numeric values, include the full numbers with decimals\n\n"
-                    "Do NOT:\n"
-                    "- Skip small tables or tables with few rows\n"
-                    "- Skip tables that appear to be repetitive\n"
-                    "- Summarize or aggregate rows\n"
-                    "- Remove any columns\n"
-                    "- Change numeric formatting\n\n"
-                    "Output Format: Generate clean markdown tables with pipes (|) and dashes (-)."
-                ),
-                verbose=False
-            )
-            
-            # Parse the PDF using LlamaParse
-            logger.info("Parsing PDF with LlamaParse...")
-            documents = parser.load_data(pdf_path)
-            
-            # Extract markdown tables from parsed documents
-            markdown_tables = self._extract_markdown_tables_from_documents(documents)
-            
-            logger.info(f"Found {len(markdown_tables)} markdown tables in parsed document")
-            print(f"📊 Found {len(markdown_tables)} markdown tables")
-            
-            # Convert markdown tables to structured format
-            successful_tables = 0
-            for table_index, markdown_table in enumerate(markdown_tables):
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                
+                # Use PyMuPDF's find_tables() method (available since v1.23.0)
                 try:
-                    structured_table = self._parse_markdown_table(markdown_table, table_index)
+                    table_finder = page.find_tables()
                     
-                    if structured_table and len(structured_table['rows']) >= self.min_table_rows:
-                        tables.append(structured_table)
-                        successful_tables += 1
-                        print(f"   ✅ Table {table_index + 1}: {len(structured_table['rows'])} rows × {len(structured_table['headers'])} cols")
-                    else:
-                        print(f"   ⚠️  Table {table_index + 1}: Skipped (insufficient rows or invalid)")
+                    if table_finder and table_finder.tables:
+                        logger.info(f"   Found {len(table_finder.tables)} tables on page {page_num + 1}")
+                        
+                        for table_index, table in enumerate(table_finder.tables):
+                            try:
+                                # Extract table to markdown format
+                                markdown_table = table.to_markdown()
+                                
+                                # Parse markdown into structured format
+                                structured_table = self._parse_markdown_table(markdown_table, len(tables))
+                                
+                                if structured_table:
+                                    # Add page number (PyMuPDF pages are 0-indexed)
+                                    structured_table['page'] = page_num + 1
+                                    
+                                    # Filter out tiny tables (likely artifacts)
+                                    if len(structured_table['rows']) >= self.min_table_rows:
+                                        tables.append(structured_table)
+                                        print(f"   ✅ Page {page_num + 1}, Table {table_index + 1}: {len(structured_table['rows'])} rows × {len(structured_table['headers'])} cols")
+                                
+                            except Exception as e:
+                                logger.warning(f"Failed to extract table {table_index} on page {page_num + 1}: {e}")
+                                continue
+                                
                 except Exception as e:
-                    print(f"   ❌ Table {table_index + 1}: Failed to parse - {str(e)[:60]}")
-                    logger.warning(f"Failed to parse markdown table {table_index}: {e}")
+                    # Some pages may not have tables or find_tables() may fail
+                    logger.debug(f"No tables found on page {page_num + 1}: {e}")
                     continue
             
-            logger.info(f"✅ Extracted {len(tables)} structured tables from {pdf_path}")
-            print(f"✅ Successfully indexed {successful_tables}/{len(markdown_tables)} tables")
+            doc.close()
+            
+            print(f"📊 Found {len(tables)} tables using PyMuPDF find_tables()")
+            logger.info(f"✅ Extracted {len(tables)} tables from {pdf_path} using PyMuPDF")
             
             # ✨ NEW: Apply layout-aware processing
             print(f"🔄 Applying layout-aware processing...")
@@ -227,23 +196,22 @@ class MultiModalExtractor:
             return tables
         
         except ImportError:
-            logger.error("LlamaParse not installed. Install with: pip install llama-parse")
-            print("❌ LlamaParse not installed. Falling back to empty table list.")
-            print("   Install with: pip install llama-parse")
+            logger.error("PyMuPDF not installed. Install with: pip install pymupdf")
+            print("❌ PyMuPDF not installed. Falling back to empty table list.")
+            print("   Install with: pip install pymupdf")
             return []
         
         except Exception as e:
-            logger.error(f"Failed to extract tables with LlamaParse: {e}")
-            print(f"❌ Failed to extract tables with LlamaParse: {e}")
+            logger.error(f"Failed to extract tables with PyMuPDF: {e}")
+            print(f"❌ Failed to extract tables with PyMuPDF: {e}")
             return []
     
     def _extract_markdown_tables_from_documents(self, documents) -> List[str]:
         """
-        Extract markdown tables from parsed LlamaParse documents.
-        Uses multiple patterns to catch all table types.
+        Extract markdown tables from parsed PDF documents.
         
         Args:
-            documents: List of Document objects from LlamaParse
+            documents: List of Document objects from PDF parsing
         
         Returns:
             List of markdown table strings
@@ -399,7 +367,7 @@ class MultiModalExtractor:
             content_hash = hashlib.md5(markdown_table.encode('utf-8')).hexdigest()
             
             return {
-                'page': 1,  # LlamaParse doesn't provide page numbers in structure
+                'page': 1,  # PyMuPDF provides page numbers via page_num
                 'table_index': table_index,
                 'headers': headers,
                 'rows': rows,
@@ -546,7 +514,7 @@ class MultiModalExtractor:
             page_info: Optional page information for page-span detection
         
         Returns:
-            Dict with 'images', 'tables', and 'has_equations' keys
+            Dict with 'images', 'tables', 'markdown_full', and 'has_equations' keys
         """
         print(f"🚀 Starting multi-modal extraction from: {pdf_path}")
         
@@ -554,14 +522,56 @@ class MultiModalExtractor:
         tables = self.extract_tables(pdf_path, page_info)  # ✨ Pass page_info
         has_equations = self.detect_equations(pdf_path)
         
-        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, equations: {has_equations}")
+        # ✅ NEW: Extract full markdown for MarkdownElementNodeParser
+        markdown_full = self.extract_full_markdown(pdf_path)
+        
+        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, {len(markdown_full)} chars markdown, equations: {has_equations}")
         
         return {
             'images': images,
             'tables': tables,
+            'markdown_full': markdown_full,  # Full markdown for advanced indexing
             'has_equations': has_equations,
             'total_items': len(images) + len(tables)
         }
+    
+    def extract_full_markdown(self, pdf_path: str) -> str:
+        """
+        Extract complete document as markdown using pymupdf4llm.
+        This provides the full structured content for MarkdownElementNodeParser.
+        
+        Returns:
+            Full markdown text of the entire document
+        """
+        logger.info(f"📄 Extracting full markdown from: {pdf_path}")
+        print(f"📄 Extracting full markdown document...")
+        
+        try:
+            import pymupdf4llm
+            
+            logger.info("📄 Using pymupdf4llm for markdown conversion...")
+            print("📄 Using pymupdf4llm for markdown conversion.")
+            
+            # Convert PDF to markdown optimized for LLMs
+            md_text = pymupdf4llm.to_markdown(pdf_path)
+            
+            if md_text:
+                logger.info(f"✅ Extracted {len(md_text)} chars of markdown from PDF")
+                print(f"✅ Extracted {len(md_text):,} chars of markdown")
+                return md_text
+            else:
+                logger.warning("⚠️ pymupdf4llm returned empty markdown")
+                print("⚠️ No markdown content extracted")
+                return ""
+                
+        except ImportError:
+            logger.error("pymupdf4llm not installed. Install with: pip install pymupdf4llm")
+            print("❌ pymupdf4llm not installed. Install with: pip install pymupdf4llm")
+            return ""
+        except Exception as e:
+            logger.error(f"Failed to extract markdown with pymupdf4llm: {e}")
+            print(f"❌ Failed to extract markdown: {e}")
+            return ""
 
 
 # Singleton instance

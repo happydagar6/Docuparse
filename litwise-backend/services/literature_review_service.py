@@ -2,7 +2,7 @@ import json
 import uuid
 import asyncio
 from datetime import datetime
-from typing import List, Optional, Dict, Set, Tuple
+from typing import List, Dict
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
@@ -86,7 +86,7 @@ class LiteratureReviewService:
             check_compatibility=False,
         )
         # Initialize embeddings for semantic search
-        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
         
         # Initialize FlashRank reranker for cross-encoder reranking
         # Using nano model for speed, can upgrade to "ms-marco-MiniLM-L-12-v2" for quality

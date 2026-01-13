@@ -6,9 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { User, Bot, FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { FormattedContent } from '@/components/ui/formatted-content';
 import { Button } from '@/components/ui/button';
+import ReasoningIndicator from './ReasoningIndicator';
+import ResponseFormatter from './ResponseFormatter';
 
-const ChatMessage = memo(({ message, onRetry }) => {
+const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
   const isUser = message.role === 'user';
+  // Show reasoning indicator only when:
+  // - Message is from assistant
+  // - Message is pending (waiting for LLM response)
+  // - Content is empty or not yet received
+  const showReasoningLabel = !isUser && message.isPending && !message.content;
 
   return (
     <div className={`flex gap-2 md:gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -28,13 +35,24 @@ const ChatMessage = memo(({ message, onRetry }) => {
               : 'bg-blue-600 text-white ml-auto shadow-md' 
             : 'bg-slate-100 text-slate-900 border border-slate-200/50'
         }`}>
-          <div className="wrap-break-word leading-relaxed">
-            {isUser ? (
-              <div className="whitespace-pre-wrap wrap-break-word">{message.content}</div>
-            ) : (
-              <FormattedContent content={message.content} />
-            )}
-          </div>
+          {/* Reasoning Label - Only shown before content starts arriving */}
+          {showReasoningLabel && (
+            <ReasoningIndicator />
+          )}
+
+          {/* Main Content - Show only if there's content */}
+          {message.content && (
+            <div className="wrap-break-word leading-relaxed">
+              {isUser ? (
+                <div className="whitespace-pre-wrap wrap-break-word">{message.content}</div>
+              ) : (
+                <ResponseFormatter 
+                  content={message.content}
+                  className="space-y-4"
+                />
+              )}
+            </div>
+          )}
           
           {/* Failed message indicator */}
           {message.isFailed && (

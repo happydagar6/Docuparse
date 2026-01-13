@@ -613,30 +613,35 @@ class FinancialRAGPipeline:
         """
         context_parts = []
         
-        # ✅ FIX #4: EXPLICIT header warning LLM to NOT calculate
-        # ✅ NEW: Add CALCULATION GATE enforcement
-        context_parts.append("""⚠️ CRITICAL INSTRUCTION FOR AI ASSISTANT:
+        # ✅ UPDATED: Constructive guidance instead of restrictive language
+        context_parts.append("""📊 FINANCIAL CALCULATION SYSTEM GUIDANCE:
 
-🔒 CALCULATION GATE RULES (MANDATORY):
-- A DETERMINISTIC SYSTEM decides if calculations can run
-- You are NOT ALLOWED to override these decisions
-- If calculation status = 'success' → USE THE EXACT RESULT PROVIDED
-- If calculation status = 'blocked' → EXPLAIN why it was blocked (missing inputs)
-- If calculation status = 'failed' → EXPLAIN why it failed (error message)
+🎯 HOW TO USE THIS DATA:
 
-❌ YOU ARE FORBIDDEN FROM:
-- Deciding whether a calculation should run
-- Approximating or estimating when inputs are missing
-- Performing arithmetic yourself
-- Inventing baseline values or scenarios
-- Saying "I'll calculate" when gate is blocked
+When you see calculations below with different statuses:
 
-✅ YOUR ROLE IS ONLY TO:
-- Explain pre-computed results
-- Explain why calculations were blocked/failed
-- Cite source documents
+✅ Status 'success':
+   - Use the EXACT result provided (deterministically computed)
+   - Reference the formula shown
+   - Add business context and interpretation
+   - Example: "Current Ratio = 1.85 (computed as CA ÷ CL = $37.2M ÷ $20.1M)"
 
-THIS IS A FINANCIAL ENGINE, NOT A REASONING ASSISTANT.
+⛔ Status 'blocked':
+   - The system couldn't find required inputs in the document
+   - Explain what's missing (listed in 'Missing Inputs')
+   - If you can find the data manually in the tables below, extract and calculate
+   - Example: "The calculation requires Net Income from 2023, which is not available in the provided tables"
+
+❌ Status 'failed':
+   - The calculation encountered an error (see error message)
+   - Explain the issue clearly
+   - Suggest what might resolve it
+
+💡 IMPORTANT:
+- If NO calculation section appears → Extract values from tables and perform basic arithmetic yourself
+- Always show your work and cite sources
+- For simple questions (adding, subtracting, ratios), you CAN calculate if the data is in the tables
+
 """)
         
         # Add calculation results if available

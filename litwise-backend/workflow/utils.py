@@ -9,7 +9,7 @@ import openai
 import os
 
 
-model = OpenAIEmbeddings(model="text-embedding-3-small")
+model = OpenAIEmbeddings(model="text-embedding-3-large")
 
 # Also initialize direct OpenAI client for guaranteed batching
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -97,7 +97,7 @@ def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
         tuple: (full_text, page_info_list, multimodal_content)
         - full_text: Complete document text
         - page_info_list: List of page information
-        - multimodal_content: Dict with 'images' and 'tables'
+        - multimodal_content: Dict with 'images', 'tables', 'markdown_full'
     """
     print(f"🚀 Starting full multi-modal extraction from: {file_path}")
     
@@ -110,6 +110,7 @@ def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
     
     print(f"✅ Multi-modal extraction complete")
     print(f"   Text: {len(full_text)} chars")
+    print(f"   Markdown: {len(multimodal_content.get('markdown_full', ''))} chars")
     print(f"   Images: {len(multimodal_content['images'])}")
     print(f"   Tables: {len(multimodal_content['tables'])}")
     
@@ -177,6 +178,33 @@ def deduplicate_chunks(chunks: list[str], similarity_threshold: float = 0.85) ->
     print(f"📊 Fast deduplication: {len(chunks)} → {len(deduplicated)} chunks (-{len(chunks) - len(deduplicated)} duplicates)")
     return deduplicated
 
+def truncate_to_token_limit(text: str, max_tokens: int = 8000) -> str:
+    """
+    Truncate text to stay within token limit for embeddings.
+    Uses rough approximation: 1 token ≈ 4 characters.
+    
+    Args:
+        text: Text to truncate
+        max_tokens: Maximum token limit (default 8000 for text-embedding-3-large's 8191 limit)
+        
+    Returns:
+        Truncated text that fits within token limit
+    """
+    # Rough estimate: 1 token ≈ 4 characters
+    max_chars = max_tokens * 4
+    
+    if len(text) <= max_chars:
+        return text
+    
+    # Truncate and add marker
+    truncated = text[:max_chars]
+    # Try to truncate at a word boundary
+    last_space = truncated.rfind(' ')
+    if last_space > max_chars * 0.9:  # If we can find a space in the last 10%
+        truncated = truncated[:last_space]
+    
+    return truncated + "\n\n[... content truncated due to size ...]"
+
 def generate_embeddings(text: str) -> list:
     return model.embed_query(text)
 
@@ -184,23 +212,49 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 100) -> list[l
     """
     Generate embeddings for multiple texts in batches using direct OpenAI API.
     This ensures guaranteed batching and better performance.
-    *** VERSION 2.0 - DIRECT API BATCHING ***
+    *** VERSION 3.0 - SMART CHUNKING + FALLBACK FOR OVERSIZED *** 
     
     Args:
-        texts: List of text strings to embed
+        texts: List of text strings to embed (pre-chunked by smart_chunk_table)
         batch_size: Number of texts to process in each batch (OpenAI supports up to 2048)
         
     Returns:
         List of embedding vectors in the same order as input texts
     """
-    print(f"🚀 [VERSION 2.0] Starting DIRECT OpenAI batch embedding for {len(texts)} texts (batch size: {batch_size})")
+    print(f"🚀 [VERSION 3.0] Starting DIRECT OpenAI batch embedding for {len(texts)} texts (batch size: {batch_size})")
     print(f"🔧 Using direct openai_client.embeddings.create() for guaranteed batching")
+    print(f"📋 All texts pre-chunked by smart_chunk_table (table oversizing handled)")
+    
+    # ✅ IMPROVED: Smart truncation with warnings (should rarely occur now)
+    # Smart chunking handles large tables, so truncation should be extremely rare
+    truncated_texts = []
+    truncation_count = 0
+    oversized_texts = []
+    
+    for idx, text in enumerate(texts):
+        text_tokens = len(text) // 4  # Rough estimate: 1 token ≈ 4 chars
+        if text_tokens > 8000:
+            # Log warning - this should be VERY rare now with smart chunking
+            oversized_texts.append((idx, text_tokens))
+            truncated = truncate_to_token_limit(text, max_tokens=8000)
+            truncation_count += 1
+        else:
+            truncated = text
+        truncated_texts.append(truncated)
+    
+    if truncation_count > 0:
+        print(f"⚠️  WARNING: {truncation_count} STILL oversized despite smart chunking:")
+        for idx, tokens in oversized_texts[:5]:  # Show first 5
+            print(f"   - Text {idx}: ~{tokens} tokens (double-check table parsing)")
+        if len(oversized_texts) > 5:
+            print(f"   ... and {len(oversized_texts) - 5} more")
+    
     all_embeddings = []
     
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
+    for i in range(0, len(truncated_texts), batch_size):
+        batch = truncated_texts[i:i + batch_size]
         batch_num = i//batch_size + 1
-        total_batches = (len(texts) + batch_size - 1)//batch_size
+        total_batches = (len(truncated_texts) + batch_size - 1)//batch_size
         
         print(f"⏳ Processing batch {batch_num}/{total_batches} with {len(batch)} texts...")
         
@@ -208,7 +262,7 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 100) -> list[l
             # Use direct OpenAI API for guaranteed batching
             response = openai_client.embeddings.create(
                 input=batch,
-                model="text-embedding-3-small"
+                model="text-embedding-3-large"
             )
             
             # Extract embeddings in order
@@ -217,31 +271,61 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 100) -> list[l
             print(f"✅ Batch {batch_num}/{total_batches} completed successfully ({len(batch_embeddings)} embeddings)")
             
         except Exception as e:
-            print(f"❌ Direct API batch {batch_num} failed: {str(e)}")
-            print(f"🔄 Falling back to LangChain method for batch {batch_num}")
+            error_msg = str(e)
+            print(f"❌ Direct API batch {batch_num} failed: {error_msg}")
             
-            try:
-                # Fallback to LangChain batch method
-                batch_embeddings = model.embed_documents(batch)
-                all_embeddings.extend(batch_embeddings)
-                print(f"✅ LangChain fallback successful for batch {batch_num}")
-            except Exception as e2:
-                print(f"❌ LangChain batch also failed: {str(e2)}")
-                print(f"🔄 Final fallback to individual processing for batch {batch_num}")
+            # Check if error is token limit related
+            if "8192 tokens" in error_msg or "maximum context length" in error_msg:
+                print(f"⚠️  Token limit exceeded in batch - likely a single oversized text")
+                print(f"🔄 Falling back to LangChain async method for batch {batch_num}")
                 
-                # Final fallback: process individually
-                for j, text in enumerate(batch):
-                    try:
-                        embedding = model.embed_query(text)
-                        all_embeddings.append(embedding)
-                        if j % 10 == 0:  # Log every 10th item
-                            print(f"   ✓ Individual embedding {j+1}/{len(batch)} in batch {batch_num}")
-                    except Exception as single_e:
-                        print(f"   ❌ Failed to embed text {j+1}: {single_e}")
-                        # Add a zero vector as placeholder
-                        all_embeddings.append([0.0] * 1536)  # OpenAI embedding dimension
+                try:
+                    # LangChain method handles oversized texts better
+                    batch_embeddings = model.embed_documents(batch)
+                    all_embeddings.extend(batch_embeddings)
+                    print(f"✅ LangChain fallback successful for batch {batch_num}")
+                except Exception as e2:
+                    print(f"❌ LangChain batch also failed: {str(e2)}")
+                    # Fallback to processing individually
+                    batch_embeddings = _embed_texts_individually(batch, batch_num)
+                    all_embeddings.extend(batch_embeddings)
+            else:
+                # Generic error - try LangChain
+                print(f"🔄 Falling back to LangChain method for batch {batch_num}")
+                
+                try:
+                    # Fallback to LangChain batch method
+                    batch_embeddings = model.embed_documents(batch)
+                    all_embeddings.extend(batch_embeddings)
+                    print(f"✅ LangChain fallback successful for batch {batch_num}")
+                except Exception as e2:
+                    print(f"❌ LangChain batch also failed: {str(e2)}")
+                    # Fallback to individual processing
+                    batch_embeddings = _embed_texts_individually(batch, batch_num)
+                    all_embeddings.extend(batch_embeddings)
     
     print(f"🎉 Batch embedding generation completed! Total embeddings: {len(all_embeddings)}")
+    return all_embeddings
+
+def _embed_texts_individually(texts: list[str], batch_num: int = 0) -> list[list]:
+    """
+    Fallback method: embed each text individually.
+    Used when batch methods fail.
+    """
+    print(f"🔄 Final fallback: processing {len(texts)} texts individually")
+    all_embeddings = []
+    
+    for j, text in enumerate(texts):
+        try:
+            embedding = model.embed_query(text)
+            all_embeddings.append(embedding)
+            if (j + 1) % 5 == 0:
+                print(f"   ✓ Individual embedding {j+1}/{len(texts)}")
+        except Exception as single_e:
+            print(f"   ❌ Failed to embed text {j+1}: {single_e}")
+            # Add a zero vector as placeholder
+            all_embeddings.append([0.0] * 1536)  # OpenAI embedding dimension
+    
     return all_embeddings
 
 def find_chunk_page(chunk_start_pos: int, chunk_end_pos: int, page_info: list[dict]) -> int:
@@ -389,31 +473,20 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
             print(f"⚠️  Warning: Could not clear existing embeddings: {e}")
             # If collection doesn't exist, that's fine - we'll create it
     
-    # Chunk the text with position tracking
-    chunks_with_positions = chunk_text(text, chunk_size=1800, chunk_overlap=350)
+    # Chunk the text with position tracking - PRODUCTION-OPTIMIZED FOR FINANCIAL DOCS
+    chunks_with_positions = chunk_text(text, chunk_size=3000, chunk_overlap=400)
     print(f"Created {len(chunks_with_positions)} chunks for paper: {paper_id}")
     
+    # ✅ REMOVED GARBAGE DEDUPLICATION - Financial documents have legitimate repetition
+    # (e.g., same table headers across pages, recurring terminology, year-over-year comparisons)
+    # Deduplication breaks financial context and loses critical data points
+    print("🔄 Skipping deduplication to preserve financial context integrity...")
+    
+    # Use all chunks without deduplication
+    valid_chunks_with_positions = [(chunk, start_pos, end_pos) for chunk, start_pos, end_pos in chunks_with_positions if chunk.strip()]
+    print(f"📊 Valid chunks after filtering: {len(valid_chunks_with_positions)}")
+    
     try:
-        # Deduplicate chunks to improve quality
-        print("🔄 Starting deduplication process...")
-        chunk_texts = [chunk[0] for chunk in chunks_with_positions]
-        deduplicated_texts = deduplicate_chunks(chunk_texts, similarity_threshold=0.85)
-        print(f"✅ Deduplication completed: {len(chunk_texts)} -> {len(deduplicated_texts)} chunks")
-        
-        # Filter chunks_with_positions to keep only deduplicated ones
-        deduplicated_chunks_with_positions = []
-        for dedup_text in deduplicated_texts:
-            for original_chunk, start_pos, end_pos in chunks_with_positions:
-                if original_chunk == dedup_text:
-                    deduplicated_chunks_with_positions.append((original_chunk, start_pos, end_pos))
-                    break
-        
-        print(f"After deduplication: {len(deduplicated_chunks_with_positions)} unique chunks")
-        
-        # Filter out empty chunks first
-        valid_chunks_with_positions = [(chunk, start_pos, end_pos) for chunk, start_pos, end_pos in deduplicated_chunks_with_positions if chunk.strip()]
-        print(f"📊 Valid chunks after filtering: {len(valid_chunks_with_positions)}")
-        
         # Extract texts for batch embedding generation
         chunk_texts = [chunk for chunk, _, _ in valid_chunks_with_positions]
         
@@ -706,56 +779,141 @@ def store_multimodal_embeddings(
         
         print(f"✅ Prepared {len(captioned_images)} image chunks")
     
-    # Step 3: Process TABLES
+    # Step 3: Process TABLES with AGGRESSIVE smart chunking for oversized tables
     tables = multimodal_content.get('tables', [])
     if tables:
         print(f"📊 Step 3: Processing {len(tables)} tables...")
         
-        # Use markdown table format for better LLM understanding
-        # Fallback to text_representation if markdown not available
-        table_texts = [
-            t.get('markdown_table') or t['text_representation'] 
-            for t in tables
-        ]
-        print(f"🔄 Generating embeddings for {len(table_texts)} tables...")
-        table_embeddings = generate_embeddings_batch(table_texts, batch_size=100)
+        # Check for oversized tables and chunk them if needed
+        all_table_texts = []
+        all_table_chunks = []  # Track original table for each chunk
         
-        # Create table points
-        for i, (table, vector) in enumerate(zip(tables, table_embeddings)):
-            # Use markdown table for content if available (better for LLM)
-            table_content = table.get('markdown_table') or table['text_representation']
+        def smart_chunk_table_by_rows(table_markdown: str, max_tokens: int = 6000) -> list[str]:
+            """
+            Intelligently split large tables by rows to stay under token limit.
+            Uses aggressive chunking: 1 token ≈ 4 chars, so 6000 tokens ≈ 24000 chars
+            But we validate actual token count and re-chunk if needed.
+            """
+            rows = table_markdown.split('\n')
             
-            chunk_metadata = metadata.copy()
-            chunk_metadata.update({
-                "content": table_content,  # ✅ Use markdown table
-                "chunk_id": f"table_{i}",
-                "type": "table",  # IMPORTANT: Mark as table
-                "page": table.get('page', 1),
-                "paper_id": paper_id,
-                "table_hash": table['hash'],
-                "table_rows": table['row_count'],
-                "table_cols": table['col_count'],
-                # Store structured data for precise retrieval
-                "table_headers": table['headers'],
-                "table_rows_data": table['rows'],  # ✅ Store ALL rows (not limited)
-                "table_markdown": table.get('markdown_table', ''),  # ✅ Full markdown
-                "table_format": "markdown" if 'markdown_table' in table else "text"
-            })
+            if len(rows) <= 3:  # Just header and maybe 1-2 rows
+                return [table_markdown]
             
-            points.append(PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vector,
-                payload=chunk_metadata
-            ))
+            header = rows[0]
+            separator = rows[1]
+            data_rows = rows[2:]
             
-            documents_for_bm25.append({
-                'content': table_content,  # ✅ Use structured content
-                'metadata': chunk_metadata,
-                'chunk_id': f"table_{i}",
-                'page': table.get('page', 1)
-            })
+            # Start with conservative guess: 10-15 rows per chunk (more aggressive than 24K approach)
+            rows_per_chunk = 12  # Start conservative
+            chunks = []
+            
+            while True:
+                current_chunks = []
+                for chunk_start in range(0, len(data_rows), rows_per_chunk):
+                    chunk_end = min(chunk_start + rows_per_chunk, len(data_rows))
+                    chunk_rows = data_rows[chunk_start:chunk_end]
+                    chunk_markdown = f"{header}\n{separator}\n" + "\n".join(chunk_rows)
+                    current_chunks.append(chunk_markdown)
+                
+                # Validate all chunks
+                all_valid = True
+                for chunk in current_chunks:
+                    chunk_tokens = len(chunk) // 4
+                    if chunk_tokens > max_tokens:
+                        all_valid = False
+                        break
+                
+                if all_valid:
+                    chunks = current_chunks
+                    break
+                else:
+                    # Be more aggressive: reduce rows per chunk
+                    rows_per_chunk = max(5, rows_per_chunk - 2)
+                    if rows_per_chunk <= 5:
+                        # Last resort: validate and warn about any oversized chunks
+                        print(f"   ⚠️  WARNING: Could not chunk table small enough. Using 5-row chunks.")
+                        chunks = []
+                        for chunk_start in range(0, len(data_rows), 5):
+                            chunk_end = min(chunk_start + 5, len(data_rows))
+                            chunk_rows = data_rows[chunk_start:chunk_end]
+                            chunk_markdown = f"{header}\n{separator}\n" + "\n".join(chunk_rows)
+                            chunks.append(chunk_markdown)
+                        break
+            
+            return chunks
         
-        print(f"✅ Prepared {len(tables)} table chunks with structured markdown format")
+        for table_idx, table in enumerate(tables):
+            # Get table markdown
+            table_markdown = table.get('markdown_table') or table['text_representation']
+            table_tokens = len(table_markdown) // 4  # Rough estimate
+            
+            # Use aggressive threshold of 5000 tokens (more buffer before 8192 limit)
+            if table_tokens > 5000:
+                print(f"⚠️  Table {table_idx} is oversized ({table['row_count']} rows, ~{table_tokens} tokens). Applying smart chunking...")
+                chunks = smart_chunk_table_by_rows(table_markdown, max_tokens=5000)
+                
+                for chunk_idx, chunk_markdown in enumerate(chunks):
+                    chunk_tokens = len(chunk_markdown) // 4
+                    all_table_texts.append(chunk_markdown)
+                    all_table_chunks.append({
+                        'original_table': table,
+                        'table_idx': table_idx,
+                        'chunk_idx': chunk_idx,
+                        'row_range': 'split',
+                        'actual_tokens': chunk_tokens
+                    })
+                    print(f"   ✅ Created chunk {chunk_idx+1} (~{chunk_tokens} tokens)")
+            else:
+                # Table is normal size, add as-is
+                all_table_texts.append(table_markdown)
+                all_table_chunks.append({
+                    'original_table': table,
+                    'table_idx': table_idx,
+                    'chunk_idx': 0,
+                    'row_range': 'full',
+                    'actual_tokens': table_tokens
+                })
+        
+        if all_table_texts:
+            print(f"🔄 Generating embeddings for {len(all_table_texts)} table chunks...")
+            table_embeddings = generate_embeddings_batch(all_table_texts, batch_size=100)
+            
+            # Create table points
+            for table_text, chunk_info, vector in zip(all_table_texts, all_table_chunks, table_embeddings):
+                table = chunk_info['original_table']
+                chunk_metadata = metadata.copy()
+                chunk_metadata.update({
+                    "content": table_text,  # ✅ Use markdown table (or chunk of it)
+                    "chunk_id": f"table_{chunk_info['table_idx']}_chunk_{chunk_info['chunk_idx']}",
+                    "type": "table",  # IMPORTANT: Mark as table
+                    "page": table.get('page', 1),
+                    "paper_id": paper_id,
+                    "table_hash": table['hash'],
+                    "table_rows": table['row_count'],
+                    "table_cols": table['col_count'],
+                    "is_chunked": chunk_info['row_range'] != 'full',
+                    "row_range": chunk_info['row_range'],
+                    # Store structured data for precise retrieval
+                    "table_headers": table['headers'],
+                    "table_rows_data": table['rows'],  # ✅ Store ALL rows (not limited)
+                    "table_markdown": table.get('markdown_table', ''),  # ✅ Full markdown
+                    "table_format": "markdown" if 'markdown_table' in table else "text"
+                })
+                
+                points.append(PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=vector,
+                    payload=chunk_metadata
+                ))
+                
+                documents_for_bm25.append({
+                    'content': table_text,  # ✅ Use chunked table content
+                    'metadata': chunk_metadata,
+                    'chunk_id': f"table_{chunk_info['table_idx']}_chunk_{chunk_info['chunk_idx']}",
+                    'page': table.get('page', 1)
+                })
+        
+        print(f"✅ Prepared {len(all_table_texts)} table chunks with smart chunking for oversized tables")
     
     # Step 4: Upsert all points to Qdrant in batches to avoid timeout
     print(f"💾 Step 4: Storing {len(points)} total chunks (text + images + tables) to Qdrant...")
@@ -796,3 +954,116 @@ def store_multimodal_embeddings(
     print(f"   Text chunks: {len([p for p in points if p.payload.get('type') == 'text'])}")
     print(f"   Image chunks: {len([p for p in points if p.payload.get('type') == 'image'])}")
     print(f"   Table chunks: {len([p for p in points if p.payload.get('type') == 'table'])}")
+
+
+def store_markdown_embeddings(
+    markdown_text: str,
+    metadata: dict,
+    paper_id: str,
+    page_info: list[dict] = None
+):
+    """
+    ✅ PRODUCTION-GRADE: Store embeddings using MarkdownElementNodeParser strategy.
+    
+    This function provides SUPERIOR indexing for financial documents by:
+    - Keeping tables intact (no mid-table splits)
+    - Preserving hierarchical structure (sections, headers)
+    - Creating semantic boundaries at element level
+    - Providing hierarchical context for better retrieval
+    
+    Args:
+        markdown_text: Full markdown text from PDF extraction
+        metadata: Base metadata for all nodes
+        paper_id: Paper ID for filtering
+        page_info: Page mapping information
+    """
+    print(f"📑 [MARKDOWN INDEXING] Using MarkdownElementNodeParser for {len(markdown_text)} chars")
+    
+    from workflow.markdown_indexer import markdown_parser
+    from workflow.db import qdrant
+    from workflow.enhanced_search import enhanced_search
+    from qdrant_client.http.models import PointStruct, Filter, FieldCondition, MatchValue
+    import uuid
+    
+    # Clear existing embeddings for this paper
+    if paper_id:
+        try:
+            qdrant.delete(
+                collection_name="litwise_collection",
+                points_selector=Filter(
+                    must=[FieldCondition(key="paper_id", match=MatchValue(value=paper_id))]
+                )
+            )
+            print(f"🗑️  Cleared existing embeddings for paper: {paper_id}")
+        except Exception as e:
+            print(f"⚠️  Could not clear existing embeddings: {e}")
+    
+    # Parse markdown into element-based nodes
+    nodes = markdown_parser.parse_markdown_to_nodes(
+        markdown_text=markdown_text,
+        page_info=page_info,
+        base_metadata=metadata
+    )
+    
+    print(f"📊 Created {len(nodes)} element-based nodes")
+    print(f"   Tables: {len([n for n in nodes if n['type']=='table'])}")
+    print(f"   Sections: {len([n for n in nodes if n['type']=='section'])}")
+    
+    # Generate embeddings for all nodes
+    node_texts = [node['content'] for node in nodes]
+    print(f"🔄 Generating embeddings for {len(node_texts)} nodes...")
+    node_embeddings = generate_embeddings_batch(node_texts, batch_size=100)
+    
+    if len(node_embeddings) != len(node_texts):
+        print(f"❌ Embedding count mismatch: {len(node_embeddings)} vs {len(node_texts)}")
+        return
+    
+    # Create points for Qdrant
+    points = []
+    documents_for_bm25 = []
+    
+    for i, (node, vector) in enumerate(zip(nodes, node_embeddings)):
+        # Merge base metadata with node metadata
+        chunk_metadata = {**metadata, **node['metadata']}
+        chunk_metadata.update({
+            "content": node['content'],
+            "chunk_id": f"node_{i}",
+            "total_chunks": len(nodes),
+            "paper_id": paper_id,
+            "indexing_strategy": "markdown_element_parser",  # Track indexing method
+            "node_type": node['type'],
+            "element_type": node['element_type']
+        })
+        
+        points.append(PointStruct(
+            id=str(uuid.uuid4()),
+            vector=vector,
+            payload=chunk_metadata
+        ))
+        
+        documents_for_bm25.append({
+            'content': node['content'],
+            'metadata': chunk_metadata,
+            'chunk_id': f"node_{i}",
+            'page': chunk_metadata.get('page', 1)
+        })
+    
+    # Store in Qdrant
+    try:
+        qdrant.upsert(collection_name="litwise_collection", points=points)
+        print(f"✅ Stored {len(points)} markdown nodes in Qdrant")
+    except Exception as e:
+        print(f"❌ Failed to store markdown embeddings: {e}")
+        raise
+    
+    # Build BM25 index
+    try:
+        enhanced_search.build_bm25_index(paper_id, documents_for_bm25)
+        print(f"✅ BM25 index built for markdown nodes")
+    except Exception as e:
+        print(f"⚠️  BM25 indexing failed: {e}")
+    
+    print(f"🎉 Markdown embedding storage complete!")
+    print(f"   Strategy: MarkdownElementNodeParser")
+    print(f"   Table nodes: {len([p for p in points if p.payload.get('node_type')=='table'])}")
+    print(f"   Section nodes: {len([p for p in points if p.payload.get('node_type')=='section'])}")

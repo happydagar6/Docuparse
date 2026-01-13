@@ -358,9 +358,9 @@ async def upload_paper(
             print(f"❌ Database insertion error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-        # Store multi-modal embeddings (text + images + tables) for immediate chat functionality
+        # ✅ PRODUCTION-GRADE: Use HYBRID indexing strategy (Markdown + Multi-modal)
         try:
-            print(f"🚀 Storing multi-modal embeddings for paper: {paper_id}")
+            print(f"🚀 Storing embeddings for paper: {paper_id}")
             
             paper_metadata_for_embedding = {
                 "id": paper_id,
@@ -370,23 +370,65 @@ async def upload_paper(
                 "publication_year": paper_metadata.get("publication_year"),
             }
             
-            store_multimodal_embeddings(
-                text=text,
-                multimodal_content=multimodal_content,
-                metadata=paper_metadata_for_embedding,
-                paper_id=paper_id,
-                page_info=page_info
-            )
+            # Check if we have full markdown from PDF extraction
+            markdown_full = multimodal_content.get('markdown_full', '')
             
-            print(f"✅ Multi-modal embeddings stored successfully")
-            print(f"   📝 Text chunks: processed")
-            print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
-            print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
+            if markdown_full and len(markdown_full) > 1000:
+                # ✅ PRIMARY: Use MarkdownElementNodeParser for superior table indexing
+                print(f"✅ Using HYBRID indexing strategy (Markdown + Multi-modal)")
+                print(f"   1️⃣  PRIMARY: MarkdownElementNodeParser (element-aware tables)")
+                from workflow.utils import store_markdown_embeddings, store_multimodal_embeddings
+                
+                store_markdown_embeddings(
+                    markdown_text=markdown_full,
+                    metadata=paper_metadata_for_embedding,
+                    paper_id=paper_id,
+                    page_info=page_info
+                )
+                
+                print(f"✅ Markdown-based embeddings stored")
+                print(f"   Strategy: MarkdownElementNodeParser")
+                print(f"   Markdown size: {len(markdown_full)} chars")
+                
+                # ✅ SECONDARY: Add multi-modal embeddings for comprehensive coverage
+                # Text chunks + images provide backup retrieval paths
+                print(f"\n   2️⃣  SECONDARY: Multi-modal embeddings (text chunks + images)")
+                store_multimodal_embeddings(
+                    text=text,
+                    multimodal_content=multimodal_content,
+                    metadata=paper_metadata_for_embedding,
+                    paper_id=paper_id,
+                    page_info=page_info
+                )
+                
+                print(f"✅ Multi-modal embeddings stored (secondary)")
+                print(f"   📝 Text chunks: processed")
+                print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
+                print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
+                print(f"\n🎉 HYBRID indexing complete: Markdown tables + Text chunks + Images")
+                
+            else:
+                # Fallback: Use multi-modal embeddings if no markdown
+                print(f"⚠️  No markdown available, using multi-modal fallback")
+                from workflow.utils import store_multimodal_embeddings
+                
+                store_multimodal_embeddings(
+                    text=text,
+                    multimodal_content=multimodal_content,
+                    metadata=paper_metadata_for_embedding,
+                    paper_id=paper_id,
+                    page_info=page_info
+                )
+                
+                print(f"✅ Multi-modal embeddings stored successfully")
+                print(f"   📝 Text chunks: processed")
+                print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
+                print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
             
         except Exception as e:
-            print(f"⚠️  Multi-modal embedding storage failed: {e}")
+            print(f"⚠️  Primary embedding storage failed: {e}")
             print(f"   Falling back to text-only embeddings...")
-            # Fallback to text-only if multimodal fails
+            # Fallback to text-only if everything else fails
             try:
                 store_embedding(text, paper_metadata_for_embedding, paper_id, "basic", page_info)
                 print(f"✅ Fallback: Text-only embeddings stored")
@@ -725,7 +767,7 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
         
         # Initialize embeddings model
         embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small", openai_api_key=os.getenv("OPENAI_API_KEY")
+            model="text-embedding-3-large", openai_api_key=os.getenv("OPENAI_API_KEY")
         )
 
         # Get paper IDs from filters if specified

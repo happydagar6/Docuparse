@@ -8,7 +8,7 @@ import json
 import uuid
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
@@ -125,12 +125,12 @@ class QuizService:
             )
             
             # Initialize embedding model for semantic search
-            self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+            self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
             
             logger.info("✅ Quiz Service initialized successfully")
             logger.info(f"   - LLM Model: Grok-4-1-Fast-Reasoning")
             logger.info(f"   - Vector DB: Qdrant")
-            logger.info(f"   - Embeddings: text-embedding-3-small")
+            logger.info(f"   - Embeddings: text-embedding-3-large")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize Quiz Service: {str(e)}")
