@@ -42,6 +42,7 @@ const ChatInterface = ({ paper }) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [failedMessageIds, setFailedMessageIds] = useState(new Set());
   const [pendingMessageId, setPendingMessageId] = useState(null);
+  const textareaRef = useRef(null);
   
   // AbortController for stopping generation
   const abortControllerRef = useRef(null);
@@ -201,6 +202,12 @@ const ChatInterface = ({ paper }) => {
     setOptimisticUserMessage(optimisticMessage);
     setPendingMessageId(optimisticId);
     setMessage('');
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    
     setIsStreaming(true);
     setStreamingMessage('');
     setSources([]);
@@ -344,6 +351,19 @@ const ChatInterface = ({ paper }) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  // Auto-expand textarea as user types
+  const handleMessageChange = (e) => {
+    const newMessage = e.target.value;
+    setMessage(newMessage);
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 200); // Max 200px height
+      textareaRef.current.style.height = `${newHeight}px`;
     }
   };
 
@@ -516,14 +536,15 @@ const ChatInterface = ({ paper }) => {
               <div className="p-3 md:p-4 lg:p-5 shrink-0 bg-linear-to-b from-white to-slate-50/50 border-t border-slate-200/40">
                 <div className="max-w-4xl mx-auto">
                   <div className="flex gap-2 md:gap-3 items-end">
-                    <Input
-                      ref={inputRef}
+                    <textarea
+                      ref={textareaRef}
                       value={message}
-                      onChange={(e) => setMessage(e.target.value)}
+                      onChange={handleMessageChange}
                       onKeyPress={handleKeyPress}
                       placeholder="Ask anything about this paper..."
                       disabled={isStreaming}
-                      className="flex-1 text-sm md:text-base py-3 px-4 rounded-xl border-1.5 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white shadow-sm hover:border-slate-300 transition-colors placeholder:text-slate-500"
+                      rows={1}
+                      className="flex-1 text-sm md:text-base py-3 px-4 rounded-xl border-1.5 border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white shadow-sm hover:border-slate-300 transition-colors placeholder:text-slate-500 resize-none overflow-y-auto max-h-52 font-sans"
                     />
                     {isStreaming ? (
                       <Button

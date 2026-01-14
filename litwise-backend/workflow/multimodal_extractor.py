@@ -99,17 +99,17 @@ class MultiModalExtractor:
         
     def extract_tables(self, pdf_path: str, page_info: List[Dict] = None) -> List[Dict]:
         """
-        Extract tables from PDF using PyMuPDF's find_tables() with layout-aware processing.
+        Extract tables from PDF using PyMuPDF's find_tables() + fallback markdown parsing.
         
         ✨ FEATURES:
-        - Automatic table detection using PyMuPDF's find_tables() method
+        - Automatic table detection using PyMuPDF's find_tables() method (catches structured tables with borders)
+        - FALLBACK: Extract tables from markdown content (catches tables without visible borders)
         - Merges tables that span across pages
         - Chunks large tables (>30 rows) with repeated headers
         - Enriches metadata for better retrieval
         
-        PyMuPDF preserves table structure and headers, which is critical for
-        financial tables (Balance Sheets, Segment Reporting, etc.) where the
-        relationship between headers and values must be maintained.
+        PyMuPDF's find_tables() is limited - only detects tables with visible borders.
+        The markdown fallback catches tables rendered without borders (common in financial reports).
         
         Args:
             pdf_path: Path to PDF file
@@ -122,19 +122,19 @@ class MultiModalExtractor:
         logger.info(f"📊 Starting layout-aware table extraction from: {pdf_path}")
         print(f"📊 Starting layout-aware table extraction from: {pdf_path}")
         
+        tables = []
+        seen_tables = set()  # Track by hash to avoid duplicates
+        
         try:
-            # ✅ Using PyMuPDF find_tables() method (FREE - no API credits required)
+            # STEP 1: Try PyMuPDF find_tables() method (catches border-based tables)
             logger.info("📊 Extracting tables using PyMuPDF find_tables()...")
             print("📊 Extracting tables using PyMuPDF find_tables().")
             
-            # Extract tables using PyMuPDF's built-in table detection
-            tables = []
             doc = fitz.open(pdf_path)
             
             for page_num in range(len(doc)):
                 page = doc[page_num]
                 
-                # Use PyMuPDF's find_tables() method (available since v1.23.0)
                 try:
                     table_finder = page.find_tables()
                     
@@ -150,13 +150,17 @@ class MultiModalExtractor:
                                 structured_table = self._parse_markdown_table(markdown_table, len(tables))
                                 
                                 if structured_table:
-                                    # Add page number (PyMuPDF pages are 0-indexed)
+                                    # Add page number
                                     structured_table['page'] = page_num + 1
                                     
-                                    # Filter out tiny tables (likely artifacts)
-                                    if len(structured_table['rows']) >= self.min_table_rows:
-                                        tables.append(structured_table)
-                                        print(f"   ✅ Page {page_num + 1}, Table {table_index + 1}: {len(structured_table['rows'])} rows × {len(structured_table['headers'])} cols")
+                                    # Check for duplicates
+                                    table_hash = hashlib.md5(markdown_table.encode()).hexdigest()
+                                    if table_hash not in seen_tables:
+                                        # Filter out tiny tables (likely artifacts)
+                                        if len(structured_table['rows']) >= self.min_table_rows:
+                                            tables.append(structured_table)
+                                            seen_tables.add(table_hash)
+                                            print(f"   ✅ Page {page_num + 1}, Table {table_index + 1}: {len(structured_table['rows'])} rows × {len(structured_table['headers'])} cols")
                                 
                             except Exception as e:
                                 logger.warning(f"Failed to extract table {table_index} on page {page_num + 1}: {e}")
@@ -170,24 +174,43 @@ class MultiModalExtractor:
             doc.close()
             
             print(f"📊 Found {len(tables)} tables using PyMuPDF find_tables()")
-            logger.info(f"✅ Extracted {len(tables)} tables from {pdf_path} using PyMuPDF")
             
-            # ✨ NEW: Apply layout-aware processing
+            # STEP 2: FALLBACK - Extract tables from markdown (catches tables without borders)
+            logger.info("🔄 FALLBACK: Extracting tables from markdown content...")
+            print("🔄 FALLBACK: Extracting tables from markdown content (for border-less tables)...")
+            
+            markdown_content = self.extract_full_markdown(pdf_path)
+            if markdown_content:
+                markdown_tables = self._extract_tables_from_markdown(markdown_content)
+                
+                # Add markdown-extracted tables that aren't duplicates
+                for md_table in markdown_tables:
+                    md_table_hash = hashlib.md5(md_table['markdown_table'].encode()).hexdigest()
+                    if md_table_hash not in seen_tables:
+                        tables.append(md_table)
+                        seen_tables.add(md_table_hash)
+                        print(f"   ✅ Found table in markdown: {md_table['row_count']} rows × {md_table['col_count']} cols")
+                
+                print(f"📊 Extracted {len(markdown_tables)} additional tables from markdown (total: {len(tables)})")
+            
+            logger.info(f"✅ Extracted {len(tables)} tables total from {pdf_path}")
+            
+            # STEP 3: Apply layout-aware processing
             print(f"🔄 Applying layout-aware processing...")
             
-            # Step 1: Merge page-spanning tables
+            # Merge page-spanning tables
             if page_info:
                 tables = self.layout_parser.merge_page_spanning_tables(tables, page_info)
                 print(f"   ✅ Merged page-spanning tables: {len(tables)} tables after merge")
             else:
                 logger.warning("No page_info provided, skipping page-span detection")
             
-            # Step 2: Chunk large tables with header repetition
+            # Chunk large tables with header repetition
             original_count = len(tables)
             tables = self.layout_parser.chunk_large_tables(tables, max_rows_per_chunk=30)
             print(f"   ✅ Chunked large tables: {original_count} → {len(tables)} chunks")
             
-            # Step 3: Enrich metadata for better retrieval
+            # Enrich metadata for better retrieval
             tables = [self.layout_parser.enrich_table_metadata(t) for t in tables]
             print(f"   ✅ Enriched metadata for all tables")
             
@@ -205,6 +228,137 @@ class MultiModalExtractor:
             logger.error(f"Failed to extract tables with PyMuPDF: {e}")
             print(f"❌ Failed to extract tables with PyMuPDF: {e}")
             return []
+    
+    def _extract_tables_from_markdown(self, markdown_content: str) -> List[Dict]:
+        """
+        Extract tables from markdown content using regex pattern matching.
+        
+        FALLBACK method for PDFs that don't have visible table borders.
+        Many PDFs (especially financial reports) render tables without borders,
+        but pymupdf4llm converts them to markdown tables.
+        
+        Looks for markdown table patterns:
+        | Header 1 | Header 2 |
+        |----------|----------|
+        | Value 1  | Value 2  |
+        
+        Args:
+            markdown_content: Full markdown text extracted from PDF
+        
+        Returns:
+            List of extracted table dicts in same format as PyMuPDF tables
+        """
+        logger.info("🔍 Extracting tables from markdown content...")
+        tables = []
+        
+        if not markdown_content:
+            return tables
+        
+        # Split content into lines
+        lines = markdown_content.split('\n')
+        
+        current_table_lines = []
+        table_start_idx = 0
+        
+        for idx, line in enumerate(lines):
+            # Check if line is a table row (contains pipes)
+            if '|' in line:
+                # This might be a table header, separator, or data row
+                if not current_table_lines:
+                    table_start_idx = idx
+                current_table_lines.append(line)
+            else:
+                # End of potential table
+                if current_table_lines:
+                    # Try to parse accumulated lines as a table
+                    potential_table = '\n'.join(current_table_lines).strip()
+                    
+                    if self._is_valid_markdown_table(potential_table):
+                        # Try to parse into structured format
+                        structured = self._parse_markdown_table(potential_table, len(tables))
+                        
+                        if structured and (structured['row_count'] > 0 or structured['col_count'] >= 2):
+                            # Try to detect page number from context
+                            # Find the closest page marker in markdown before this table
+                            page_num = 1
+                            for back_idx in range(table_start_idx - 1, max(0, table_start_idx - 50), -1):
+                                if '# Page' in lines[back_idx] or '## Page' in lines[back_idx]:
+                                    try:
+                                        page_str = lines[back_idx].split('Page ')[-1]
+                                        page_num = int(page_str.split()[0])
+                                        break
+                                    except:
+                                        pass
+                            
+                            structured['page'] = page_num
+                            tables.append(structured)
+                            logger.info(f"✅ Markdown table extracted: {structured['row_count']} rows × {structured['col_count']} cols on page {page_num}")
+                    
+                    current_table_lines = []
+        
+        # Don't forget the last potential table
+        if current_table_lines:
+            potential_table = '\n'.join(current_table_lines).strip()
+            
+            if self._is_valid_markdown_table(potential_table):
+                structured = self._parse_markdown_table(potential_table, len(tables))
+                
+                if structured and (structured['row_count'] > 0 or structured['col_count'] >= 2):
+                    page_num = 1
+                    for back_idx in range(len(lines) - 1, max(0, len(lines) - 50), -1):
+                        if '# Page' in lines[back_idx] or '## Page' in lines[back_idx]:
+                            try:
+                                page_str = lines[back_idx].split('Page ')[-1]
+                                page_num = int(page_str.split()[0])
+                                break
+                            except:
+                                pass
+                    
+                    structured['page'] = page_num
+                    tables.append(structured)
+                    logger.info(f"✅ Markdown table extracted: {structured['row_count']} rows × {structured['col_count']} cols on page {page_num}")
+        
+        logger.info(f"✅ Extracted {len(tables)} tables from markdown content")
+        return tables
+    
+    def _is_valid_markdown_table(self, text: str) -> bool:
+        """
+        Validate if text is a markdown table.
+        
+        Requirements:
+        - At least 2 lines (header + separator)
+        - First line has pipes with content
+        - Second line has pipes with dashes/colons (separator)
+        
+        Returns:
+            True if valid markdown table, False otherwise
+        """
+        lines = text.strip().split('\n')
+        
+        if len(lines) < 2:
+            return False
+        
+        # Check for pipes in first line
+        if '|' not in lines[0]:
+            return False
+        
+        # Check for separator pattern in second line
+        if len(lines) > 1:
+            second_line = lines[1]
+            # Separator must have pipes and dashes/colons
+            if '|' not in second_line or ('-' not in second_line and ':' not in second_line):
+                return False
+            
+            # Ensure it looks like a proper separator (mostly dashes)
+            pipe_sections = second_line.split('|')
+            separator_cells = [s.strip() for s in pipe_sections if s.strip()]
+            
+            # At least one cell should be mostly dashes
+            has_dash_cell = any(all(c in '-: ' for c in cell) for cell in separator_cells)
+            if not has_dash_cell:
+                return False
+        
+        return True
     
     def _extract_markdown_tables_from_documents(self, documents) -> List[str]:
         """

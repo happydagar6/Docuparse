@@ -85,11 +85,10 @@ export const usePaperStore = create(
       showHighlights: false,
       fontSize: 'medium', // 'small', 'medium', 'large'
       
-      // Pagination state
+      // Pagination state (managed by PaperPDFViewer/AdvancedPDFViewer, not here)
+      // Keeping only for backward compatibility if needed
       currentPage: 1,
       totalPages: 0,
-      pageContent: [], // Array of {pageNumber, content, startPos, endPos}
-      pageError: null,
       
       // Actions
       setCurrentPaper: (paper) => 
@@ -111,80 +110,9 @@ export const usePaperStore = create(
       setFontSize: (size) => 
         set({ fontSize: size }),
 
-      // Pagination actions
-      goToPage: (pageNumber) => {
-        const { totalPages } = get();
-        const validPage = Math.max(1, Math.min(pageNumber, totalPages));
-        set({ currentPage: validPage });
-        return validPage;
-      },
-
-      goToNextPage: () => {
-        const { currentPage, totalPages } = get();
-        const nextPage = Math.min(currentPage + 1, totalPages);
-        set({ currentPage: nextPage });
-        return nextPage;
-      },
-
-      goToPreviousPage: () => {
-        const { currentPage } = get();
-        const prevPage = Math.max(currentPage - 1, 1);
-        set({ currentPage: prevPage });
-        return prevPage;
-      },
-
-      initializePagination: (content) => {
-        try {
-          if (!content || typeof content !== 'string') {
-            throw new Error('Invalid content for pagination');
-          }
-
-          // Create pagination based on content chunks
-          const CHARS_PER_PAGE = 3000; // ~1 page of academic text
-          const totalChars = content.length;
-          const totalPages = Math.max(1, Math.ceil(totalChars / CHARS_PER_PAGE));
-          
-          const pageContent = [];
-          for (let i = 0; i < totalPages; i++) {
-            const startPos = i * CHARS_PER_PAGE;
-            const endPos = Math.min(startPos + CHARS_PER_PAGE, totalChars);
-            pageContent.push({
-              pageNumber: i + 1,
-              content: content.slice(startPos, endPos),
-              startPos,
-              endPos
-            });
-          }
-          
-          set({ 
-            pageContent, 
-            totalPages, 
-            currentPage: 1, 
-            pageError: null 
-          });
-        } catch (error) {
-          console.error('Error initializing pagination:', error);
-          set({ 
-            pageError: error.message,
-            pageContent: [{ 
-              pageNumber: 1, 
-              content: content || '', 
-              startPos: 0, 
-              endPos: content?.length || 0 
-            }],
-            totalPages: 1,
-            currentPage: 1
-          });
-        }
-      },
-
-      resetPagination: () => 
-        set({
-          currentPage: 1,
-          totalPages: 0,
-          pageContent: [],
-          pageError: null
-        }),
+      // Pagination actions - NO LONGER NEEDED
+      // All pagination is now handled by PaperPDFViewer and AdvancedPDFViewer components
+      // These methods are kept as stubs for backward compatibility only
     }),
     {
       name: 'paper-store',

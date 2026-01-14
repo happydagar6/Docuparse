@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, memo } from 'react';
+import { useMemo, memo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getMultiModalContent } from '@/lib/multimodal-api';
 import { ImageContent } from './ImageContent';

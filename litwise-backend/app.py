@@ -326,6 +326,7 @@ async def upload_paper(
             "id": paper_id,
             "title": final_title,
             "content_text": text,
+            "markdown_content": multimodal_content.get('markdown_full', ''),  # Store markdown with tables/images
             "page_info": json.dumps(page_info),
             "embedding_id": paper_id,
             "user_id": current_user.id,  # Set authenticated user ID
@@ -1457,7 +1458,7 @@ def get_paper(paper_id: str, current_user: AuthUser = Depends(get_current_user))
         result = (
             supabase.table("papers")
             .select(
-                "id, title, summary, content_text, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename"
+                "id, title, summary, content_text, markdown_content, page_info, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename"
             )
             .eq("id", paper_id)
             .eq("user_id", current_user.id)
@@ -1489,6 +1490,8 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
         if not paper_check.data:
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
+        print(f"📊 Fetching multimodal content for paper: {paper_id}")
+        
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue
         from workflow.db import qdrant
         
@@ -1505,6 +1508,7 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
         )
         
         chunks = results[0]
+        print(f"   Total chunks retrieved: {len(chunks)}")
         
         # Separate by type
         images = []
@@ -1532,7 +1536,10 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
                     'col_count': payload.get('table_cols')
                 })
         
-        return {
+        print(f"   Images found: {len(images)}")
+        print(f"   Tables found: {len(tables)}")
+        
+        response = {
             "paper_id": paper_id,
             "images": images,
             "tables": tables,
@@ -1540,7 +1547,11 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
             "total_tables": len(tables)
         }
         
+        print(f"✅ Returning multimodal response: {response}")
+        return response
+        
     except Exception as e:
+        print(f"❌ Error fetching multimodal content: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve multi-modal content: {str(e)}")
 
 

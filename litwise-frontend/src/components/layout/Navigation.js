@@ -22,6 +22,8 @@ import {
   Library,
   Lightbulb,
   Calendar,
+  Brain,
+  PenTool,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/lib/stores";
@@ -57,6 +59,16 @@ export function Navigation() {
 
   // Secondary navigation items - shown in drawer/sidebar
   const secondaryItems = [
+    {
+      href: "/literature-review",
+      label: "Literature Review",
+      icon: PenTool,
+    },
+    {
+      href: "/synthesis",
+      label: "Synthesis",
+      icon: Brain,
+    },
     {
       href: "/study-plan",
       label: "Study Plan",

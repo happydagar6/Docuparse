@@ -14,7 +14,7 @@
 
 'use client';
 
-import { useState, useRef, useLayoutEffect, useOptimistic, useCallback, useMemo, startTransition, useEffectEvent } from 'react';
+import { useState, useRef, useLayoutEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
@@ -58,6 +58,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import MultiModalContent from './MultiModalContent';
+import PaperPDFViewer from './PaperPDFViewer';
 import { Image as ImageIcon } from 'lucide-react';
 import CitationList from '@/components/citations/CitationList';
 import CitationStats from '@/components/citations/CitationStats';
@@ -83,31 +84,19 @@ export function PaperReader({ paper, onBack }) {
   // Zustand store for paper reader state
   const {
     showSidebar,
-    currentPage,
-    totalPages,
-    pageContent,
-    pageError,
     fontSize,
     theme,
     highlightedSections,
     toggleSidebar,
     setCurrentPage,
-    goToNextPage,
-    goToPreviousPage,
-    initializePagination,
-    resetPagination,
     setFontSize,
     clearHighlights
   } = usePaperStore();
-  
-  // React 19.2: useOptimistic for page transitions - synced with store
-  const [optimisticPage, setOptimisticPage] = useOptimistic(
-    currentPage,
-    (state, newPage) => newPage
-  );
 
   /**
-   * Initialize pagination when paper data loads - using React 19.2 patterns
+   * Validate paper content when data loads
+   * NOTE: Pagination is now handled entirely by PaperPDFViewer and AdvancedPDFViewer
+   * This initialization just validates the content exists
    */
   const paperInitialization = useMemo(() => {
     if (!paper) return null;
@@ -122,31 +111,17 @@ export function PaperReader({ paper, onBack }) {
           throw new Error('No content available for this paper');
         }
 
-        // Try to parse page_info if available
-        let pageInfo = null;
-        if (paper.page_info) {
-          try {
-            pageInfo = typeof paper.page_info === 'string' 
-              ? JSON.parse(paper.page_info) 
-              : paper.page_info;
-          } catch (parseError) {
-            console.warn('Could not parse page_info:', parseError);
-            pageInfo = null;
-          }
-        }
-
-        // Initialize pagination with content and page info
-        initializePagination(content, pageInfo);
+        // Content validation passed - PaperPDFViewer will handle pagination
         setPageInputValue('1');
 
       } catch (err) {
-        console.error('Error initializing paper:', err);
+        console.error('Error loading paper:', err);
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
-  }, [paper, initializePagination]);
+  }, [paper]);
 
   // React 19.2: Initialize with useLayoutEffect for synchronous updates
   useLayoutEffect(() => {
@@ -156,9 +131,9 @@ export function PaperReader({ paper, onBack }) {
 
     // Cleanup on unmount
     return () => {
-      resetPagination();
+      // Pagination is now managed by PaperPDFViewer component
     };
-  }, [paperInitialization, resetPagination]);
+  }, [paperInitialization]);
 
   /**
    * Load citations for the paper
@@ -187,81 +162,12 @@ export function PaperReader({ paper, onBack }) {
   }, [loadCitations]);
 
   /**
-   * Update page input when current page changes - React 19.2 optimized
-   */
-  useLayoutEffect(() => {
-    startTransition(() => {
-      setPageInputValue(currentPage.toString());
-      setOptimisticPage(currentPage);
-    });
-  }, [currentPage, setOptimisticPage]);
-
-  /**
-   * Keyboard shortcuts with React 19.2 optimizations
-   * useEffectEvent ensures we always use latest functions without re-adding event listener
-   */
-  const handleKeyboardNavigation = useEffectEvent((e) => {
-    if (e.target.tagName === 'INPUT') return;
-    
-    switch (e.key) {
-      case 'ArrowLeft':
-      case 'h':
-        e.preventDefault();
-        startTransition(() => {
-          const prevPage = Math.max(1, currentPage - 1);
-          setOptimisticPage(prevPage);
-          goToPreviousPage();
-        });
-        break;
-      case 'ArrowRight':
-      case 'l':
-        e.preventDefault();
-        startTransition(() => {
-          const nextPage = Math.min(totalPages, currentPage + 1);
-          setOptimisticPage(nextPage);
-          goToNextPage();
-        });
-        break;
-      case 's':
-        e.preventDefault();
-        toggleSidebar();
-        break;
-      case 'Escape':
-        if (showSidebar) {
-          toggleSidebar();
-        }
-        break;
-    }
-  });
-
-  useLayoutEffect(() => {
-    window.addEventListener('keydown', handleKeyboardNavigation);
-    return () => window.removeEventListener('keydown', handleKeyboardNavigation);
-  }, []);
-
-  /**
-   * Handle page input change
+   * Handle page input change (for future use with PaperPDFViewer)
    */
   const handlePageInputChange = (e) => {
     const value = e.target.value;
     setPageInputValue(value);
   };
-
-  /**
-   * Handle page input submit with optimistic updates
-   */
-  const handlePageInputSubmit = useCallback((e) => {
-    e.preventDefault();
-    const pageNum = parseInt(pageInputValue);
-    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-      startTransition(() => {
-        setOptimisticPage(pageNum);
-        setCurrentPage(pageNum);
-      });
-    } else {
-      setPageInputValue(optimisticPage.toString());
-    }
-  }, [pageInputValue, totalPages, optimisticPage, setCurrentPage, setOptimisticPage]);
 
   /**
    * Font size controls
@@ -286,30 +192,6 @@ export function PaperReader({ paper, onBack }) {
       default: return 'text-base leading-relaxed';
     }
   };
-
-  /**
-   * Get current page content with optimistic updates
-   */
-  const getCurrentPageContent = useCallback(() => {
-    if (pageError) {
-      return {
-        content: `Error loading page: ${pageError}`,
-        pageNumber: optimisticPage
-      };
-    }
-
-    if (!pageContent || pageContent.length === 0) {
-      return {
-        content: 'No content available',
-        pageNumber: 1
-      };
-    }
-
-    const page = pageContent.find(p => p.pageNumber === optimisticPage) || pageContent[0];
-    return page;
-  }, [pageError, pageContent, optimisticPage]);
-
-  const currentPageData = useMemo(() => getCurrentPageContent(), [getCurrentPageContent]);
 
   /**
    * Sidebar content sections
@@ -409,44 +291,7 @@ export function PaperReader({ paper, onBack }) {
             </div>
           </div>
           
-          {/* Center - Page Navigation */}
-          <div className="flex items-center gap-0.5 md:gap-2 shrink-0 bg-slate-100/60 rounded-full px-1.5 py-1 md:px-3 md:py-2 border border-slate-200/50">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                startTransition(() => {
-                  setOptimisticPage(Math.max(1, optimisticPage - 1));
-                  goToPreviousPage();
-                });
-              }}
-              disabled={optimisticPage <= 1}
-              className="h-7 w-7 md:h-8 md:w-8 p-0 rounded hover:bg-white transition-colors"
-            >
-              <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
-            </Button>
-            
-            <div className="flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2">
-              <span className="text-xs md:text-sm text-slate-600 font-semibold min-w-max">{optimisticPage}</span>
-              <span className="text-xs text-slate-400">/</span>
-              <span className="text-xs md:text-sm text-slate-600 font-semibold min-w-max">{totalPages}</span>
-            </div>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                startTransition(() => {
-                  setOptimisticPage(Math.min(totalPages, optimisticPage + 1));
-                  goToNextPage();
-                });
-              }}
-              disabled={optimisticPage >= totalPages}
-              className="h-7 w-7 md:h-8 md:w-8 p-0 rounded hover:bg-white transition-colors"
-            >
-              <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
-            </Button>
-          </div>
+          {/* Center - Note: Page navigation now handled by AdvancedPDFViewer in the Text tab */}
           
           {/* Right side - Controls */}
           <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
@@ -563,88 +408,17 @@ export function PaperReader({ paper, onBack }) {
 
               {/* Tab Contents */}
               <div className="flex-1 overflow-hidden">
-                {/* Paper Text Tab */}
+                {/* Paper Text Tab - Using new PDF Viewer */}
                 <TabsContent value="text" className="h-full flex flex-col m-0 overflow-hidden">
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="px-2 sm:px-4 md:px-6 py-4 md:py-6">
-                      <div className="w-full max-w-4xl mx-auto">
-                        {/* Page indicator */}
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="mb-4 text-center"
-                        >
-                          <span className="inline-flex items-center px-3 md:px-4 py-1.5 bg-linear-to-r from-blue-100 to-cyan-100 text-blue-900 text-xs md:text-sm font-semibold rounded-full border border-blue-200/50">
-                            Page {optimisticPage} of {totalPages}
-                          </span>
-                        </motion.div>
-
-                        {/* Page content with animation */}
-                        <motion.div
-                          key={optimisticPage}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.2 }}
-                          className={`prose prose-sm max-w-none ${getFontSizeClass()}`}
-                        >
-                          <div className="p-4 sm:p-6 md:p-8 bg-white rounded-xl border border-slate-200/50 shadow-sm hover:shadow-md transition-all min-h-[400px] sm:min-h-[500px] md:min-h-[600px]">
-                            <div className="wrap-break-word overflow-wrap-break-word text-slate-900">
-                              <FormattedContent content={currentPageData.content} />
-                            </div>
-                          </div>
-                        </motion.div>
-
-                        {/* Page navigation footer */}
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.1 }}
-                          className="mt-6 md:mt-8 flex justify-center sm:justify-between items-center gap-2 md:gap-4 flex-wrap"
-                        >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const prevPage = Math.max(1, currentPage - 1);
-                              startTransition(() => {
-                                setOptimisticPage(prevPage);
-                                goToPreviousPage();
-                              });
-                            }}
-                            disabled={currentPage <= 1}
-                            className="flex items-center gap-2 text-xs md:text-sm px-3 md:px-4 py-2 hover:bg-blue-50 transition-colors"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                            <span>Previous</span>
-                          </Button>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs md:text-sm font-semibold text-slate-900 px-3 md:px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                              {optimisticPage} / {totalPages}
-                            </span>
-                          </div>
-                          
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const nextPage = Math.min(totalPages, currentPage + 1);
-                              startTransition(() => {
-                                setOptimisticPage(nextPage);
-                                goToNextPage();
-                              });
-                            }}
-                            disabled={currentPage >= totalPages}
-                            className="flex items-center gap-2 text-xs md:text-sm px-3 md:px-4 py-2 hover:bg-blue-50 transition-colors"
-                          >
-                            <span>Next</span>
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </motion.div>
-                      </div>
-                    </div>
-                  </div>
+                  <PaperPDFViewer
+                    paper={paper}
+                    isLoading={isLoading}
+                    error={error}
+                    onDownload={() => {
+                      // Optional: Implement PDF download functionality
+                      console.log('Download PDF:', paper.title);
+                    }}
+                  />
                 </TabsContent>
 
                 {/* Multimodal Content Tab */}
@@ -871,14 +645,6 @@ export function PaperReader({ paper, onBack }) {
         </motion.div>
       </div>
       
-      {/* Keyboard shortcuts help - mobile friendly */}
-      <div className="hidden md:block absolute bottom-4 left-4 text-xs text-muted-foreground bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-slate-200/50 shadow-sm">
-        <div className="font-semibold mb-1 text-slate-700">Keyboard Shortcuts:</div>
-        <div className="space-y-0.5 text-slate-600">
-          <div>← → Navigate pages</div>
-          <div>S Toggle sidebar • Esc Close sidebar</div>
-        </div>
-      </div>
     </div>
   );
 }
