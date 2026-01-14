@@ -393,16 +393,27 @@ export function UploadForm({ onUploadSuccess }) {
                     Our AI is extracting insights and generating summaries
                   </p>
                   <div className="max-w-md mx-auto px-4">
-                    <Progress
-                      value={uploadProgress}
-                      className="w-full h-2 sm:h-3 rounded-full mb-2 sm:mb-3"
-                    />
+                    <div className="mb-3 sm:mb-4">
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <span className="text-xs sm:text-sm font-medium text-gray-700">Processing PDF...</span>
+                        <span className="text-sm sm:text-base font-bold text-blue-600">
+                          {Math.round(uploadProgress)}%
+                        </span>
+                      </div>
+                      <Progress
+                        value={uploadProgress}
+                        className="w-full h-2.5 sm:h-3 rounded-full"
+                      />
+                    </div>
                     <motion.p
-                      className="text-xs sm:text-sm text-blue-600 font-semibold"
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="text-xs sm:text-sm text-gray-600 text-center font-medium"
+                      animate={{ opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 2, repeat: Infinity }}
                     >
-                      {uploadProgress}% complete
+                      {uploadProgress < 30 ? "Extracting text from document..." : 
+                       uploadProgress < 60 ? "Analyzing content with AI..." : 
+                       uploadProgress < 85 ? "Generating summaries and insights..." : 
+                       "Finalizing processing..."}
                     </motion.p>
                   </div>
                 </div>

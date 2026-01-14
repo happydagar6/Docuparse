@@ -125,12 +125,12 @@ class QuizService:
             )
             
             # Initialize embedding model for semantic search
-            self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+            self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
             
             logger.info("✅ Quiz Service initialized successfully")
             logger.info(f"   - LLM Model: Grok-4-1-Fast-Reasoning")
             logger.info(f"   - Vector DB: Qdrant")
-            logger.info(f"   - Embeddings: text-embedding-3-large")
+            logger.info(f"   - Embeddings: text-embedding-3-small")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize Quiz Service: {str(e)}")

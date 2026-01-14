@@ -767,7 +767,7 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
         
         # Initialize embeddings model
         embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-large", openai_api_key=os.getenv("OPENAI_API_KEY")
+            model="text-embedding-3-small", openai_api_key=os.getenv("OPENAI_API_KEY")
         )
 
         # Get paper IDs from filters if specified

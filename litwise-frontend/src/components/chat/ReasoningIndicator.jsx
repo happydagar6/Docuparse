@@ -18,10 +18,10 @@ const ReasoningIndicator = memo(function ReasoningIndicator({ className = '' }) 
       className
     )}>
       {/* Main Container - Clean and Minimal */}
-      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/50 px-3 md:px-4 py-2.5 md:py-3">
+      <div className="relative overflow-hidden rounded-lg bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200/50 px-3 md:px-4 py-2.5 md:py-3">
         
         {/* Subtle animated background */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 animate-pulse" style={{ animation: 'pulse 3s ease-in-out infinite' }} />
+        <div className="absolute inset-0 bg-linear-to-r from-transparent via-blue-100/30 to-transparent opacity-0 animate-pulse" style={{ animation: 'pulse 3s ease-in-out infinite' }} />
         
         {/* Content */}
         <div className="relative flex items-center gap-2.5 md:gap-3">
@@ -41,7 +41,7 @@ const ReasoningIndicator = memo(function ReasoningIndicator({ className = '' }) 
           
           {/* Text Content */}
           <div className="flex-1">
-            <p className="text-xs md:text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 leading-tight" style={{ animation: 'text-shimmer 2s ease-in-out infinite' }}>
+            <p className="text-xs md:text-sm font-bold text-transparent bg-clip-text bg-linear-to-r from-indigo-600 via-blue-600 to-indigo-600 leading-tight" style={{ animation: 'text-shimmer 2s ease-in-out infinite' }}>
               Reasoning: Processing your query
             </p>
           </div>

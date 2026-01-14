@@ -17,10 +17,10 @@ try:
     # Check if collection exists
     if not qdrant.collection_exists("litwise_collection"):
         print("✅ Creating new Qdrant collection for OpenAI multimodal embeddings...")
-        # OpenAI text-embedding-3-large uses 3072-dimensional vectors
+        # OpenAI text-embedding-3-small uses 1536-dimensional vectors
         qdrant.create_collection(
             collection_name="litwise_collection",
-            vectors_config=models.VectorParams(size=3072, distance=models.Distance.COSINE),
+            vectors_config=models.VectorParams(size=1536, distance=models.Distance.COSINE),
         )
         
         # Create payload index for the 'paper_id' field
@@ -37,21 +37,21 @@ try:
             field_schema=models.PayloadSchemaType.INTEGER
         )
         
-        print("✅ Collection created with OpenAI embeddings support (3072 dimensions)")
+        print("✅ Collection created with OpenAI embeddings support (1536 dimensions)")
     else:
         # Collection exists - verify it's the right size
         try:
             collection_info = qdrant.get_collection("litwise_collection")
             vector_size = collection_info.config.params.vectors.size
             
-            if vector_size == 3072:
-                print(f"✅ Collection exists with correct vector size: {vector_size} (OpenAI text-embedding-3-large compatible)")
-            elif vector_size == 1536:
-                print(f"❌ CRITICAL: Collection has OLD vector size {vector_size}, but code uses text-embedding-3-large (3072)")
+            if vector_size == 1536:
+                print(f"✅ Collection exists with correct vector size: {vector_size} (OpenAI text-embedding-3-small compatible)")
+            elif vector_size == 3072:
+                print(f"❌ CRITICAL: Collection has OLD vector size {vector_size}, but code uses text-embedding-3-small (1536)")
                 print(f"    You MUST recreate the collection! Run: python -c \"from workflow.db import qdrant; qdrant.delete_collection('litwise_collection')\"")
-                print(f"    Then restart the server to auto-create with 3072 dimensions")
+                print(f"    Then restart the server to auto-create with 1536 dimensions")
             else:
-                print(f"⚠️  Collection vector size is {vector_size}, expected 3072 for text-embedding-3-large")
+                print(f"⚠️  Collection vector size is {vector_size}, expected 1536 for text-embedding-3-small")
                 print(f"    Using current collection as-is for compatibility")
         except Exception as e:
             print(f"⚠️  Could not verify collection size: {e}")

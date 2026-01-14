@@ -108,10 +108,30 @@ export function useUploadPaper() {
         id: "upload-progress",
       });
 
-      // Simulate progress for better UX
+      // Simulate smooth progress for better UX
+      // Uses exponential easing to slow down as it approaches 95%
+      let currentProgress = 0;
       const progressInterval = setInterval(() => {
-        updateProgress(Math.min(Math.random() * 30 + 10, 90));
-      }, 300);
+        // Increment with decreasing rate as we approach 95%
+        // This creates a smooth, realistic progression
+        if (currentProgress < 30) {
+          // Fast start (0-30%)
+          currentProgress += Math.random() * 8 + 5;
+        } else if (currentProgress < 60) {
+          // Medium pace (30-60%)
+          currentProgress += Math.random() * 5 + 3;
+        } else if (currentProgress < 85) {
+          // Slower pace (60-85%)
+          currentProgress += Math.random() * 3 + 1.5;
+        } else {
+          // Very slow as we approach 95%
+          currentProgress += Math.random() * 1.5 + 0.5;
+        }
+        
+        // Cap at 95% until server completes
+        currentProgress = Math.min(currentProgress, 95);
+        updateProgress(Math.floor(currentProgress));
+      }, 400);
       return { progressInterval };
     },
 
@@ -293,9 +313,9 @@ export function useDeletePaper() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deletePaper,
+    mutationFn: ({ paperId }) => deletePaper(paperId),
 
-    onMutate: async (paperId) => {
+    onMutate: async ({ paperId, paperTitle }) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.papers.lists() });
 
@@ -308,10 +328,10 @@ export function useDeletePaper() {
         (old) => old?.filter((paper) => paper.id !== paperId) || []
       );
 
-      return { previousPapers };
+      return { previousPapers, paperTitle };
     },
 
-    onError: (error, paperId, context) => {
+    onError: (error, { paperId, paperTitle }, context) => {
       // Rollback on error
       if (context?.previousPapers) {
         queryClient.setQueryData(
@@ -320,13 +340,9 @@ export function useDeletePaper() {
         );
       }
 
-      // Get paper details for error message
-      const papers = context?.previousPapers;
-      const failedPaper = papers?.find((p) => p.id === paperId);
-
       toast.error("Failed to delete paper ❌", {
         description: `Could not delete "${
-          failedPaper?.title || failedPaper?.filename || "the paper"
+          paperTitle || "the paper"
         }". ${error.message || "Please try again."}`,
         duration: 6000,
         action: {
@@ -339,14 +355,10 @@ export function useDeletePaper() {
       });
     },
 
-    onSuccess: (data, paperId) => {
-      // Get paper details for the success message
-      const papers = queryClient.getQueryData(queryKeys.papers.lists());
-      const deletedPaper = papers?.find((p) => p.id === paperId);
-
+    onSuccess: (data, { paperId, paperTitle }) => {
       toast.success("Paper deleted successfully! 🗑️", {
         description: `"${
-          deletedPaper?.title || deletedPaper?.filename || "Untitled Paper"
+          paperTitle || "Paper"
         }" has been permanently removed from your library.`,
         duration: 5000,
         action: {

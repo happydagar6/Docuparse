@@ -44,7 +44,7 @@ class RAGChatPipeline:
         )
         
         # Use OpenAI embeddings for query encoding
-        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
         # Use existing connections from workflow.db
         self.qdrant_client = qdrant

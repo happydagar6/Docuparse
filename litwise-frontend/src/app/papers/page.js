@@ -163,7 +163,7 @@ export default function PapersPage() {
                 description: 'Please wait while we remove your paper.'
             });
             
-            await deletePaperMutation.mutateAsync(paperId);
+            await deletePaperMutation.mutateAsync({ paperId, paperTitle });
             
             // Success is handled by the mutation hook
             toast.dismiss(`delete-${paperId}`);

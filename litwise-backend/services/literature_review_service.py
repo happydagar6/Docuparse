@@ -86,7 +86,7 @@ class LiteratureReviewService:
             check_compatibility=False,
         )
         # Initialize embeddings for semantic search
-        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
         # Initialize FlashRank reranker for cross-encoder reranking
         # Using nano model for speed, can upgrade to "ms-marco-MiniLM-L-12-v2" for quality
@@ -157,10 +157,10 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
 
         try:
             response = self.client.chat.completions.create(
-                model="grok-3-fast",
+                model="grok-4-1-fast-reasoning",
                 messages=[{"role": "user", "content": decomposition_prompt}],
                 temperature=0.4,  # Slightly higher for query variety
-                max_tokens=600,
+                max_tokens=800,
             )
             
             result = response.choices[0].message.content.strip()

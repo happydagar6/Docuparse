@@ -9,7 +9,7 @@ import openai
 import os
 
 
-model = OpenAIEmbeddings(model="text-embedding-3-large")
+model = OpenAIEmbeddings(model="text-embedding-3-small")
 
 # Also initialize direct OpenAI client for guaranteed batching
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -185,7 +185,7 @@ def truncate_to_token_limit(text: str, max_tokens: int = 8000) -> str:
     
     Args:
         text: Text to truncate
-        max_tokens: Maximum token limit (default 8000 for text-embedding-3-large's 8191 limit)
+        max_tokens: Maximum token limit (default 8000 for text-embedding-3-small's 8191 limit)
         
     Returns:
         Truncated text that fits within token limit
@@ -262,7 +262,7 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 100) -> list[l
             # Use direct OpenAI API for guaranteed batching
             response = openai_client.embeddings.create(
                 input=batch,
-                model="text-embedding-3-large"
+                model="text-embedding-3-small"
             )
             
             # Extract embeddings in order
