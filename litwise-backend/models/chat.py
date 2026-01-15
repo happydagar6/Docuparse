@@ -32,6 +32,9 @@ class ChatSession(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     user_id: Optional[str] = None
+
+class CreateChatSessionRequest(BaseModel):
+    title: Optional[str] = None
     
 class ChatRequest(BaseModel):
     message: str

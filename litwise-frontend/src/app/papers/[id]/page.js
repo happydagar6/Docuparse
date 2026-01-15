@@ -6,8 +6,8 @@
 
 'use client';
 
-import React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,19 +15,74 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileText, MessageCircle, Brain, Calendar, Clock, ArrowLeft, BookOpen, Link2, Sparkles, Users, Hash, Tag, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 import { usePaper } from '@/lib/react-query';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { PaperReader } from '@/components/reader/PaperReader';
 import ChatInterface from '@/components/chat/ChatInterface.jsx';
 import { FormattedContent } from '@/components/ui/formatted-content';
+import SearchResultsPanel from '@/components/reader/SearchResultsPanel';
 
 export default function PaperPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const paperId = params.id;
   
+  // State for SearchResultsPanel visibility
+  const [showSearchPanel, setShowSearchPanel] = useState(true);
+  
+  // State for which tab to display (default to reader if coming from search)
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Get search context from URL params (chunk to scroll to, page to jump to, text to highlight)
+  const chunkId = searchParams?.get('chunk_id');
+  const pageNum = searchParams?.get('page');
+  const highlightText = searchParams?.get('highlight');
+  const fromSearch = !!(chunkId || pageNum);
+  
   const { data: paper, isLoading, error } = usePaper(paperId);
+
+  // Set active tab to reader when coming from search
+  useEffect(() => {
+    if (fromSearch) {
+      setActiveTab('reader');
+    }
+  }, [fromSearch]);
+
+  // Scroll to chunk when paper loads and search context is available
+  useEffect(() => {
+    if (!isLoading && paper && chunkId && typeof window !== 'undefined') {
+      // Try to find and scroll to the element with matching chunk_id
+      const chunkElement = document.getElementById(`chunk-${chunkId}`) || 
+                          document.querySelector(`[data-chunk-id="${chunkId}"]`);
+      
+      if (chunkElement) {
+        console.log('[PaperPage] Found chunk element, scrolling to:', chunkId);
+        // Scroll with smooth animation and offset for header
+        setTimeout(() => {
+          chunkElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Highlight the element briefly
+          chunkElement.style.backgroundColor = '#fff3cd'; // Yellow highlight
+          setTimeout(() => {
+            chunkElement.style.backgroundColor = '';
+          }, 3000);
+        }, 100);
+        
+        // Show toast notification
+        toast.success(`Jumped to section from search result`);
+      } else if (pageNum) {
+        console.log('[PaperPage] No chunk found, scrolling to page:', pageNum);
+        // Scroll to page number if available
+        const pageElements = document.querySelectorAll('[data-page]');
+        const targetPage = pageElements[parseInt(pageNum) - 1];
+        if (targetPage) {
+          targetPage.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+  }, [isLoading, paper, chunkId, pageNum]);
 
   const handleBack = () => {
     router.back();
@@ -46,6 +101,7 @@ export default function PaperPage() {
   }
 
   if (error || !paper) {
+    console.error('[PaperPage] Error loading paper:', error);
     return (
       <div className="container mx-auto py-8">
         <Card className="p-6 text-center">
@@ -142,7 +198,7 @@ export default function PaperPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="bg-white border-b border-slate-200/50 rounded-t-lg p-1 md:p-2">
             <TabsList className="w-full grid grid-cols-2 md:grid-cols-4 h-auto bg-slate-100/50 p-1 rounded-lg border border-slate-200/50">
               <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
@@ -433,6 +489,20 @@ export default function PaperPage() {
           </TabsContent>
 
           <TabsContent value="reader" className="space-y-4 mt-0">
+            {/* Search Results Panel - show when coming from search */}
+            {fromSearch && showSearchPanel && (
+              <SearchResultsPanel 
+                searchContext={{
+                  chunk_id: chunkId,
+                  page: pageNum,
+                  content: highlightText,
+                  title: paper?.title
+                }}
+                paper={paper}
+                onClose={() => setShowSearchPanel(false)}
+              />
+            )}
+            
             <div className="h-[calc(100vh-12rem)] sm:h-[calc(100vh-14rem)] md:h-[800px] min-h-[350px] sm:min-h-[400px] rounded-lg border border-slate-200/60 overflow-hidden bg-white shadow-sm">
               <PaperReader 
                 paper={paper} 

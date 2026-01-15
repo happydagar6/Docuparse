@@ -12,12 +12,6 @@ from .paper import (
     TimelinePoint,
     TrendsAnalysis,
     TopPaper,
-    SynthesisRequest,
-    SynthesisResponse,
-    SynthesisHistoryItem,
-    SynthesisHistoryListItem,
-    SaveSynthesisRequest,
-    UpdateSynthesisTagsRequest
 )
 
 # Import chat models
@@ -41,12 +35,6 @@ __all__ = [
     'TimelinePoint',
     'TrendsAnalysis',
     'TopPaper',
-    'SynthesisRequest',
-    'SynthesisResponse',
-    'SynthesisHistoryItem',
-    'SynthesisHistoryListItem',
-    'SaveSynthesisRequest',
-    'UpdateSynthesisTagsRequest',
     'ChatMessage',
     'ChatSession', 
     'ChatRequest', 

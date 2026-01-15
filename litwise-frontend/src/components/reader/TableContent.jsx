@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 /**
@@ -294,6 +295,9 @@ export const TableContent = memo(function TableContent({ table, index }) {
                 ({table.row_count} rows × {table.col_count} columns)
               </span>
             </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Table content displayed in fullscreen view
+            </DialogDescription>
           </DialogHeader>
           <div className="overflow-auto max-h-[82vh] rounded-lg border bg-white shadow-sm">
             <table className="w-full border-collapse text-sm">

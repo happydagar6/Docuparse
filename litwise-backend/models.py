@@ -111,29 +111,6 @@ class TopPaper(BaseModel):
     relevance: float = Field(..., ge=0, le=1, description="Relevance score (0-1)")
     year: Optional[int] = Field(None, description="Publication year")
 
-class SynthesisRequest(BaseModel):
-    """Request to synthesize search results"""
-    query: str = Field(..., min_length=1, description="Original search query")
-    search_results: List[Dict[str, Any]] = Field(..., description="Search results to synthesize")
-    
-    @field_validator('search_results')
-    def validate_results(cls, v):
-        if not v or len(v) == 0:
-            raise ValueError('search_results cannot be empty')
-        return v
-
-class SynthesisResponse(BaseModel):
-    """AI-generated research synthesis"""
-    query: str = Field(..., description="Original search query")
-    paper_count: int = Field(..., ge=0, description="Number of papers analyzed")
-    themes: List[Theme] = Field(default_factory=list, description="Main themes identified")
-    key_findings: List[str] = Field(default_factory=list, description="Key findings across papers")
-    research_gaps: List[str] = Field(default_factory=list, description="Identified research gaps")
-    trends: TrendsAnalysis = Field(..., description="Temporal trends analysis")
-    top_papers: List[TopPaper] = Field(default_factory=list, description="Most relevant papers")
-    generated_at: str = Field(..., description="ISO timestamp of synthesis generation")
-    
-    
 class ImageContent(BaseModel):
     """Extracted image with metadata"""
     page: int

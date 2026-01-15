@@ -113,6 +113,7 @@ create table public.papers (
   has_images boolean null default false,
   has_tables boolean null default false,
   has_equations boolean null default false,
+  pdf_url text null default null COMMENT ON COLUMN public.papers.pdf_url IS 'Signed URL to the original PDF file stored in Supabase Storage. URLs expire after 7 days. Used for react-pdf rendering.',
   constraint papers_pkey primary key (id),
   constraint papers_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE,
   constraint check_processing_status check (
@@ -142,6 +143,8 @@ create table public.papers (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_papers_user_id on public.papers using btree (user_id) TABLESPACE pg_default;
+
+create index IF not exists idx_papers_pdf_url on public.papers using btree (pdf_url) TABLESPACE pg_default;
 
 create index IF not exists idx_papers_title on public.papers using gin (to_tsvector('english'::regconfig, title)) TABLESPACE pg_default;
 

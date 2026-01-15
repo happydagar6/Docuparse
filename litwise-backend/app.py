@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+﻿from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
@@ -8,10 +8,6 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from models import (
     SearchQuery,
     ProcessingResponse,
-    SynthesisRequest,
-    SynthesisResponse,  # Phase 1: Synthesis models
-    SaveSynthesisRequest,
-    UpdateSynthesisTagsRequest,
 )
 from pipeline import workflow as graph_app
 from workflow.utils import store_embedding, extract_multimodal_from_pdf, store_multimodal_embeddings
@@ -44,9 +40,6 @@ from routes.notes import router as notes_router
 from routes.quiz import router as quiz_router
 
 
-# Import synthesis service (Phase 1)
-from workflow.synthesis_service import synthesis_service
-
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,7 +63,7 @@ def init_sentry():
     environment = os.getenv("ENVIRONMENT", "development")
     
     if not sentry_dsn:
-        logger.info("⚠️  Sentry: NOT CONFIGURED (no SENTRY_DSN)")
+        logger.info("âš ï¸  Sentry: NOT CONFIGURED (no SENTRY_DSN)")
         logger.info("   - Error tracking disabled")
         logger.info("   - Production errors will go unseen")
         return
@@ -92,12 +85,12 @@ def init_sentry():
             # Enable sending server name for debugging
             server_name=os.getenv("SERVER_NAME", "litwise-api"),
         )
-        logger.info("✅ Sentry: Connected and monitoring errors")
+        logger.info("[OK] Sentry: Connected and monitoring errors")
         logger.info(f"   - Environment: {environment}")
         logger.info(f"   - Capturing 100% of errors")
         logger.info(f"   - Performance sampling: 10%")
     except Exception as e:
-        logger.error(f"❌ Sentry initialization failed: {e}")
+        logger.error(f"âŒ Sentry initialization failed: {e}")
 
 
 # Initialize Sentry before creating the app
@@ -120,7 +113,7 @@ def get_allowed_origins():
     if env_origins:
         # Production: split by comma and strip whitespace
         origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
-        logger.info(f"✅ CORS Origins (from environment): {origins}")
+        logger.info(f"[OK] CORS Origins (from environment): {origins}")
         return origins
     else:
         # Development: default localhost origins
@@ -129,37 +122,37 @@ def get_allowed_origins():
             "http://127.0.0.1:3000",
             "https://localhost:3000",
         ]
-        logger.info(f"ℹ️  CORS Origins (default development): {default_origins}")
+        logger.info(f"â„¹ï¸  CORS Origins (default development): {default_origins}")
         return default_origins
 
 
 async def startup_event():
     """Initialize and verify Redis cache on startup."""
     logger.info("=" * 60)
-    logger.info("🚀 Litwise API Starting Up")
+    logger.info("[START] Litwise API Starting Up")
     logger.info("=" * 60)
     
     # Check Redis cache status
     if message_cache_service.redis_client:
-        logger.info("✅ Redis Cache: Connected and ready")
+        logger.info("[OK] Redis Cache: Connected and ready")
         logger.info(f"   - Cache TTL: 24 hours")
         logger.info(f"   - Max messages per session: 5000")
     else:
-        logger.warning("⚠️  Redis Cache: NOT CONNECTED - Cache disabled!")
+        logger.warning("âš ï¸  Redis Cache: NOT CONNECTED - Cache disabled!")
         logger.warning("   - Database will be queried on every request (no caching)")
         logger.warning("   - Check REDIS_URL environment variable")
     
     # Check Sentry error monitoring
     if sentry_sdk.Hub.current.client:
-        logger.info("✅ Error Monitoring: Sentry is active")
+        logger.info("[OK] Error Monitoring: Sentry is active")
         logger.info(f"   - All exceptions will be tracked")
         logger.info(f"   - Dashboard: https://sentry.io")
     else:
-        logger.warning("⚠️  Error Monitoring: Sentry is disabled")
+        logger.warning("âš ï¸  Error Monitoring: Sentry is disabled")
         logger.warning("   - Production errors will NOT be captured")
         logger.warning("   - Set SENTRY_DSN environment variable")
     
-    logger.info("✅ Response Compression: Enabled (GZIP)")
+    logger.info("[OK] Response Compression: Enabled (GZIP)")
     logger.info("   - Reduces response size by 60-70%")
     logger.info("   - Minimum compression size: 1 KB")
     
@@ -238,6 +231,66 @@ async def root():
     return {"message": "Welcome to the Litwise API"}
 
 
+@app.get("/stats/research-materials")
+async def get_research_materials_stats(current_user: AuthUser = Depends(get_current_user)):
+    """
+    Get count of research materials created by the user.
+    
+    Returns:
+        - literature_reviews: Count of literature reviews created
+        - study_plans: Count of study plans created
+        - quizzes: Count of quizzes created (if table exists)
+        - total: Total research materials created
+    """
+    try:
+        # Convert user_id to string for consistency with database
+        user_id_str = str(current_user.id)
+        
+        # Count literature reviews (user_id is stored as text)
+        lit_reviews = supabase.table("literature_reviews").select("id", count="exact").eq("user_id", user_id_str).execute()
+        lit_reviews_count = lit_reviews.count if hasattr(lit_reviews, 'count') and lit_reviews.count is not None else len(lit_reviews.data or [])
+        
+        # Count study plans (need to join through papers table since study_plans doesn't have user_id directly)
+        try:
+            # Get all user's papers
+            user_papers = supabase.table("papers").select("id").eq("user_id", current_user.id).execute()
+            paper_ids = [p["id"] for p in user_papers.data or []]
+            
+            if paper_ids:
+                # Count study plans for these papers
+                study_plans = supabase.table("study_plans").select("id", count="exact").in_("paper_id", paper_ids).execute()
+                study_plans_count = study_plans.count if hasattr(study_plans, 'count') and study_plans.count is not None else len(study_plans.data or [])
+            else:
+                study_plans_count = 0
+        except Exception as e:
+            print(f"Error counting study plans: {e}")
+            study_plans_count = 0
+        
+        # For quizzes: they don't have a dedicated table yet, so return 0
+        # Once quizzes table is created with user_id, we can count them
+        quizzes_count = 0
+        
+        total = lit_reviews_count + study_plans_count + quizzes_count
+        
+        return {
+            "literature_reviews": lit_reviews_count,
+            "study_plans": study_plans_count,
+            "quizzes": quizzes_count,
+            "total": total
+        }
+    except Exception as e:
+        print(f"Error fetching research materials stats: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return zeros if there's an error
+        return {
+            "literature_reviews": 0,
+            "study_plans": 0,
+            "quizzes": 0,
+            "total": 0
+        }
+
+
 # Handle CORS preflight requests explicitly
 @app.options("/{full_path:path}")
 def options_handler():
@@ -281,7 +334,7 @@ async def upload_paper(
 
         try:
             # Process document using appropriate processor
-            print(f"🚀 Processing {file_extension} file: {file.filename}")
+            print(f"[START] Processing {file_extension} file: {file.filename}")
             processed_doc = process_document(tmp_path, file_extension, mime_type)
             
             # Validate extraction
@@ -291,12 +344,12 @@ async def upload_paper(
                     detail=f"Could not extract meaningful text from {file_extension} file"
                 )
             
-            print(f"✅ Extraction complete: {len(processed_doc.full_text)} chars")
+            print(f"âœ… Extraction complete: {len(processed_doc.full_text)} chars")
             print(f"   File type: {processed_doc.file_type}")
             print(f"   Sections/Pages: {len(processed_doc.page_info)}")
             if processed_doc.processing_notes:
                 for note in processed_doc.processing_notes:
-                    print(f"   ⚠️  {note}")
+                    print(f"   âš ï¸  {note}")
             
             # Extract variables from processed document
             text = processed_doc.full_text
@@ -321,6 +374,30 @@ async def upload_paper(
             or "Untitled Document"
         )
 
+        # Store PDF file in Supabase Storage (PRIVATE with Signed URL)
+        pdf_url = None
+        try:
+            storage_path = f"users/{current_user.id}/pdfs/{paper_id}.pdf"
+            supabase.storage.from_("papers").upload(storage_path, content)
+            # Generate signed URL valid for 7 days (604800 seconds)
+            signed_url_response = supabase.storage.from_("papers").create_signed_url(
+                storage_path,
+                expires_in=604800
+            )
+            print(f"DEBUG: signed_url_response type: {type(signed_url_response)}, value: {signed_url_response}")
+            
+            # Extract the signedURL from the response
+            if isinstance(signed_url_response, dict) and 'signedURL' in signed_url_response:
+                pdf_url = signed_url_response['signedURL']
+                print(f"DEBUG: Extracted signedURL from dict: {pdf_url}")
+            else:
+                pdf_url = signed_url_response  # Fallback if response structure is different
+                print(f"DEBUG: Using signed_url_response directly: {pdf_url}")
+            print(f"PDF stored securely (signed URL): {storage_path}")
+        except Exception as e:
+            print(f"Could not store PDF: {e}")
+            print(f"Continuing without PDF URL - markdown content will be used as fallback")
+
         # Store in Supabase papers table
         paper_data = {
             "id": paper_id,
@@ -333,6 +410,7 @@ async def upload_paper(
             "file_size": file_size,
             "filename": file.filename,
             "file_type": file_extension.lstrip('.') if file_extension else 'unknown',  # NEW: Store file type
+            "pdf_url": pdf_url,
             "processing_status": "uploaded",
             "created_at": datetime.now(timezone.utc).isoformat(),
             # Add extracted metadata (authors as JSONB, not string!)
@@ -351,17 +429,17 @@ async def upload_paper(
         # Insert into Supabase
         try:
             supabase_result = supabase.table("papers").insert(paper_data).execute()
-            print(f"✅ Successfully uploaded paper: {paper_id}")
+            print(f"âœ… Successfully uploaded paper: {paper_id}")
             print(
-                f"📊 Metadata: {len(paper_metadata.get('authors', []))} authors, year: {paper_metadata.get('publication_year')}"
+                f"ðŸ“Š Metadata: {len(paper_metadata.get('authors', []))} authors, year: {paper_metadata.get('publication_year')}"
             )
         except Exception as e:
-            print(f"❌ Database insertion error: {e}")
+            print(f"âŒ Database insertion error: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-        # ✅ PRODUCTION-GRADE: Use HYBRID indexing strategy (Markdown + Multi-modal)
+        # âœ… PRODUCTION-GRADE: Use HYBRID indexing strategy (Markdown + Multi-modal)
         try:
-            print(f"🚀 Storing embeddings for paper: {paper_id}")
+            print(f"ðŸš€ Storing embeddings for paper: {paper_id}")
             
             paper_metadata_for_embedding = {
                 "id": paper_id,
@@ -375,9 +453,9 @@ async def upload_paper(
             markdown_full = multimodal_content.get('markdown_full', '')
             
             if markdown_full and len(markdown_full) > 1000:
-                # ✅ PRIMARY: Use MarkdownElementNodeParser for superior table indexing
-                print(f"✅ Using HYBRID indexing strategy (Markdown + Multi-modal)")
-                print(f"   1️⃣  PRIMARY: MarkdownElementNodeParser (element-aware tables)")
+                # âœ… PRIMARY: Use MarkdownElementNodeParser for superior table indexing
+                print(f"âœ… Using HYBRID indexing strategy (Markdown + Multi-modal)")
+                print(f"   1ï¸âƒ£  PRIMARY: MarkdownElementNodeParser (element-aware tables)")
                 from workflow.utils import store_markdown_embeddings, store_multimodal_embeddings
                 
                 store_markdown_embeddings(
@@ -387,13 +465,13 @@ async def upload_paper(
                     page_info=page_info
                 )
                 
-                print(f"✅ Markdown-based embeddings stored")
+                print(f"âœ… Markdown-based embeddings stored")
                 print(f"   Strategy: MarkdownElementNodeParser")
                 print(f"   Markdown size: {len(markdown_full)} chars")
                 
-                # ✅ SECONDARY: Add multi-modal embeddings for comprehensive coverage
+                # âœ… SECONDARY: Add multi-modal embeddings for comprehensive coverage
                 # Text chunks + images provide backup retrieval paths
-                print(f"\n   2️⃣  SECONDARY: Multi-modal embeddings (text chunks + images)")
+                print(f"\n   2ï¸âƒ£  SECONDARY: Multi-modal embeddings (text chunks + images)")
                 store_multimodal_embeddings(
                     text=text,
                     multimodal_content=multimodal_content,
@@ -402,15 +480,15 @@ async def upload_paper(
                     page_info=page_info
                 )
                 
-                print(f"✅ Multi-modal embeddings stored (secondary)")
-                print(f"   📝 Text chunks: processed")
-                print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
-                print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
-                print(f"\n🎉 HYBRID indexing complete: Markdown tables + Text chunks + Images")
+                print(f"âœ… Multi-modal embeddings stored (secondary)")
+                print(f"   ðŸ“ Text chunks: processed")
+                print(f"   ðŸ–¼ï¸  Images: {len(multimodal_content.get('images', []))}")
+                print(f"   ðŸ“Š Tables: {len(multimodal_content.get('tables', []))}")
+                print(f"\nðŸŽ‰ HYBRID indexing complete: Markdown tables + Text chunks + Images")
                 
             else:
                 # Fallback: Use multi-modal embeddings if no markdown
-                print(f"⚠️  No markdown available, using multi-modal fallback")
+                print(f"âš ï¸  No markdown available, using multi-modal fallback")
                 from workflow.utils import store_multimodal_embeddings
                 
                 store_multimodal_embeddings(
@@ -421,20 +499,20 @@ async def upload_paper(
                     page_info=page_info
                 )
                 
-                print(f"✅ Multi-modal embeddings stored successfully")
-                print(f"   📝 Text chunks: processed")
-                print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
-                print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
+                print(f"âœ… Multi-modal embeddings stored successfully")
+                print(f"   ðŸ“ Text chunks: processed")
+                print(f"   ðŸ–¼ï¸  Images: {len(multimodal_content.get('images', []))}")
+                print(f"   ðŸ“Š Tables: {len(multimodal_content.get('tables', []))}")
             
         except Exception as e:
-            print(f"⚠️  Primary embedding storage failed: {e}")
+            print(f"âš ï¸  Primary embedding storage failed: {e}")
             print(f"   Falling back to text-only embeddings...")
             # Fallback to text-only if everything else fails
             try:
                 store_embedding(text, paper_metadata_for_embedding, paper_id, "basic", page_info)
-                print(f"✅ Fallback: Text-only embeddings stored")
+                print(f"âœ… Fallback: Text-only embeddings stored")
             except Exception as fallback_e:
-                print(f"❌ Even text-only embedding failed: {fallback_e}")
+                print(f"âŒ Even text-only embedding failed: {fallback_e}")
                 # Don't fail the upload if embeddings fail - user can retry processing
 
         # AUTO-EXTRACT CITATIONS (Enhanced Citation Manager Feature)
@@ -442,7 +520,7 @@ async def upload_paper(
         try:
             from services.citation_extraction_service import citation_extraction_service
             
-            print(f"📚 Auto-extracting citations from paper...")
+            print(f"ðŸ“š Auto-extracting citations from paper...")
             
             # Extract bibliography section
             bib_text = citation_extraction_service.extract_bibliography_section(text)
@@ -471,11 +549,11 @@ async def upload_paper(
                         # Skip duplicates or invalid citations
                         pass
                 
-                print(f"✅ Auto-extracted {citations_extracted} citations")
+                print(f"âœ… Auto-extracted {citations_extracted} citations")
             else:
                 print(f"   No bibliography section found")
         except Exception as e:
-            print(f"⚠️  Citation auto-extraction failed: {e}")
+            print(f"âš ï¸  Citation auto-extraction failed: {e}")
             # Don't fail upload if citation extraction fails
 
         return {
@@ -496,7 +574,7 @@ async def upload_paper(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Upload error: {e}")
+        print(f"âŒ Upload error: {e}")
         import traceback  # What is traceback used for? It provides detailed error stack traces for debugging.
 
         traceback.print_exc()  # Print the full traceback to the console for debugging.
@@ -669,7 +747,7 @@ async def process_paper_ai(paper_id: str, current_user: AuthUser = Depends(get_c
 
                 # SKIP embedding re-storage - multimodal embeddings already stored during upload
                 # Re-storing would DELETE multimodal content (images/tables)
-                print(f"✅ Skipping embedding re-storage (multimodal content preserved)")
+                print(f"âœ… Skipping embedding re-storage (multimodal content preserved)")
                 print(f"Successfully enhanced paper metadata with AI insights for: {paper_id}")
 
             except Exception as e:
@@ -739,11 +817,11 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
         search_query_text = query.query
         
         if query.use_nl_parsing:
-            print(f"🧠 Parsing natural language query: '{query.query}'")
+            print(f"ðŸ§  Parsing natural language query: '{query.query}'")
             parsed = await nl_query_parser.parse_query(query.query, enable_ai=False)  # Regex-only for speed
             
             if parsed.get('parsed_elements'):
-                print(f"✅ Parsed filters: {', '.join(parsed['parsed_elements'])}")
+                print(f"âœ… Parsed filters: {', '.join(parsed['parsed_elements'])}")
                 search_query_text = parsed['semantic_query']
                 
                 # Merge parsed filters with existing filters
@@ -764,7 +842,7 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
                     'confidence': parsed['confidence']
                 }
             else:
-                print(f"ℹ️ No filters detected in query, using as-is")
+                print(f"â„¹ï¸ No filters detected in query, using as-is")
         
         # Initialize embeddings model
         embeddings = OpenAIEmbeddings(
@@ -830,12 +908,12 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
                 filtered_paper_ids = [paper["id"] for paper in result.data]
 
                 if not filtered_paper_ids:
-                    print(f"⚠️ No papers match the metadata filters")
+                    print(f"âš ï¸ No papers match the metadata filters")
                     return []
 
-                print(f"📋 Filtered to {len(filtered_paper_ids)} papers by metadata")
+                print(f"ðŸ“‹ Filtered to {len(filtered_paper_ids)} papers by metadata")
             except Exception as e:
-                print(f"⚠️ Metadata filtering failed: {e}, proceeding without filters")
+                print(f"âš ï¸ Metadata filtering failed: {e}, proceeding without filters")
                 filtered_paper_ids = None
         elif not filtered_paper_ids:
             # No specific filters, but still need to limit to user's papers
@@ -844,12 +922,12 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
                 filtered_paper_ids = [paper["id"] for paper in result.data]
                 
                 if not filtered_paper_ids:
-                    print(f"ℹ️ User has no papers uploaded yet")
+                    print(f"â„¹ï¸ User has no papers uploaded yet")
                     return []
                 
-                print(f"📋 Searching across {len(filtered_paper_ids)} papers owned by user")
+                print(f"ðŸ“‹ Searching across {len(filtered_paper_ids)} papers owned by user")
             except Exception as e:
-                print(f"⚠️ Failed to fetch user's papers: {e}")
+                print(f"âš ï¸ Failed to fetch user's papers: {e}")
                 raise HTTPException(status_code=500, detail="Failed to fetch user's papers")
 
         # Perform hybrid search across all papers (or filtered subset)
@@ -894,10 +972,10 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
                     paper_metadata_map[paper["id"]] = paper
 
                 print(
-                    f"📚 Fetched metadata for {len(paper_metadata_map)} unique papers"
+                    f"ðŸ“š Fetched metadata for {len(paper_metadata_map)} unique papers"
                 )
             except Exception as e:
-                print(f"⚠️ Failed to fetch paper metadata: {e}")
+                print(f"âš ï¸ Failed to fetch paper metadata: {e}")
 
         # Enrich results with paper metadata from database
         enriched_results = []
@@ -905,6 +983,11 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
             paper_id = result.get("paper_id")
             if not paper_id:
                 continue
+
+            # Clamp relevance score to [0, 1] range (prevent negative percentages)
+            relevance_score = result.get("relevance_score", result.get("score", 0))
+            if isinstance(relevance_score, (int, float)):
+                result["relevance_score"] = max(0.0, min(1.0, float(relevance_score)))
 
             # Get metadata from pre-fetched map
             paper_info = paper_metadata_map.get(paper_id)
@@ -918,434 +1001,25 @@ async def search_papers(query: SearchQuery, current_user: AuthUser = Depends(get
                     "journal_or_conference"
                 )
 
+            # Ensure both paper_id and id are present for frontend compatibility
+            result["id"] = paper_id  # Add explicit id field for frontend
             enriched_results.append(result)
 
-        print(f"✅ Search complete: {len(enriched_results)} results returned")
-        
-        # Return results with optional parsed query info
-        if parsed_query_info:
-            return {
-                "results": enriched_results,
-                "parsed_query": parsed_query_info
-            }
         return enriched_results
 
     except Exception as e:
-        print(f"❌ Search failed: {e}")
+        print(f"âŒ Search failed: {e}")
         import traceback
 
         traceback.print_exc()
 
         if query.debug:
-            return {"results": [], "error": str(e), "traceback": traceback.format_exc()}
+            return []
 
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
-@app.post("/search/synthesize", response_model=SynthesisResponse)
-async def synthesize_search_results(request: SynthesisRequest, current_user: AuthUser = Depends(get_current_user)):
-    """
-    Generate AI-powered research synthesis from search results. Requires authentication.
 
-    This endpoint:
-    1. Takes search results from the /search endpoint
-    2. Analyzes papers using LLM (GPT-4)
-    3. Identifies themes, key findings, research gaps
-    4. Analyzes publication trends over time
-    5. Returns structured synthesis data
-
-    Args:
-        request: SynthesisRequest with query and search_results
-        current_user: Authenticated user (automatically injected)
-
-    Returns:
-        SynthesisResponse with themes, findings, gaps, trends
-
-    Example Request:
-        POST /search/synthesize
-        {
-            "query": "transformers in NLP",
-            "search_results": [
-                {
-                    "id": "paper-123",
-                    "title": "Attention is All You Need",
-                    "text": "...",
-                    "relevance_score": 0.92,
-                    "publication_year": 2017,
-                    "authors": ["Vaswani", "Shazeer"]
-                },
-                ...
-            ]
-        }
-
-    Example Response:
-        {
-            "query": "transformers in NLP",
-            "paper_count": 12,
-            "themes": [
-                {
-                    "name": "Attention Mechanisms",
-                    "description": "Self-attention and multi-head attention",
-                    "count": 8,
-                    "papers": ["paper-123", "paper-456"]
-                }
-            ],
-            "key_findings": [
-                "Transformers outperform RNNs on long sequences",
-                "Pre-training improves downstream task performance"
-            ],
-            "research_gaps": [
-                "Limited work on low-resource languages",
-                "Computational efficiency remains a challenge"
-            ],
-            "trends": {
-                "timeline": [
-                    {"year": 2017, "count": 2},
-                    {"year": 2018, "count": 5},
-                    {"year": 2019, "count": 8}
-                ],
-                "trend_description": "Increasing research activity"
-            },
-            "top_papers": [
-                {
-                    "id": "paper-123",
-                    "title": "Attention is All You Need",
-                    "relevance": 0.92,
-                    "year": 2017
-                }
-            ],
-            "generated_at": "2025-11-29T12:34:56.789Z"
-        }
-    """
-    try:
-        print(f"🔬 Starting synthesis for query: '{request.query}'")
-        print(f"📚 Analyzing {len(request.search_results)} papers")
-
-        # Call synthesis service
-        synthesis = await synthesis_service.synthesize_search_results(
-            query=request.query,
-            search_results=request.search_results,
-            max_papers=request.max_papers if hasattr(request, "max_papers") else 20,
-        )
-
-        print(f"✅ Synthesis complete:")
-        print(f"   - Themes: {len(synthesis.get('themes', []))}")
-        print(f"   - Key Findings: {len(synthesis.get('key_findings', []))}")
-        print(f"   - Research Gaps: {len(synthesis.get('research_gaps', []))}")
-        
-        # DEBUG: Check what types we actually have
-        print(f"🔍 DEBUG - Type validation:")
-        print(f"   - key_findings type: {type(synthesis.get('key_findings', []))}")
-        if synthesis.get('key_findings'):
-            print(f"   - First finding type: {type(synthesis['key_findings'][0])}")
-            print(f"   - First finding: {synthesis['key_findings'][0][:100] if isinstance(synthesis['key_findings'][0], str) else synthesis['key_findings'][0]}")
-        
-        print(f"   - research_gaps type: {type(synthesis.get('research_gaps', []))}")
-        if synthesis.get('research_gaps'):
-            print(f"   - First gap type: {type(synthesis['research_gaps'][0])}")
-        
-        print(f"   - themes type: {type(synthesis.get('themes', []))}")
-        if synthesis.get('themes'):
-            print(f"   - First theme type: {type(synthesis['themes'][0])}")
-            print(f"   - First theme: {synthesis['themes'][0]}")
-
-        return synthesis
-
-    except Exception as e:
-        print(f"❌ Synthesis failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-
-        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
-
-
-# ============================================
-# SYNTHESIS HISTORY ENDPOINTS
-# ============================================
-
-@app.post("/synthesis/save")
-async def save_synthesis(request: SaveSynthesisRequest, current_user: AuthUser = Depends(get_current_user)):
-    """
-    Save a synthesis to history for future reference. Requires authentication.
-    
-    This endpoint stores the complete synthesis result including:
-    - Query and settings used
-    - All synthesis data (themes, findings, gaps, trends)
-    - Original search results for reproducibility
-    - Optional tags for organization
-    
-    Args:
-        request: SaveSynthesisRequest with synthesis data
-        current_user: Authenticated user (automatically injected)
-        
-    Returns:
-        Saved synthesis with ID and timestamps
-        
-    Example:
-        POST /synthesis/save
-        {
-            "synthesis": {...},
-            "search_results": [...],
-            "max_papers": 20,
-            "tags": ["literature-review", "deep-learning"]
-        }
-    """
-    try:
-        from models import (
-            SaveSynthesisRequest,
-            SynthesisHistoryItem
-        )
-        
-        synthesis = request.synthesis
-        
-        # Extract paper IDs from search results
-        paper_ids = list(set([
-            str(result.get('paper_id', '')) # Extract paper IDs from search results
-            for result in request.search_results # Iterate over search results
-            if result.get('paper_id') # Ensure paper_id exists
-        ]))
-        
-        # Prepare data for database
-        synthesis_data = {
-            "query": synthesis.query,
-            "paper_count": synthesis.paper_count,
-            "max_papers": request.max_papers,
-            "themes": [theme.model_dump() for theme in synthesis.themes], # Why model_dump() used here?  # Convert Pydantic models to dicts for storage
-            "key_findings": synthesis.key_findings,
-            "research_gaps": synthesis.research_gaps,
-            "trends": synthesis.trends.model_dump(),
-            "top_papers": [paper.model_dump() for paper in synthesis.top_papers],
-            "paper_ids": paper_ids,
-            "search_results": request.search_results,
-            "tags": request.tags,
-            "user_id": current_user.id  # Set authenticated user ID
-        }
-        
-        # Insert into Supabase
-        result = supabase.table("synthesis_history").insert(synthesis_data).execute()
-        
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to save synthesis")
-        
-        saved = result.data[0]
-        
-        print(f"✅ Synthesis saved: ID={saved['id']}, Query='{synthesis.query}'")
-        
-        return {
-            "id": saved["id"],
-            "message": "Synthesis saved successfully",
-            "synthesis": saved
-        }
-        
-    except Exception as e:
-        print(f"❌ Save synthesis failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to save synthesis: {str(e)}")
-
-
-@app.get("/synthesis/history")
-async def get_synthesis_history(
-    current_user: AuthUser = Depends(get_current_user),
-    limit: int = 20,
-    offset: int = 0,
-    tag: Optional[str] = None
-):
-    """
-    Get list of saved syntheses from history for the authenticated user.
-    
-    Returns lightweight list items with essential information.
-    Use GET /synthesis/history/{id} to get full synthesis details.
-    
-    Args:
-        current_user: Authenticated user (automatically injected)
-        limit: Maximum number of items to return (default: 20)
-        offset: Number of items to skip (for pagination, default: 0)
-        tag: Optional tag filter (returns only syntheses with this tag)
-        
-    Returns:
-        List of synthesis history items with counts
-        
-    Example:
-        GET /synthesis/history?limit=10&tag=literature-review
-    """
-    try:
-        # Build query for user's synthesis history
-        query = supabase.table("synthesis_history").select(
-            "id, query, paper_count, themes, tags, created_at"
-        ).eq("user_id", current_user.id)
-        
-        # Apply tag filter if provided
-        if tag:
-            query = query.contains("tags", [tag])
-        
-        # Apply pagination and ordering
-        result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
-        
-        # Transform to list items
-        history_items = []
-        for item in result.data:
-            history_items.append({
-                "id": item["id"],
-                "query": item["query"],
-                "paper_count": item["paper_count"],
-                "theme_count": len(item.get("themes", [])),
-                "tags": item.get("tags", []),
-                "created_at": item["created_at"]
-            })
-        
-        # Get total count for pagination
-        count_result = supabase.table("synthesis_history").select("id", count="exact").execute()
-        total_count = count_result.count if hasattr(count_result, 'count') else len(count_result.data)
-        
-        return {
-            "items": history_items,
-            "total": total_count,
-            "limit": limit,
-            "offset": offset
-        }
-        
-    except Exception as e:
-        print(f"❌ Get synthesis history failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve history: {str(e)}")
-
-
-@app.get("/synthesis/history/{synthesis_id}")
-async def get_synthesis_by_id(synthesis_id: str, current_user: AuthUser = Depends(get_current_user)):
-    """
-    Get full details of a specific saved synthesis. User must own the synthesis.
-    
-    Returns complete synthesis data including all themes, findings, gaps, and trends.
-    
-    Args:
-        synthesis_id: UUID of the saved synthesis
-        current_user: Authenticated user (automatically injected)
-        
-    Returns:
-        Complete synthesis object
-        
-    Example:
-        GET /synthesis/history/123e4567-e89b-12d3-a456-426614174000
-    """
-    try:
-        result = supabase.table("synthesis_history").select("*").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
-        
-        if not result.data or len(result.data) == 0:
-            raise HTTPException(status_code=404, detail=f"Synthesis not found or access denied")
-        
-        return result.data[0]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Get synthesis by ID failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve synthesis: {str(e)}")
-
-
-@app.patch("/synthesis/history/{synthesis_id}/tags")
-async def update_synthesis_tags(synthesis_id: str, request: UpdateSynthesisTagsRequest, current_user: AuthUser = Depends(get_current_user)):
-    """
-    Update tags on a saved synthesis.
-    
-    Allows users to organize their saved syntheses with custom tags.
-    Only the owner can update tags.
-    
-    Args:
-        synthesis_id: UUID of the saved synthesis
-        request: UpdateSynthesisTagsRequest with new tags
-        current_user: Authenticated user (from JWT)
-        
-    Returns:
-        Updated synthesis
-        
-    Example:
-        PATCH /synthesis/history/{id}/tags
-        {
-            "tags": ["important", "literature-review", "2024"]
-        }
-    """
-    try:
-        from models import UpdateSynthesisTagsRequest
-        
-        # Check if synthesis exists and user owns it
-        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
-        if not check_result.data:
-            raise HTTPException(status_code=404, detail="Synthesis not found or access denied")
-        
-        # Update tags
-        result = supabase.table("synthesis_history").update(
-            {"tags": request.tags}
-        ).eq("id", synthesis_id).eq("user_id", current_user.id).execute()
-        
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to update tags")
-        
-        print(f"✅ Tags updated for synthesis {synthesis_id}: {request.tags}")
-        
-        return {
-            "id": synthesis_id,
-            "message": "Tags updated successfully",
-            "tags": request.tags
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Update tags failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to update tags: {str(e)}")
-
-
-@app.delete("/synthesis/history/{synthesis_id}")
-async def delete_synthesis(synthesis_id: str, current_user: AuthUser = Depends(get_current_user)):
-    """
-    Delete a saved synthesis from history.
-    
-    Only the owner of the synthesis can delete it.
-    
-    Args:
-        synthesis_id: UUID of the synthesis to delete
-        current_user: Authenticated user (from JWT)
-        
-    Returns:
-        Success message
-        
-    Example:
-        DELETE /synthesis/history/123e4567-e89b-12d3-a456-426614174000
-    """
-    try:
-        # Check if synthesis exists and user owns it
-        check_result = supabase.table("synthesis_history").select("id").eq("id", synthesis_id).eq("user_id", current_user.id).execute()
-        if not check_result.data:
-            raise HTTPException(status_code=404, detail="Synthesis not found or access denied")
-        
-        # Delete from database
-        supabase.table("synthesis_history").delete().eq("id", synthesis_id).eq("user_id", current_user.id).execute()
-        
-        print(f"🗑️ Synthesis deleted: {synthesis_id}")
-        
-        return {
-            "message": "Synthesis deleted successfully",
-            "id": synthesis_id
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Delete synthesis failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to delete synthesis: {str(e)}")
-
-
-@app.get("/qdrant/diagnostics", response_model=dict)
-def qdrant_diagnostics():
     """Return basic Qdrant collection diagnostics to help debug empty search results."""
     from workflow.db import qdrant
 
@@ -1458,7 +1132,7 @@ def get_paper(paper_id: str, current_user: AuthUser = Depends(get_current_user))
         result = (
             supabase.table("papers")
             .select(
-                "id, title, summary, content_text, markdown_content, page_info, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename"
+                "id, title, summary, content_text, markdown_content, page_info, processing_status, ai_generated_at, processing_error, created_at, updated_at, embedding_id, file_size, filename, pdf_url"
             )
             .eq("id", paper_id)
             .eq("user_id", current_user.id)
@@ -1490,7 +1164,7 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
         if not paper_check.data:
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
-        print(f"📊 Fetching multimodal content for paper: {paper_id}")
+        print(f"ðŸ“Š Fetching multimodal content for paper: {paper_id}")
         
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue
         from workflow.db import qdrant
@@ -1547,11 +1221,11 @@ async def get_paper_multimodal_content(paper_id: str, current_user: AuthUser = D
             "total_tables": len(tables)
         }
         
-        print(f"✅ Returning multimodal response: {response}")
+        print(f"âœ… Returning multimodal response: {response}")
         return response
         
     except Exception as e:
-        print(f"❌ Error fetching multimodal content: {e}")
+        print(f"âŒ Error fetching multimodal content: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve multi-modal content: {str(e)}")
 
 
@@ -1585,7 +1259,7 @@ def delete_paper(paper_id: str, current_user: AuthUser = Depends(get_current_use
                         ]
                     ),
                 )
-                print(f"✅ Deleted embeddings for paper: {paper_id}")
+                print(f"âœ… Deleted embeddings for paper: {paper_id}")
             except Exception as e:
                 # If deletion fails, log but don't fail the whole operation
                 print(f"Warning: Failed to delete embeddings for {paper_id}: {e}")
@@ -1597,6 +1271,70 @@ def delete_paper(paper_id: str, current_user: AuthUser = Depends(get_current_use
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete paper: {str(e)}")
+
+
+@app.post("/papers/regenerate-pdf-urls")
+async def regenerate_pdf_urls(current_user: AuthUser = Depends(get_current_user)):
+    """
+    Regenerate signed URLs for all existing papers.
+    This is a utility endpoint to fix missing or expired PDF URLs.
+    """
+    try:
+        # Get all papers for the user
+        papers = supabase.table("papers").select("id, filename").eq("user_id", current_user.id).execute()
+        
+        updated_count = 0
+        failed_count = 0
+        not_found_count = 0
+        
+        for paper in papers.data:
+            try:
+                paper_id = paper["id"]
+                storage_path = f"users/{current_user.id}/pdfs/{paper_id}.pdf"
+                
+                # Check if PDF exists in storage first
+                try:
+                    supabase.storage.from_("papers").list(f"users/{current_user.id}/pdfs")
+                except:
+                    # Storage path doesn't exist, skip
+                    not_found_count += 1
+                    print(f"⚠️  PDF file not found in storage for paper: {paper_id}")
+                    continue
+                
+                # Try to generate signed URL
+                try:
+                    signed_url_response = supabase.storage.from_("papers").create_signed_url(
+                        storage_path,
+                        expires_in=604800  # 7 days
+                    )
+                    
+                    # Extract the signed URL from response
+                    if isinstance(signed_url_response, dict) and 'signedURL' in signed_url_response:
+                        pdf_url = signed_url_response['signedURL']
+                    else:
+                        pdf_url = signed_url_response
+                    
+                    # Update the paper with the new signed URL
+                    supabase.table("papers").update({"pdf_url": pdf_url}).eq("id", paper_id).execute()
+                    updated_count += 1
+                    print(f"✅ Regenerated PDF URL for paper: {paper_id}")
+                except Exception as url_error:
+                    failed_count += 1
+                    print(f"❌ Failed to create signed URL for paper {paper_id}: {url_error}")
+                
+            except Exception as e:
+                failed_count += 1
+                print(f"❌ Error processing paper {paper_id}: {e}")
+        
+        return {
+            "message": "PDF URL regeneration completed",
+            "updated_count": updated_count,
+            "failed_count": failed_count,
+            "not_found_count": not_found_count,
+            "total_count": len(papers.data)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to regenerate PDF URLs: {str(e)}")
 
 
 if __name__ == "__main__":

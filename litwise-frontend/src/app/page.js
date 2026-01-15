@@ -23,11 +23,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/Layout';
-import { usePapers } from '@/lib/react-query';
+import { usePapers, useResearchMaterialsStats } from '@/lib/react-query';
 
 export default function Home() {
   const router = useRouter();
   const { data: papers, isLoading } = usePapers();
+  const { data: researchStats, isLoading: statsLoading } = useResearchMaterialsStats();
   
   // Ensure papers is always an array with proper error handling
   const safePapers = React.useMemo(() => {
@@ -63,20 +64,20 @@ export default function Home() {
       color: 'bg-blue-500'
     },
     {
-      icon: Search,
-      title: 'Semantic Search',
-      description: 'Find relevant content using natural language queries',
-      action: () => router.push('/search'),
-      buttonText: 'Search Documents',
-      color: 'bg-green-500'
-    },
-    {
       icon: Lightbulb,
       title: 'Generate Quizzes',
       description: 'Create interactive quizzes from your documents to test understanding',
       action: () => router.push('/quiz'),
       buttonText: 'Create Quiz',
       color: 'bg-cyan-500'
+    },
+    {
+      icon: Brain,
+      title: 'AI Chat',
+      description: 'Chat with AI about your documents to get instant answers and insights',
+      action: () => router.push('/papers'),
+      buttonText: 'Start Chatting',
+      color: 'bg-purple-500'
     },
   ];
 
@@ -92,9 +93,14 @@ export default function Home() {
       icon: Brain
     },
     {
-      label: 'Searches Performed',
-      value: '0', // Could track this
-      icon: Search
+      label: 'Research Materials Created',
+      value: researchStats?.total || 0,
+      icon: BookOpen,
+      breakdown: researchStats ? {
+        'Literature Reviews': researchStats.literature_reviews,
+        'Study Plans': researchStats.study_plans,
+        'Quizzes': researchStats.quizzes
+      } : null
     },
   ];
 
@@ -133,15 +139,6 @@ export default function Home() {
               <Upload className="mr-2 h-5 w-5" />
               Get Started
             </Button>
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={() => router.push('/search')}
-              className="text-lg px-10 py-6 border-2 border-gray-300 hover:border-primary hover:bg-primary/5 transition-all duration-200 font-semibold"
-            >
-              <Search className="mr-2 h-5 w-5" />
-              Search Papers
-            </Button>
           </div>
         </div>
       </div>
@@ -170,9 +167,21 @@ export default function Home() {
                   <div className="text-4xl font-extrabold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
                     {stat.value}
                   </div>
-                  <div className="text-sm font-medium text-gray-600">
+                  <div className="text-sm font-medium text-gray-600 mb-3">
                     {stat.label}
                   </div>
+                  
+                  {/* Show breakdown for Research Materials */}
+                  {stat.breakdown && (
+                    <div className="space-y-1 text-xs text-gray-500 border-t pt-3 mt-3">
+                      {Object.entries(stat.breakdown).map(([label, count]) => (
+                        <div key={label} className="flex justify-between items-center">
+                          <span>{label}</span>
+                          <span className="font-semibold text-gray-700">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

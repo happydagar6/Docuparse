@@ -253,102 +253,15 @@ export async function getQdrantDiagnostics(){
 }
 
 /**
- * Generate AI-powered synthesis from search results (Phase 1)
+ * Regenerate PDF URLs for all existing papers
+ * This is useful when signed URLs have expired or are missing
  * 
- * Flow:
- * 1. Receives search results from /search endpoint
- * 2. Sends to /search/synthesize endpoint
- * 3. Backend uses LLM (GPT-4) to analyze papers
- * 4. Returns structured synthesis: themes, findings, gaps, trends
- * 
- * @param {string} query - Original search query
- * @param {Array} searchResults - Array of search results from /search
- * @returns {Promise<object>} - Synthesis with themes, findings, gaps, trends
+ * @returns {Promise<object>} - Regeneration status with counts
  */
-export async function synthesizeSearchResults(query, searchResults, maxPapers = 20) {
-    return apiRequest('/search/synthesize', {
-        method: 'POST',
-        body: JSON.stringify({
-            query,
-            search_results: searchResults,
-            max_papers: maxPapers,
-        }),
-    });
-}
 
-/**
- * Save a synthesis to history
- * 
- * @param {object} synthesis - Synthesis data to save
- * @param {Array} searchResults - Original search results used
- * @param {number} maxPapers - Max papers limit
- * @param {Array} tags - Optional tags for organization
- * @returns {Promise<object>} - Saved synthesis with ID
- */
-export async function saveSynthesis(synthesis, searchResults, maxPapers = 20, tags = []) {
-    return apiRequest('/synthesis/save', {
-        method: 'POST',
-        body: JSON.stringify({
-            synthesis,
-            search_results: searchResults,
-            max_papers: maxPapers,
-            tags
-        }),
-    });
-}
-
-/**
- * Get synthesis history
- * 
- * @param {number} limit - Number of items to fetch
- * @param {number} offset - Pagination offset
- * @param {string} tag - Optional tag filter
- * @returns {Promise<object>} - History items with pagination info
- */
-export async function getSynthesisHistory(limit = 20, offset = 0, tag = null) {
-    const params = new URLSearchParams({
-        limit: limit.toString(),
-        offset: offset.toString()
-    });
-    if (tag) {
-        params.append('tag', tag);
-    }
-    return apiRequest(`/synthesis/history?${params.toString()}`);
-}
-
-/**
- * Get specific synthesis by ID
- * 
- * @param {string} synthesisId - UUID of synthesis
- * @returns {Promise<object>} - Full synthesis data
- */
-export async function getSynthesisById(synthesisId) {
-    return apiRequest(`/synthesis/history/${synthesisId}`);
-}
-
-/**
- * Update tags on a saved synthesis
- * 
- * @param {string} synthesisId - UUID of synthesis
- * @param {Array} tags - New tags array
- * @returns {Promise<object>} - Updated synthesis
- */
-export async function updateSynthesisTags(synthesisId, tags) {
-    return apiRequest(`/synthesis/history/${synthesisId}/tags`, {
-        method: 'PATCH',
-        body: JSON.stringify({ tags }),
-    });
-}
-
-/**
- * Delete a saved synthesis
- * 
- * @param {string} synthesisId - UUID of synthesis to delete
- * @returns {Promise<object>} - Deletion confirmation
- */
-export async function deleteSynthesis(synthesisId) {
-    return apiRequest(`/synthesis/history/${synthesisId}`, {
-        method: 'DELETE',
+export async function regeneratePDFUrls(){
+    return apiRequest('/papers/regenerate-pdf-urls', {
+        method: 'POST'
     });
 }
 
@@ -767,5 +680,16 @@ export async function getUserQuizzes(){
 export async function deleteQuiz(quizId){
     return apiRequest(`/api/quiz/${quizId}`, {
         method: 'DELETE',
+    });
+}
+
+
+/**
+ * Get research materials statistics
+ * @returns {Promise<object>} - Count of literature reviews, study plans, quizzes, and total
+ */
+export async function getResearchMaterialsStats(){
+    return apiRequest(`/stats/research-materials`, {
+        method: 'GET',
     });
 }

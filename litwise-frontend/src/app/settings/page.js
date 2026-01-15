@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { User, Mail, Lock, LogOut, Calendar, Settings as SettingsIcon } from 'lucide-react'
+import { User, Mail, LogOut, Calendar, Settings as SettingsIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 
@@ -141,25 +141,6 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-gray-500 mt-2">This unique identifier is used for account management</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Security Settings */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-linear-to-br from-yellow-50/50 to-transparent">
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-yellow-600" />
-              Security
-            </CardTitle>
-            <CardDescription>Manage your password and security settings</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Button variant="outline" className="w-full sm:w-auto border-yellow-200 hover:bg-yellow-50">
-              Change Password
-            </Button>
-            <p className="text-sm text-gray-500 mt-3">
-              You will receive an email with instructions to reset your password
-            </p>
           </CardContent>
         </Card>
 

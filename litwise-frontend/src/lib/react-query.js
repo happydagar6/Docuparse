@@ -24,13 +24,13 @@ import {
   getPaper,
   deletePaper,
   getQdrantDiagnostics,
-  synthesizeSearchResults,
   generateQuiz,
   getQuiz,
   submitQuizAttempt,
   getQuizAnalytics,
   getUserQuizzes,
   deleteQuiz, // Phase 1: Synthesis API
+  getResearchMaterialsStats,
 } from "./api";
 import { chatApi } from "./chat-api";
 import { useUploadStore, useSearchStore } from "./stores";
@@ -427,52 +427,7 @@ export function useQdrantDiagnostics() {
   });
 }
 
-/**
- * Custom Hook: Synthesize Search Results (Phase 1)
- *
- * Generates AI-powered research synthesis from search results.
- * Uses LLM to identify themes, key findings, research gaps, and trends.
- *
- * @returns Mutation object with mutate function and loading/error states
- *
- * Usage:
- * const synthesisMutation = useSynthesizeResults();
- * synthesisMutation.mutate({ query: "transformers", searchResults: [...] });
- */
-export function useSynthesizeResults() {
-  return useMutation({
-    mutationFn: ({ query, searchResults, maxPapers }) =>
-      synthesizeSearchResults(query, searchResults, maxPapers),
 
-    onMutate: () => {
-      // Show loading toast
-      toast.loading("Generating AI synthesis...", {
-        id: "synthesis-progress",
-      });
-    },
-
-    onSuccess: (data) => {
-      // Success notification
-      toast.success("Synthesis complete!", {
-        id: "synthesis-progress",
-        description: `Analyzed ${data.paper_count} papers and identified ${
-          data.themes?.length || 0
-        } themes`,
-        duration: 3000,
-      });
-    },
-
-    onError: (error) => {
-      // Error notification
-      toast.error("Synthesis failed", {
-        id: "synthesis-progress",
-        description:
-          error.message || "Could not generate synthesis. Please try again.",
-        duration: 5000,
-      });
-    },
-  });
-}
 
 // ============================================
 // QUIZ HOOKS
@@ -607,6 +562,25 @@ export function useDeleteQuiz() {
       })
     }
   })
+}
+
+/**
+ * Get research materials statistics (literature reviews + study plans + quizzes)
+ */
+export function useResearchMaterialsStats() {
+  return useQuery({
+    queryKey: ["research-materials", "stats"],
+    queryFn: async () => {
+      const response = await getResearchMaterialsStats();
+      return response || {
+        literature_reviews: 0,
+        study_plans: 0,
+        quizzes: 0,
+        total: 0
+      };
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes - stats don't change often
+  });
 }
 
 

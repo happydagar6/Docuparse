@@ -456,8 +456,10 @@ class EnhancedSearchSystem:
         enhanced_documents = []
         for i, (doc, score) in enumerate(final_results):
             doc_copy = doc.copy()
-            doc_copy['score'] = score  # Use 'score' for frontend compatibility
-            doc_copy['relevance_score'] = score  # Keep for backwards compatibility
+            # Clamp score to [0, 1] range to prevent negative percentages
+            clamped_score = max(0.0, min(1.0, float(score)))
+            doc_copy['score'] = clamped_score  # Use 'score' for frontend compatibility
+            doc_copy['relevance_score'] = clamped_score  # Keep for backwards compatibility
             doc_copy['rank'] = i + 1
             doc_copy['search_method'] = 'hybrid+rerank' if bm25_results else 'vector+rerank'
             enhanced_documents.append(doc_copy)

@@ -35,22 +35,22 @@ const ChatSessions = memo(({
   }
 
   return (
-    <ScrollArea className="h-[500px]">
-      <div className="space-y-1 p-2">
+    <ScrollArea className="h-full w-full">
+      <div className="space-y-1 p-3">
         {sessions.map((session) => (
           <div
             key={session.id}
             className={cn(
-              "group flex items-start justify-between gap-2 p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+              "group flex items-start justify-between gap-1 p-2.5 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden",
               activeSessionId === session.id && "bg-muted"
             )}
             onClick={() => onSessionSelect(session.id)}
           >
-            <div className="flex-1 min-w-0 pr-2">
-              <p className="text-sm font-medium wrap-break-word whitespace-normal line-clamp-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium wrap-break-word line-clamp-2 leading-snug">
                 {session.title || 'Untitled Chat'}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 truncate">
                 {format(new Date(session.updated_at), 'MMM d, h:mm a')}
               </p>
             </div>
@@ -60,7 +60,7 @@ const ChatSessions = memo(({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
+                  className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1 h-8 w-8 p-0"
                   onClick={(e) => e.stopPropagation()}
                   disabled={isDeleting}
                   title="Delete session"

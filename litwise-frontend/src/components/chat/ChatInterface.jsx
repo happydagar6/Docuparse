@@ -443,25 +443,37 @@ const ChatInterface = ({ paper }) => {
                     <span className="text-xs font-medium">Sessions</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[280px] p-0 border-r border-slate-200/60">
-                  <SheetHeader className="p-4 border-b border-slate-200/50 bg-linear-to-b from-slate-50/50 to-white sticky top-0 z-10">
-                    <SheetTitle className="flex items-center justify-between text-slate-900">
-                      <span className="font-semibold">Chat Sessions</span>
+                <SheetContent side="left" className="w-[85vw] sm:w-[320px] p-0 border-r border-slate-200/60 flex flex-col">
+                  <SheetTitle className="sr-only">Chat Sessions</SheetTitle>
+                  <SheetHeader className="p-4 border-b border-slate-200/50 bg-linear-to-b from-slate-50/50 to-white sticky top-0 z-10 shrink-0 space-y-2">
+                    {/* Document context */}
+                    <div className="flex items-start gap-2 pb-2 border-b border-slate-200/30">
+                      <FileText className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-slate-500 font-medium">Discussing</p>
+                        <p className="text-sm font-semibold text-slate-900 wrap-break-word line-clamp-2 leading-snug">{paper?.title || 'Document'}</p>
+                      </div>
+                    </div>
+                    
+                    {/* Sessions header */}
+                    <div className="flex items-center justify-between pt-1 gap-2">
+                      <span className="font-semibold text-slate-900 text-sm">Sessions</span>
                       <Button
                         size="sm"
                         onClick={handleCreateSession}
                         disabled={createSessionMutation.isLoading}
-                        className="h-8 w-8 p-0 rounded-lg bg-blue-600 hover:bg-blue-700"
+                        className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium flex items-center gap-1.5"
                       >
                         {createSessionMutation.isLoading ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <MessageCircle className="h-3.5 w-3.5" />
                         )}
+                        <span>New</span>
                       </Button>
-                    </SheetTitle>
+                    </div>
                   </SheetHeader>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden min-w-0">
                     <ChatSessions
                       sessions={sessions}
                       activeSessionId={activeSessionId}

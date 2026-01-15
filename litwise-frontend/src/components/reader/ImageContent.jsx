@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import Image from 'next/image';
 
@@ -159,6 +160,9 @@ export const ImageContent = memo(function ImageContent({ image, index }) {
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Figure {index + 1} - Page {image.page}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Image content displayed in fullscreen view
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {imageSrc && (

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { generateBatchCitations, exportBibTeX } from "@/lib/api";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -81,6 +81,9 @@ export default function CitationExport({ paperIds, trigger }) {
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export Citations</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-1">
+            Export your citations in multiple formats (APA, MLA, Chicago, BibTeX)
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

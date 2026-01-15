@@ -456,7 +456,7 @@ CREATE POLICY "Users can delete their own notes"
 
 
 -- ============================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ROW LEVEL SECURITY (RLS) POLICIES FOR QUIZZES
 -- ============================================
 
 -- Enable RLS
@@ -530,3 +530,44 @@ CREATE POLICY "Users can create feedback for their attempts"
       AND quiz_attempts.user_id = auth.uid()
     )
   );
+
+-- =====================================================
+-- SECURE PDF STORAGE BUCKET POLICIES
+-- =====================================================
+-- Reference: secure_pdf_storage.sql
+-- These policies protect the private PDF storage bucket
+
+-- Policy 1: Users can only view their own PDFs (READ)
+CREATE POLICY "Users can view their own PDFs"
+  ON storage.objects
+  FOR SELECT
+  USING (
+    bucket_id = 'papers' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Policy 2: Users can upload PDFs to their folder (INSERT)
+CREATE POLICY "Users can upload PDFs to their folder"
+  ON storage.objects
+  FOR INSERT
+  WITH CHECK (
+    bucket_id = 'papers' AND
+    auth.uid()::text = (storage.foldername(name))[1] AND
+    auth.role() = 'authenticated'
+  );
+
+-- Policy 3: Users can delete their own PDFs (DELETE)
+CREATE POLICY "Users can delete their own PDFs"
+  ON storage.objects
+  FOR DELETE
+  USING (
+    bucket_id = 'papers' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Policy 4: Allow service role to upload (for backend API)
+CREATE POLICY "Service role can manage PDFs"
+  ON storage.objects
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import uuid
 import base64
 
-from models.chat import ChatSession, ChatRequest, ChatMessage, PaginatedMessages
+from models.chat import ChatSession, ChatRequest, ChatMessage, PaginatedMessages, CreateChatSessionRequest
 from chat_pipeline import rag_pipeline
 from workflow.db import supabase
 from auth_middleware import get_current_user, AuthUser
@@ -25,7 +25,11 @@ from services.message_cache_service import (
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 @router.post("/sessions", response_model=ChatSession)
-async def create_chat_session(paper_id: str, current_user: AuthUser = Depends(get_current_user), title: Optional[str] = None):
+async def create_chat_session(
+    paper_id: str, 
+    request: CreateChatSessionRequest,
+    current_user: AuthUser = Depends(get_current_user)
+):
     """Create a new chat session for a paper. User must own the paper."""
     try:
         supabase_client = supabase
@@ -36,7 +40,7 @@ async def create_chat_session(paper_id: str, current_user: AuthUser = Depends(ge
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
         paper_title = paper_result.data[0]["title"]
-        session_title = title or f"Chat with {paper_title}"
+        session_title = request.title or f"Chat with {paper_title}"
         
         # Create session
         session_data = {

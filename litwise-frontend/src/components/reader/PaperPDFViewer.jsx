@@ -1,201 +1,69 @@
 'use client';
 
 /**
- * Paper PDF Viewer Integration Component
+ * PDF Viewer Component using react-pdf
  * 
- * Converts extracted paper content into formatted PDF pages using backend page_info.
+ * Renders actual PDF pages from original document for perfect formatting.
  * Features:
- * - Uses actual page boundaries from PDF extraction
- * - Proper typography and formatting
- * - Image and table integration
- * - Responsive design
+ * - True PDF rendering - no extraction artifacts
+ * - Tables display exactly as in original PDF
+ * - All formatting and images preserved
+ * - Page navigation
+ * - Text search and highlighting support
  */
 
-import React, { useMemo, useCallback, memo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import AdvancedPDFViewer from './AdvancedPDFViewer';
-import Image from 'next/image';
+import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+import { FileX, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
-/**
- * Split markdown content into pages based on content length
- * Tries to break at section boundaries when possible
- */
-function splitMarkdownIntoPages(markdownContent, pageSize = 3000) {
-  if (!markdownContent) return [];
-  
-  const pages = [];
-  let currentPage = '';
-  let charCount = 0;
-  
-  // Split by double newlines (paragraphs) to preserve structure
-  const paragraphs = markdownContent.split('\n\n');
-  
-  paragraphs.forEach((paragraph) => {
-    const paraLength = paragraph.length + 2; // +2 for newlines
-    
-    // If adding this paragraph exceeds limit and we have content, start new page
-    if (charCount + paraLength > pageSize && currentPage.trim()) {
-      pages.push(currentPage.trim());
-      currentPage = paragraph;
-      charCount = paraLength;
-    } else {
-      // Add to current page
-      if (currentPage) {
-        currentPage += '\n\n' + paragraph;
-      } else {
-        currentPage = paragraph;
-      }
-      charCount += paraLength;
-    }
-  });
-  
-  // Don't forget the last page
-  if (currentPage.trim()) {
-    pages.push(currentPage.trim());
-  }
-  
-  return pages.length > 0 ? pages : [markdownContent];
+// Set up PDF.js worker - reference from public folder (no CORS issues)
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 }
 
 /**
- * Markdown renderer component for tables and content
+ * PDF Page Renderer Component
+ * Renders all PDF pages in a scrollable view
  */
-const MarkdownRenderer = memo(function MarkdownRenderer({ content }) {
+const PDFPageRenderer = memo(function PDFPageRenderer({ 
+  pdfUrl, 
+  numPages,
+  onLoadSuccess,
+  onLoadError,
+  scale = 1
+}) {
+  // Don't return null here - we need to render the Document to get numPages
+  // The Document component will handle loading state
+  
   return (
-    <ReactMarkdown
-      components={{
-        // Wrapper
-        div: ({ children }) => (
-          <div className="prose prose-sm max-w-none text-gray-800">
-            {children}
-          </div>
-        ),
-        // Headers
-        h1: ({ children }) => <h1 className="text-2xl font-bold mt-4 mb-2">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-xl font-bold mt-3 mb-2">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-lg font-bold mt-3 mb-1">{children}</h3>,
-        p: ({ children }) => <p className="mb-3 leading-relaxed">{children}</p>,
-        
-        // Lists
-        ul: ({ children }) => <ul className="list-disc list-inside mb-3 ml-4">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal list-inside mb-3 ml-4">{children}</ol>,
-        li: ({ children }) => <li className="mb-1">{children}</li>,
-        
-        // Tables
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-4">
-            <table className="min-w-full border-collapse border border-gray-300">
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }) => (
-          <thead className="bg-gray-100 border-b-2 border-gray-300">
-            {children}
-          </thead>
-        ),
-        tbody: ({ children }) => (
-          <tbody>{children}</tbody>
-        ),
-        tr: ({ children }) => (
-          <tr className="border-b border-gray-300">
-            {children}
-          </tr>
-        ),
-        th: ({ children }) => (
-          <th className="border border-gray-300 px-4 py-2 text-left font-semibold bg-gray-50">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="border border-gray-300 px-4 py-2">
-            {children}
-          </td>
-        ),
-        
-        // Code blocks
-        code: ({ inline, children }) => 
-          inline ? (
-            <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">{children}</code>
-          ) : (
-            <pre className="bg-gray-100 p-4 rounded mb-3 overflow-x-auto">
-              <code className="text-sm font-mono">{children}</code>
-            </pre>
-          ),
-        
-        // Images
-        img: ({ src, alt }) => (
-          <figure className="my-4">
-            <Image 
-              src={src} 
-              alt={alt} 
-              className="max-w-full h-auto rounded-lg shadow-sm"
-            />
-            {alt && <figcaption className="text-sm text-gray-600 mt-2 text-center">{alt}</figcaption>}
-          </figure>
-        ),
-        
-        // Blockquotes
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-3">
-            {children}
-          </blockquote>
-        ),
-      }}
+    <Document
+      file={pdfUrl}
+      onLoadSuccess={onLoadSuccess}
+      onLoadError={onLoadError}
+      loading={<div className="flex items-center justify-center h-96 bg-gray-50">Loading PDF...</div>}
+      error={<div className="flex items-center justify-center h-96 bg-gray-50 text-red-500">Error loading PDF</div>}
     >
-      {content}
-    </ReactMarkdown>
+      {numPages && Array.from({ length: numPages }, (_, i) => (
+        <div key={i + 1} className="flex justify-center bg-gray-100 py-2 sm:py-4 px-2 sm:px-0">
+          <div className="bg-white shadow-lg" style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
+            <Page 
+              pageNumber={i + 1}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+              width={Math.min(600, window.innerWidth - 40)}
+            />
+          </div>
+        </div>
+      ))}
+    </Document>
   );
 });
 
-function createPageComponents(markdownContent, metadata) {
-  // Split markdown into logical pages
-  const markdownPages = splitMarkdownIntoPages(markdownContent, 3000);
-  
-  console.log('createPageComponents DEBUG:', {
-    contentLength: markdownContent?.length,
-    pageCount: markdownPages.length,
-    hasMarkdown: !!markdownContent,
-  });
-
-  return markdownPages.map((pageContent, idx) => (
-    <div key={`page-${idx}`} className="bg-white p-8 min-h-[1122px] text-sm leading-relaxed">
-      {/* Page Header with metadata on first page */}
-      {idx === 0 && (
-        <div className="mb-8 pb-6 border-b-2 border-gray-200">
-          {metadata?.title && (
-            <h1 className="text-2xl font-bold mb-2 text-gray-900">
-              {metadata.title}
-            </h1>
-          )}
-          {metadata?.authors && metadata.authors.length > 0 && (
-            <p className="text-gray-600 mb-1">
-              By {metadata.authors.join(', ')}
-            </p>
-          )}
-          {metadata?.year && (
-            <p className="text-gray-500 text-sm">
-              Published {metadata.year}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Page content - Use markdown renderer for tables and images */}
-      <MarkdownRenderer content={pageContent} />
-
-      {/* Page footer */}
-      <div className="mt-12 pt-6 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
-        <span>{metadata?.title || 'Document'}</span>
-        <span>Page {idx + 1} of {markdownPages.length}</span>
-      </div>
-    </div>
-  ));
-}
-
 /**
  * Paper PDF Viewer Component
- * Main component that integrates with PaperReader
+ * Main component that uses actual PDF file instead of extracted markdown
  */
 export const PaperPDFViewer = memo(function PaperPDFViewer({
   paper,
@@ -203,67 +71,259 @@ export const PaperPDFViewer = memo(function PaperPDFViewer({
   error = null,
   onDownload = null,
 }) {
-  // Memoize page generation to prevent unnecessary re-renders
-  const pages = useMemo(() => {
-    // Prefer markdown_content which has tables and images, fallback to content_text
-    const content = paper?.markdown_content || paper?.content || paper?.content_text || paper?.extracted_text;
-    
-    if (!content) {
-      console.warn('PaperPDFViewer: No content available in paper object', {
-        hasMarkdown: !!paper?.markdown_content,
-        hasContent: !!paper?.content,
-        hasContentText: !!paper?.content_text,
-      });
-      return [];
-    }
+  const [currentPage, setCurrentPage] = useState(1);
+  const [numPages, setNumPages] = useState(null);
+  const [pdfError, setPdfError] = useState(null);
+  const [scale, setScale] = useState(1);
 
-    console.log('PaperPDFViewer: Content loaded', {
-      contentLength: content?.length,
-      contentType: typeof content,
-      isMarkdown: !!paper?.markdown_content,
-      firstChars: content?.substring(0, 100),
-    });
+  // Get PDF URL from paper object
+  const pdfUrl = useMemo(() => {
+    const url = paper?.pdf_url;
+    if (!url) {
+      return null;
+    }
     
-    const metadata = {
-      title: paper?.title || paper?.filename || 'Research Paper',
-      authors: paper?.authors || [],
-      year: paper?.publication_year || paper?.year || null,
+    // Handle if pdf_url is a JSON object with signedURL property
+    if (typeof url === 'object' && url.signedURL) {
+      return url.signedURL;
+    }
+    
+    // Handle if pdf_url is a JSON string that needs parsing
+    if (typeof url === 'string' && url.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(url);
+        return parsed.signedURL || parsed;
+      } catch (e) {
+        return url;
+      }
+    }
+    
+    return url;
+  }, [paper?.pdf_url]);
+
+  // Check if PDF is available
+  const hasPdf = useMemo(() => {
+    return !!pdfUrl;
+  }, [pdfUrl]);
+
+  // Handle PDF load success
+  const handleLoadSuccess = useCallback(({ numPages: pages }) => {
+    setNumPages(pages);
+    setPdfError(null);
+  }, []);
+
+  // Handle PDF load error
+  const handleLoadError = useCallback((error) => {
+    console.error('PDF loading error:', error);
+    setPdfError(error?.message || 'Failed to load PDF');
+  }, []);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setScale(prev => Math.min(prev + 0.2, 2));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setScale(prev => Math.max(prev - 0.2, 0.8));
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setScale(1);
+  }, []);
+
+  // Navigation handlers
+  const goToPreviousPage = useCallback(() => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  }, []);
+
+  const goToNextPage = useCallback(() => {
+    setCurrentPage(prev => Math.min(numPages || prev, prev + 1));
+  }, [numPages]);
+
+  const goToPage = useCallback((pageNum) => {
+    const page = Math.max(1, Math.min(numPages || pageNum, pageNum));
+    setCurrentPage(page);
+  }, [numPages]);
+
+  // Listen for search navigation events
+  useEffect(() => {
+    const handleSearchNavigation = (event) => {
+      const { page } = event.detail;
+      if (page && numPages) {
+        goToPage(page);
+      }
     };
 
-    const pageComponents = createPageComponents(content, metadata);
-    console.log('PaperPDFViewer: Pages created', {
-      pageCount: pageComponents.length,
-      contentLength: content?.length,
-      usedMarkdown: !!paper?.markdown_content,
-    });
-    
-    return pageComponents;
-  }, [paper]);
+    window.addEventListener('search:navigate-to-page', handleSearchNavigation);
+    return () => window.removeEventListener('search:navigate-to-page', handleSearchNavigation);
+  }, [goToPage, numPages]);
 
   // Handle download
   const handleDownload = useCallback(async () => {
     try {
       if (onDownload) {
         await onDownload();
-      } else {
-        // Default download implementation
-        console.log('Download not implemented');
+      } else if (pdfUrl) {
+        // Download PDF directly from URL
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `${paper?.title || 'document'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (err) {
       console.error('Error downloading PDF:', err);
     }
-  }, [onDownload]);
+  }, [paper, pdfUrl, onDownload]);
 
+  // Show loading state if paper is still loading
+  if (isLoading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading paper...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if there was an error
+  if (error) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <FileX size={64} className="mx-auto mb-4 text-red-400" />
+          <h3 className="text-xl font-semibold mb-2 text-gray-800">Error Loading Paper</h3>
+          <p className="text-gray-600 mb-2">
+            {error?.message || 'An error occurred while loading the paper'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Please try again or contact support if the problem persists.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // If no PDF URL available, show fallback message or markdown content
+  if (!hasPdf) {
+    const markdownContent = paper?.markdown_content || paper?.content_text || paper?.content;
+    console.log('PaperPDFViewer - No PDF, checking for fallback content:', {
+      hasMarkdownContent: !!paper?.markdown_content,
+      hasContentText: !!paper?.content_text,
+      hasContent: !!paper?.content,
+      willShowMarkdown: !!markdownContent
+    });
+    
+    // If we have extracted markdown content, show it as fallback
+    if (markdownContent) {
+      console.log('PaperPDFViewer - Showing markdown fallback');
+      return (
+        <div className="w-full h-screen flex flex-col bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8">
+            <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-6 md:p-8">
+              <div className="prose prose-sm md:prose-base max-w-none">
+                <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {markdownContent}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 py-3 bg-amber-50 border-t border-amber-200 text-amber-700">
+            <p className="text-xs sm:text-sm flex items-center gap-2">
+              <span className="inline-block">ℹ️</span>
+              Original PDF file not available. Showing extracted content instead.
+            </p>
+          </div>
+        </div>
+      );
+    }
+    
+    // No PDF and no extracted content
+    console.log('PaperPDFViewer - No PDF and no fallback content');
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <FileX size={64} className="mx-auto mb-4 text-gray-400" />
+          <h3 className="text-xl font-semibold mb-2 text-gray-800">PDF Not Available</h3>
+          <p className="text-gray-600 mb-4">
+            The PDF file for this document is not available. Please re-upload the document.
+          </p>
+          {paper?.title && (
+            <p className="text-sm text-gray-500">
+              Document: {paper.title}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Main PDF viewer layout
   return (
-    <AdvancedPDFViewer
-      title={paper?.title || paper?.filename || 'Research Paper'}
-      pages={pages}
-      isLoading={isLoading}
-      error={error}
-      onDownload={handleDownload}
-    />
+    <div className="w-full h-screen flex flex-col bg-gray-50">
+      {/* Zoom Controls - Mobile friendly */}
+      <div className="flex items-center justify-center gap-2 p-3 bg-white border-b border-gray-200 shadow-sm">
+        <button
+          onClick={handleZoomOut}
+          disabled={scale <= 0.8}
+          className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Zoom out"
+        >
+          <ZoomOut size={20} className="text-gray-600" />
+        </button>
+        
+        <span className="text-sm font-medium text-gray-700 min-w-12 text-center">
+          {Math.round(scale * 100)}%
+        </span>
+        
+        <button
+          onClick={handleZoomIn}
+          disabled={scale >= 2}
+          className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Zoom in"
+        >
+          <ZoomIn size={20} className="text-gray-600" />
+        </button>
+        
+        <button
+          onClick={handleResetZoom}
+          disabled={scale === 1}
+          className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Reset zoom"
+        >
+          <RotateCcw size={20} className="text-gray-600" />
+        </button>
+      </div>
+
+      {/* PDF Display Area - scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-auto bg-gray-100">
+        <div className="flex flex-col items-center min-h-full">
+          <PDFPageRenderer 
+            pdfUrl={pdfUrl}
+            numPages={numPages}
+            onLoadSuccess={handleLoadSuccess}
+            onLoadError={handleLoadError}
+            scale={scale}
+          />
+        </div>
+      </div>
+
+      {/* Error message if PDF failed to load */}
+      {pdfError && (
+        <div className="flex items-center justify-center gap-3 p-4 bg-red-50 border-t border-red-200 text-red-700">
+          <FileX size={20} />
+          <div>
+            <p className="font-semibold">PDF Loading Error</p>
+            <p className="text-sm">{pdfError}</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
-});
+})
 
 PaperPDFViewer.displayName = 'PaperPDFViewer';
 

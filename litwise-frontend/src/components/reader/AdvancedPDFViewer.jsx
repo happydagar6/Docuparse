@@ -423,7 +423,10 @@ export const AdvancedPDFViewer = memo(function AdvancedPDFViewer({
         />
 
         {/* Page display */}
-        <div className="flex-1 overflow-auto flex justify-center items-start pt-4 pb-4">
+        <div 
+          className="flex-1 overflow-auto flex justify-center items-start pt-4 pb-4"
+          data-paper-reader-content="true"
+        >
           <PDFPageRenderer
             pageContent={currentPageContent}
             pageNumber={currentPage}

@@ -159,7 +159,7 @@ export default function LiteratureReviewPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600"
+                                                className="h-8 w-8 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600"
                                                 onClick={(e) => handleDeleteClick(e, review)}
                                             >
                                                 <Trash2 className="h-4 w-4" />
