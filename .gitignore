@@ -1,22 +1,48 @@
-# Python
+# ==================== PYTHON ====================
+# Virtual environments
 litwise-backend/myenv/
+litwise-backend/.venv/
+litwise-backend/venv/
+litwise-backend/env/
+litwise-backend/ENV/
+litwise-backend/Env/
+
+# Python cache and compiled files
 litwise-backend/__pycache__/
+litwise-backend/**/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 
-# Node.js
+# Python distribution / packaging
+litwise-backend/build/
+litwise-backend/develop-eggs/
+litwise-backend/dist/
+litwise-backend/downloads/
+litwise-backend/eggs/
+litwise-backend/.eggs/
+litwise-backend/lib/
+litwise-backend/lib64/
+litwise-backend/parts/
+litwise-backend/sdist/
+litwise-backend/var/
+litwise-backend/wheels/
+litwise-backend/*.egg-info/
+litwise-backend/.installed.cfg
+litwise-backend/*.egg
+
+# pytest cache
+litwise-backend/.pytest_cache/
+litwise-backend/.pytest_cache
+
+# Pip artifacts
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ==================== NODE.JS / FRONTEND ====================
+# Dependencies
 litwise-frontend/node_modules/
-litwise-frontend/.next/
-litwise-frontend/.turbo/
-
-# Environment files
-*.env
-.env.local
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Frontend build and debug
 litwise-frontend/.pnp
 litwise-frontend/.pnp.*
 litwise-frontend/.yarn/*
@@ -24,20 +50,130 @@ litwise-frontend/.yarn/*
 !litwise-frontend/.yarn/plugins
 !litwise-frontend/.yarn/releases
 !litwise-frontend/.yarn/versions
-litwise-frontend/coverage
+
+# Next.js build output and cache
+litwise-frontend/.next/
 litwise-frontend/out/
-litwise-frontend/build
-litwise-frontend/.vercel
+litwise-frontend/build/
+litwise-frontend/dist/
+litwise-frontend/.turbo/
+
+# Frontend tools and cache
+litwise-frontend/coverage/
+litwise-frontend/.jest-cache/
+litwise-frontend/.turbo/
+litwise-frontend/.vercel/
+
+# Deployment files (do NOT commit production builds)
 litwise-frontend/*.tsbuildinfo
 litwise-frontend/next-env.d.ts
 
-# Testing
-litwise-frontend/.jest-cache/
+# Testing artifacts
 litwise-frontend/test-results/
 litwise-frontend/testsprite/results/
 litwise-frontend/testsprite/diffs/
+
+# Logs
 litwise-frontend/npm-debug.log*
 litwise-frontend/yarn-debug.log*
 litwise-frontend/yarn-error.log*
 litwise-frontend/.pnpm-debug.log*
-litwise-frontend/*.pem
+litwise-frontend/lerna-debug.log*
+
+# ==================== ENVIRONMENT & SECRETS ====================
+# Environment variables - NEVER commit these to Git!
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# Secrets and credentials
+.env.*.secret
+.credentials
+.aws/
+.gcloud/
+
+# ==================== IDE & EDITOR ====================
+# VS Code
+.vscode/
+.vscode-server/
+*.code-workspace
+
+# JetBrains IDEs (PyCharm, WebStorm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim/Neovim
+*.swp
+*.swo
+*~
+.vim/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# VS / VS Code
+*.sublime-project
+*.sublime-workspace
+
+# ==================== OS FILES ====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.directory
+
+# ==================== TEMPORARY & BACKUP FILES ====================
+*.tmp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+.~*
+
+# ==================== LOGS ====================
+*.log
+logs/
+*.log.*
+
+# ==================== DOCKER (if using) ====================
+# Uncomment if using Docker
+# Dockerfile
+# docker-compose.override.yml
+# .dockerignore
+
+# ==================== DATABASE ====================
+# Database backups and dumps
+*.sql.bak
+*.sql.backup
+*.dump
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== MISCELLANEOUS ====================
+# Project-specific ignores
+.cache/
+.tmp/
+temp/
+tmp/
+*.orig
