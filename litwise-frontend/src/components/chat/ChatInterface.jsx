@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useLayoutEffect, startTransition, useMemo, useEffectEvent, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import {
   ChevronDown,
   X,
   History,
+  Maximize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -33,6 +35,7 @@ import InfiniteScrollChat from './InfiniteScrollChat';
 import { FormattedContent } from '@/components/ui/formatted-content';
 
 const ChatInterface = ({ paper }) => {
+  const router = useRouter();
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [message, setMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -434,6 +437,18 @@ const ChatInterface = ({ paper }) => {
               </span>
             </div>
             
+            {/* Full-page chat button - Desktop */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/chat?paper_id=${paper.id}`)}
+              className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Open in full page"
+            >
+              <Maximize2 className="h-3.5 w-3.5 text-slate-600" />
+              <span className="text-xs text-slate-600">Expand</span>
+            </Button>
+            
             {/* Mobile Sessions Button */}
             <div className="flex items-center gap-2 md:hidden">
               <Sheet open={showMobileSessions} onOpenChange={setShowMobileSessions}>
@@ -526,6 +541,19 @@ const ChatInterface = ({ paper }) => {
                   optimisticUserMessage={optimisticUserMessage}
                   displayMessages={displayMessages}
                 />
+                
+                {/* Mobile: Expand to full page button */}
+                <div className="absolute top-3 right-3 md:hidden z-10">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => router.push(`/chat?paper_id=${paper.id}`)}
+                    className="h-8 px-3 rounded-lg shadow-md bg-white/90 backdrop-blur-sm hover:bg-white border border-slate-200"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5 mr-1.5" />
+                    <span className="text-xs">Expand</span>
+                  </Button>
+                </div>
                 
                 {/* Scroll to bottom button - appears when user scrolls up during streaming */}
                 {showScrollButton && (
