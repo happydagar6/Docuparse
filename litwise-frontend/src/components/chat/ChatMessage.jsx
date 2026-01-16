@@ -21,13 +21,13 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
     <div className={`flex gap-2 md:gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {!isUser && (
         <div className="shrink-0 mt-1">
-          <div className="h-8 w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm">
-            <Bot className="h-4 w-4 text-white" />
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm">
+            <Bot className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
           </div>
         </div>
       )}
       
-      <div className={`flex-1 max-w-[85%] md:max-w-[70%] ${isUser ? 'text-right' : 'text-left'}`}>
+      <div className={`flex-1 max-w-[75%] sm:max-w-[80%] md:max-w-[70%] ${isUser ? 'text-right' : 'text-left'}`}>
         <div className={`rounded-2xl p-3 md:p-4 shadow-sm transition-all ${
           isUser 
             ? message.isFailed
@@ -120,8 +120,8 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
       
       {isUser && (
         <div className="shrink-0 mt-1">
-          <div className="h-8 w-8 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm border border-blue-200">
-            <User className="h-4 w-4 text-blue-700" />
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm border border-blue-200">
+            <User className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-700" />
           </div>
         </div>
       )}
