@@ -119,7 +119,7 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
       </div>
       
       {isUser && (
-        <div className="shrink-0 mt-1">
+        <div className="shrink-0 mt-1 hidden md:flex">
           <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm border border-blue-200">
             <User className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-700" />
           </div>
