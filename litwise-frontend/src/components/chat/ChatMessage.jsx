@@ -18,17 +18,17 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
   const showReasoningLabel = !isUser && message.isPending && !message.content;
 
   return (
-    <div className={`flex gap-2 md:gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+    <div className={`flex gap-1.5 md:gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} w-full animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {!isUser && (
-        <div className="shrink-0 mt-1">
-          <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm">
-            <Bot className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
+        <div className="shrink-0 mt-0.5 md:mt-1">
+          <div className="h-6 w-6 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm">
+            <Bot className="h-3 w-3 md:h-4 md:w-4 text-white" />
           </div>
         </div>
       )}
       
       <div className={`flex-1 max-w-[75%] sm:max-w-[80%] md:max-w-[70%] ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className={`rounded-2xl p-3 md:p-4 shadow-sm transition-all ${
+        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all ${
           isUser 
             ? message.isFailed
               ? 'bg-red-100 text-red-900 border-2 border-red-300 ml-auto'
@@ -42,7 +42,7 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
 
           {/* Main Content - Show only if there's content */}
           {message.content && (
-            <div className="wrap-break-word leading-relaxed">
+            <div className="wrap-break-word leading-relaxed text-xs md:text-sm">
               {isUser ? (
                 <div className="whitespace-pre-wrap wrap-break-word">{message.content}</div>
               ) : (
@@ -100,18 +100,18 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
         </div>
         
         {/* Icons for message role indicator */}
-        <p className="text-xs text-slate-500 mt-1.5 md:mt-2 flex items-center gap-1.5">
+        <p className="text-xs text-slate-500 mt-1 md:mt-2 flex items-center gap-1">
           {message.isPending ? (
             <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span className="font-medium">Sending...</span>
+              <Loader2 className="h-2.5 w-2.5 md:h-3 md:w-3 animate-spin" />
+              <span className="font-medium text-xs">Sending...</span>
             </>
           ) : (
             <>
               {isUser ? (
-                <User className="h-3 w-3" />
+                <User className="h-2.5 w-2.5 md:h-3 md:w-3" />
               ) : (
-                <Bot className="h-3 w-3" />
+                <Bot className="h-2.5 w-2.5 md:h-3 md:w-3" />
               )}
             </>
           )}

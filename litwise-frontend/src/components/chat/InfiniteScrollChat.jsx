@@ -109,9 +109,9 @@ const InfiniteScrollChat = ({
   return (
     <ScrollArea
       ref={scrollContainerRef}
-      className="h-full bg-white rounded-lg border border-gray-200"
+      className="h-full w-full bg-white"
     >
-      <div className="p-4 space-y-4">
+      <div className="p-3 md:p-4 space-y-3 md:space-y-4">
         {/* Loading indicator for older messages */}
         {isLoading && messages.length === 0 && (
           <div className="flex justify-center items-center py-8">
@@ -144,11 +144,11 @@ const InfiniteScrollChat = ({
         ))}
 
         {/* Auto-scroll anchor */}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-1" />
 
         {/* Error display */}
         {error && (
-          <div className="text-red-600 text-sm p-2 bg-red-50 rounded border border-red-200">
+          <div className="text-red-600 text-xs md:text-sm p-2 md:p-3 bg-red-50 rounded border border-red-200">
             <span className="font-semibold">Error loading messages:</span> {error}
           </div>
         )}
