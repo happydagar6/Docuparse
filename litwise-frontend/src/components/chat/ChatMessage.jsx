@@ -18,7 +18,7 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
   const showReasoningLabel = !isUser && message.isPending && !message.content;
 
   return (
-    <div className={`flex gap-1.5 md:gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} w-full animate-in fade-in slide-in-from-bottom-2 duration-300 px-2 md:px-0`}>
+    <div className={`flex gap-1.5 md:gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {!isUser && (
         <div className="shrink-0 mt-0.5 md:mt-1">
           <div className="h-6 w-6 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm shrink-0">
@@ -27,8 +27,8 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
         </div>
       )}
       
-      <div className={`flex flex-col max-w-[calc(100%-2rem)] sm:max-w-[80%] md:max-w-[70%] ${isUser ? 'items-end' : 'items-start'}`}>
-        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all overflow-hidden wrap-break-word ${
+      <div className={`flex flex-col shrink-0 max-w-[calc(100vw-3.5rem)] sm:max-w-xs md:max-w-md lg:max-w-2xl ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all break-words ${
           isUser 
             ? message.isFailed
               ? 'bg-red-100 text-red-900 border-2 border-red-300'
@@ -42,9 +42,9 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
 
           {/* Main Content - Show only if there's content */}
           {message.content && (
-            <div className="wrap-break-word leading-relaxed text-xs md:text-sm word-break">
+            <div className="leading-relaxed text-xs md:text-sm break-words">
               {isUser ? (
-                <div className="whitespace-pre-wrap word-break wrap-break-word">{message.content}</div>
+                <div className="whitespace-pre-wrap break-words">{message.content}</div>
               ) : (
                 <ResponseFormatter 
                   content={message.content}
