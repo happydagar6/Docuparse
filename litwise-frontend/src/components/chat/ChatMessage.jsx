@@ -18,21 +18,21 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
   const showReasoningLabel = !isUser && message.isPending && !message.content;
 
   return (
-    <div className={`flex gap-1.5 md:gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} w-full animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+    <div className={`flex gap-1.5 md:gap-2.5 ${isUser ? 'justify-end' : 'justify-start'} w-full animate-in fade-in slide-in-from-bottom-2 duration-300 px-2 md:px-0`}>
       {!isUser && (
         <div className="shrink-0 mt-0.5 md:mt-1">
-          <div className="h-6 w-6 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm">
+          <div className="h-6 w-6 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-sm shrink-0">
             <Bot className="h-3 w-3 md:h-4 md:w-4 text-white" />
           </div>
         </div>
       )}
       
-      <div className={`flex-1 max-w-[75%] sm:max-w-[80%] md:max-w-[70%] ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all ${
+      <div className={`flex flex-col max-w-[calc(100%-2rem)] sm:max-w-[80%] md:max-w-[70%] ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all overflow-hidden wrap-break-word ${
           isUser 
             ? message.isFailed
-              ? 'bg-red-100 text-red-900 border-2 border-red-300 ml-auto'
-              : 'bg-blue-600 text-white ml-auto shadow-md' 
+              ? 'bg-red-100 text-red-900 border-2 border-red-300'
+              : 'bg-blue-600 text-white shadow-md' 
             : 'bg-slate-100 text-slate-900 border border-slate-200/50'
         }`}>
           {/* Reasoning Label - Only shown before content starts arriving */}
@@ -42,9 +42,9 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
 
           {/* Main Content - Show only if there's content */}
           {message.content && (
-            <div className="wrap-break-word leading-relaxed text-xs md:text-sm">
+            <div className="wrap-break-word leading-relaxed text-xs md:text-sm word-break">
               {isUser ? (
-                <div className="whitespace-pre-wrap wrap-break-word">{message.content}</div>
+                <div className="whitespace-pre-wrap word-break wrap-break-word">{message.content}</div>
               ) : (
                 <ResponseFormatter 
                   content={message.content}
@@ -100,18 +100,18 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
         </div>
         
         {/* Icons for message role indicator */}
-        <p className="text-xs text-slate-500 mt-1 md:mt-2 flex items-center gap-1">
+        <p className="text-xs text-slate-500 mt-1 md:mt-1.5 flex items-center gap-1">
           {message.isPending ? (
             <>
-              <Loader2 className="h-2.5 w-2.5 md:h-3 md:w-3 animate-spin" />
+              <Loader2 className="h-2.5 w-2.5 md:h-3 md:w-3 animate-spin shrink-0" />
               <span className="font-medium text-xs">Sending...</span>
             </>
           ) : (
             <>
               {isUser ? (
-                <User className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                <User className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
               ) : (
-                <Bot className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                <Bot className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
               )}
             </>
           )}
@@ -119,8 +119,8 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
       </div>
       
       {isUser && (
-        <div className="shrink-0 mt-1 hidden md:flex">
-          <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm border border-blue-200">
+        <div className="shrink-0 mt-0.5 md:mt-1 hidden md:flex">
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-linear-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm border border-blue-200 shrink-0">
             <User className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-700" />
           </div>
         </div>
