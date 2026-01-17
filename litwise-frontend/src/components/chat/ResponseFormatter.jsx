@@ -72,14 +72,14 @@ const ResponseFormatter = memo(function ResponseFormatter({
                   <span>{section.label}</span>
                 </p>
               )}
-              <div className="text-sm md:text-base text-slate-700 leading-relaxed">
+              <div className="text-sm md:text-base text-slate-700 leading-relaxed wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto max-w-full">
                 <FormattedContent content={section.content} />
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-sm md:text-base text-slate-700 leading-relaxed">
+        <div className="text-sm md:text-base text-slate-700 leading-relaxed wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto max-w-full">
           <FormattedContent content={content} />
         </div>
       )}

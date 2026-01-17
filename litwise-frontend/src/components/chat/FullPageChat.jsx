@@ -485,7 +485,7 @@ const FullPageChat = ({ paper }) => {
         ) : (
           <>
             {/* Messages Container - Scrollable */}
-            <div className="flex-1 min-h-0 overflow-hidden relative">
+            <div className="flex-1 min-h-0 overflow-hidden relative bg-white">
               <InfiniteScrollChat
                 sessionId={activeSessionId}
                 isStreaming={isStreaming}

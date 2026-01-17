@@ -1,10 +1,8 @@
 'use client';
 
 import React, { memo } from 'react';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Bot, FileText, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { FormattedContent } from '@/components/ui/formatted-content';
 import { Button } from '@/components/ui/button';
 import ReasoningIndicator from './ReasoningIndicator';
 import ResponseFormatter from './ResponseFormatter';
@@ -27,8 +25,8 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
         </div>
       )}
       
-      <div className={`flex flex-col shrink-0 max-w-[calc(100vw-3.5rem)] sm:max-w-xs md:max-w-md lg:max-w-2xl ${isUser ? 'items-end' : 'items-start'}`}>
-        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all break-words ${
+      <div className={`flex flex-col shrink-0 max-w-[calc(100vw-4rem)] sm:max-w-xs md:max-w-md lg:max-w-2xl xl:max-w-3xl ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`rounded-2xl p-2.5 md:p-4 shadow-sm transition-all wrap-break-word overflow-hidden ${
           isUser 
             ? message.isFailed
               ? 'bg-red-100 text-red-900 border-2 border-red-300'
@@ -42,13 +40,13 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
 
           {/* Main Content - Show only if there's content */}
           {message.content && (
-            <div className="leading-relaxed text-xs md:text-sm break-words">
+            <div className="leading-relaxed text-xs md:text-sm wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto max-w-full">
               {isUser ? (
-                <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                <div className="whitespace-pre-wrap wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto">{message.content}</div>
               ) : (
                 <ResponseFormatter 
                   content={message.content}
-                  className="space-y-4"
+                  className="space-y-4 wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto max-w-full"
                 />
               )}
             </div>
@@ -75,21 +73,21 @@ const ChatMessage = memo(({ message, onRetry, isStreaming = false }) => {
           
           {/* Sources (only for assistant messages) */}
           {!isUser && message.sources && message.sources.length > 0 && (
-            <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-slate-200/50">
+            <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-slate-200/50 max-w-full overflow-hidden">
               <p className="text-xs font-semibold text-slate-700 mb-2 md:mb-3 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-blue-600" />
+                <FileText className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                 Sources
               </p>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-w-full overflow-hidden">
                 {message.sources.map((source, idx) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/50 hover:border-slate-300/60 transition-colors">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-xs font-semibold text-slate-700">Page {source.page}</span>
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 font-medium">
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/50 hover:border-slate-300/60 transition-colors max-w-full overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+                      <span className="text-xs font-semibold text-slate-700 truncate shrink-0">Page {source.page}</span>
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 font-medium shrink-0">
                         {(source.relevance_score * 100).toFixed(0)}%
                       </Badge>
                     </div>
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto max-w-full">
                       {source.content}
                     </p>
                   </div>

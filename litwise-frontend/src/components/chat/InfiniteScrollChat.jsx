@@ -109,9 +109,9 @@ const InfiniteScrollChat = ({
   return (
     <ScrollArea
       ref={scrollContainerRef}
-      className="h-full w-full bg-white"
+      className="h-full w-full bg-white overflow-hidden"
     >
-      <div className="p-3 md:p-4 space-y-3 md:space-y-4">
+      <div className="p-2 md:p-4 space-y-2 md:space-y-4 min-h-full">
         {/* Loading indicator for older messages */}
         {isLoading && messages.length === 0 && (
           <div className="flex justify-center items-center py-8">

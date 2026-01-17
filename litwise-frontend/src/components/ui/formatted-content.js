@@ -25,7 +25,7 @@ export const FormattedContent = memo(function FormattedContent({ content, classN
   }
 
   return (
-    <div className={cn('formatted-content prose prose-sm md:prose max-w-none text-slate-700', className)}>
+    <div className={cn('formatted-content prose prose-sm md:prose max-w-none text-slate-700 wrap-break-word overflow-wrap-anywhere word-break-break-word hyphens-auto', className)}>
       {formattedElements}
     </div>
   );
