@@ -9,8 +9,7 @@
 
 import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { usePaper } from '@/lib/react-query';
@@ -37,12 +36,8 @@ function ChatPageContent() {
     }
   }, [error, router]);
 
-  const handleBack = () => {
-    if (paperId) {
-      router.push(`/papers/${paperId}`);
-    } else {
-      router.back();
-    }
+  const handleExitFullScreen = () => {
+    router.push('/papers');
   };
 
   if (isLoading) {
@@ -62,46 +57,36 @@ function ChatPageContent() {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-linear-to-b from-white via-slate-50/30 to-white">
-      {/* Header - Fixed at top */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="shrink-0 border-b border-slate-200/60 bg-white/95 backdrop-blur-sm shadow-sm z-10"
-      >
-        <div className="container mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Button
-              onClick={handleBack}
-              variant="ghost"
-              size="sm"
-              className="hover:bg-slate-100 rounded-lg h-9 px-3"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1.5" />
-              <span className="hidden sm:inline">Back</span>
-            </Button>
-            
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-900 truncate">
-                {paper.title || paper.filename}
-              </h1>
-              <p className="text-xs text-slate-500 hidden sm:block truncate">
-                Chat with AI about this paper
-              </p>
-            </div>
+      {/* Header - Fixed at top with high z-index */}
+      <div className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200/60 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="w-full px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-4">
+          {/* Back button - always visible */}
+          <Button
+            onClick={handleExitFullScreen}
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 hover:bg-slate-100 rounded-lg flex-shrink-0 text-slate-900"
+            title="Exit full screen"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
+          {/* Paper title */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-900 truncate">
+              {paper.title || paper.filename}
+            </h1>
+            <p className="text-xs text-slate-500 hidden sm:block truncate">
+              Chat with AI about this paper
+            </p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Full-page chat component */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="flex-1 min-h-0 overflow-hidden"
-      >
+      {/* Full-page chat component with top padding for fixed header */}
+      <div className="flex-1 min-h-0 overflow-hidden pt-[calc(2.25rem+1.5rem)]">
         <FullPageChat paper={paper} />
-      </motion.div>
+      </div>
     </div>
   );
 }

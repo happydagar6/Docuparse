@@ -4,8 +4,6 @@ import React, { useState, useRef, useLayoutEffect, startTransition, useMemo, use
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -24,7 +22,6 @@ import {
   ChevronDown,
   X,
   History,
-  Maximize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatMessages, useChatSessions, useCreateChatSession, useDeleteChatSession } from '@/lib/react-query';
@@ -33,6 +30,7 @@ import ChatMessage from './ChatMessage';
 import ChatSessions from './ChatSessions';
 import InfiniteScrollChat from './InfiniteScrollChat';
 import { FormattedContent } from '@/components/ui/formatted-content';
+import { Maximize2 } from 'lucide-react';
 
 const ChatInterface = ({ paper }) => {
   const router = useRouter();
@@ -437,18 +435,6 @@ const ChatInterface = ({ paper }) => {
               </span>
             </div>
             
-            {/* Full-page chat button - Desktop */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/chat?paper_id=${paper.id}`)}
-              className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg hover:bg-slate-100 transition-colors"
-              title="Open in full page"
-            >
-              <Maximize2 className="h-3.5 w-3.5 text-slate-600" />
-              <span className="text-xs text-slate-600">Expand</span>
-            </Button>
-            
             {/* Mobile Sessions Button */}
             <div className="flex items-center gap-2 md:hidden">
               <Sheet open={showMobileSessions} onOpenChange={setShowMobileSessions}>
@@ -542,32 +528,18 @@ const ChatInterface = ({ paper }) => {
                   displayMessages={displayMessages}
                 />
                 
-                {/* Mobile: Expand to full page button */}
+                {/* Mobile: Full-screen chat button */}
                 <div className="absolute top-3 right-3 md:hidden z-10">
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => router.push(`/chat?paper_id=${paper.id}`)}
+                    onClick={() => router.push(`/chat?paper_id=${paper.id}${activeSessionId ? `&session_id=${activeSessionId}` : ''}`)}
                     className="h-8 px-3 rounded-lg shadow-md bg-white/90 backdrop-blur-sm hover:bg-white border border-slate-200"
                   >
                     <Maximize2 className="h-3.5 w-3.5 mr-1.5" />
-                    <span className="text-xs">Expand</span>
+                    <span className="text-xs">Full Screen</span>
                   </Button>
                 </div>
-                
-                {/* Scroll to bottom button - appears when user scrolls up during streaming */}
-                {showScrollButton && (
-                  <div className="absolute bottom-4 right-4 z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <Button
-                      size="sm"
-                      onClick={forceScrollToBottom}
-                      className="rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white h-9 md:h-10 px-3 md:px-4 font-medium transition-all"
-                    >
-                      <ChevronDown className="w-4 h-4 mr-1" />
-                      <span className="text-xs md:text-sm">New message</span>
-                    </Button>
-                  </div>
-                )}
               </div>
 
               <Separator className="shrink-0 border-slate-200/50" />

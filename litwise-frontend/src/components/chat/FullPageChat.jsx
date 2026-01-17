@@ -12,7 +12,8 @@
 
 'use client';
 
-import React, { useState, useRef, useLayoutEffect, startTransition, useMemo, useEffectEvent, useCallback } from 'react';
+import React, { useState, useRef, useLayoutEffect, startTransition, useMemo, useEffectEvent, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ import ChatSessions from './ChatSessions';
 import InfiniteScrollChat from './InfiniteScrollChat';
 
 const FullPageChat = ({ paper }) => {
+  const searchParams = useSearchParams();
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [message, setMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -61,6 +63,18 @@ const FullPageChat = ({ paper }) => {
   const { data: messages = [], refetch: refetchMessages } = useChatMessages(activeSessionId);
   const createSessionMutation = useCreateChatSession();
   const deleteSessionMutation = useDeleteChatSession();
+
+  // Auto-select session from URL params when sessions are loaded
+  useEffect(() => {
+    const sessionId = searchParams?.get('session_id');
+    if (sessionId && sessions.length > 0 && !activeSessionId) {
+      // Check if the session exists in the loaded sessions
+      const sessionExists = sessions.some(session => session.id === sessionId);
+      if (sessionExists) {
+        setActiveSessionId(sessionId);
+      }
+    }
+  }, [searchParams, sessions, activeSessionId]);
 
   // Track optimistic messages separately
   const [optimisticUserMessage, setOptimisticUserMessage] = useState(null);

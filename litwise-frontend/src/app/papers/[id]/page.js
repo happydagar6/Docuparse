@@ -30,26 +30,28 @@ export default function PaperPage() {
   const searchParams = useSearchParams();
   const paperId = params.id;
   
-  // State for SearchResultsPanel visibility
-  const [showSearchPanel, setShowSearchPanel] = useState(true);
-  
-  // State for which tab to display (default to reader if coming from search)
-  const [activeTab, setActiveTab] = useState('overview');
-  
   // Get search context from URL params (chunk to scroll to, page to jump to, text to highlight)
   const chunkId = searchParams?.get('chunk_id');
   const pageNum = searchParams?.get('page');
   const highlightText = searchParams?.get('highlight');
+  const tabParam = searchParams?.get('tab');
   const fromSearch = !!(chunkId || pageNum);
+  
+  // State for which tab to display (default to reader if coming from search, or specified tab)
+  const activeTab = useMemo(() => {
+    if (tabParam) return tabParam;
+    if (fromSearch) return 'reader';
+    return 'overview';
+  }, [tabParam, fromSearch]);
   
   const { data: paper, isLoading, error } = usePaper(paperId);
 
-  // Set active tab to reader when coming from search
-  useEffect(() => {
-    if (fromSearch) {
-      setActiveTab('reader');
-    }
-  }, [fromSearch]);
+  // Handle tab changes by updating URL
+  const handleTabChange = (newTab) => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tab', newTab);
+    router.replace(`/papers/${paperId}?${newSearchParams.toString()}`, { scroll: false });
+  };
 
   // Scroll to chunk when paper loads and search context is available
   useEffect(() => {
@@ -198,7 +200,7 @@ export default function PaperPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <div className="bg-white border-b border-slate-200/50 rounded-t-lg p-1 md:p-2">
             <TabsList className="w-full grid grid-cols-2 md:grid-cols-4 h-auto bg-slate-100/50 p-1 rounded-lg border border-slate-200/50">
               <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm py-2 md:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded">
