@@ -47,7 +47,7 @@ function ChatPageContent() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+      <div className="h-screen w-screen flex items-center justify-center bg-linear-to-br from-slate-50 to-white">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
           <p className="text-sm text-slate-600">Loading chat...</p>
@@ -61,13 +61,13 @@ function ChatPageContent() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-gradient-to-b from-white via-slate-50/30 to-white">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-linear-to-b from-white via-slate-50/30 to-white">
       {/* Header - Fixed at top */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex-shrink-0 border-b border-slate-200/60 bg-white/95 backdrop-blur-sm shadow-sm z-10"
+        className="shrink-0 border-b border-slate-200/60 bg-white/95 backdrop-blur-sm shadow-sm z-10"
       >
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -109,7 +109,7 @@ function ChatPageContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+      <div className="h-screen w-screen flex items-center justify-center bg-linear-to-br from-slate-50 to-white">
         <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
     }>
