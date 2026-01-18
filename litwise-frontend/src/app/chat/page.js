@@ -65,7 +65,7 @@ function ChatPageContent() {
             onClick={handleExitFullScreen}
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 hover:bg-slate-100 rounded-lg flex-shrink-0 text-slate-900"
+            className="h-9 w-9 p-0 hover:bg-slate-100 rounded-lg shrink-0 text-slate-900"
             title="Exit full screen"
           >
             <ArrowLeft className="h-5 w-5" />
