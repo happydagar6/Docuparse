@@ -97,7 +97,7 @@ class MultiModalExtractor:
             print(f"❌ Failed to extract images from {pdf_path}: {e}")
             return []
         
-    def extract_tables(self, pdf_path: str, page_info: List[Dict] = None) -> List[Dict]:
+    def extract_tables(self, pdf_path: str, page_info: List[Dict] = None, markdown_content: str = None) -> List[Dict]:
         """
         Extract tables from PDF using PyMuPDF's find_tables() + fallback markdown parsing.
         
@@ -114,6 +114,7 @@ class MultiModalExtractor:
         Args:
             pdf_path: Path to PDF file
             page_info: Optional page information from PDF extraction
+            markdown_content: Optional pre-extracted markdown content (to avoid re-extraction)
         
         Returns:
             List of dicts with: page, headers, rows, row_count, col_count, 
@@ -179,7 +180,10 @@ class MultiModalExtractor:
             logger.info("🔄 FALLBACK: Extracting tables from markdown content...")
             print("🔄 FALLBACK: Extracting tables from markdown content (for border-less tables)...")
             
-            markdown_content = self.extract_full_markdown(pdf_path)
+            # ✅ OPTIMIZATION: Use pre-extracted markdown if provided (avoids duplicate extraction)
+            if markdown_content is None:
+                markdown_content = self.extract_full_markdown(pdf_path)
+            
             if markdown_content:
                 markdown_tables = self._extract_tables_from_markdown(markdown_content)
                 
@@ -576,10 +580,14 @@ class MultiModalExtractor:
         
         return "\n".join(text_parts)
     
-    def detect_equations(self, pdf_path: str) -> bool:
+    def detect_equations(self, pdf_path: str, markdown_content: str = None) -> bool:
         """
         Detect if PDF contains mathematical equations or formulas.
         Looks for LaTeX math delimiters, Unicode math symbols, and common equation patterns.
+        
+        Args:
+            pdf_path: Path to PDF file
+            markdown_content: Optional pre-extracted markdown content (to avoid re-extraction)
         
         Returns:
             bool: True if equations/formulas are detected, False otherwise
@@ -588,6 +596,41 @@ class MultiModalExtractor:
         
         try:
             import re
+            
+            # ✅ OPTIMIZATION: Use markdown if provided, otherwise fall back to PyMuPDF
+            if markdown_content:
+                # Fast detection from already-extracted markdown
+                latex_patterns = [
+                    r'\\begin\{(equation|align|math|displaymath|eqnarray|gather)\}',
+                    r'\\end\{(equation|align|math|displaymath|eqnarray|gather)\}',
+                    r'\\\[.*?\\\]',  # Display math
+                    r'\$\$.*?\$\$',  # Display math alternative
+                    r'\$[^$]+\$',    # Inline math
+                    r'\\frac\{',     # Fractions
+                    r'\\int[_^]',    # Integrals
+                    r'\\sum[_^]',    # Summations
+                    r'\\prod[_^]',   # Products
+                    r'\\sqrt\{',     # Square roots
+                    r'\\alpha|\\beta|\\gamma|\\delta|\\theta|\\lambda|\\mu|\\sigma|\\pi',  # Greek letters
+                ]
+                
+                combined_pattern = '|'.join(latex_patterns)
+                
+                # Check for LaTeX patterns in markdown
+                if re.search(combined_pattern, markdown_content):
+                    print(f"✅ Equations detected (LaTeX pattern in markdown)")
+                    return True
+                
+                # Check for Unicode math symbols
+                unicode_math_chars = '∀∂∃∅∇∈∉∋∏∑−∓∗∘∙√∝∞∟∠∧∨∩∪∫∬∭∮∴∵∼≃≅≈≉≠≡≤≥αβγδεζηθικλμνξοπρστυφχψω'
+                if any(char in markdown_content for char in unicode_math_chars):
+                    print(f"✅ Equations detected (Unicode math symbols in markdown)")
+                    return True
+                
+                print(f"❌ No equations detected in markdown content")
+                return False
+            
+            # Fallback: Use PyMuPDF for direct PDF scanning
             doc = fitz.open(pdf_path)
             
             # Patterns to detect equations
@@ -673,11 +716,28 @@ class MultiModalExtractor:
         print(f"🚀 Starting multi-modal extraction from: {pdf_path}")
         
         images = self.extract_images(pdf_path)
-        tables = self.extract_tables(pdf_path, page_info)  # ✨ Pass page_info
-        has_equations = self.detect_equations(pdf_path)
         
-        # ✅ NEW: Extract full markdown for MarkdownElementNodeParser
+        # ✅ OPTIMIZATION: Extract markdown ONCE and reuse for both tables and equations
+        # This eliminates duplicate 69-second markdown extraction
         markdown_full = self.extract_full_markdown(pdf_path)
+        
+        # Extract tables (pass markdown to avoid re-extraction)
+        tables = self.extract_tables(pdf_path, page_info, markdown_content=markdown_full)
+        
+        # Detect equations (pass markdown to avoid re-extraction)
+        has_equations = self.detect_equations(pdf_path, markdown_content=markdown_full)
+        
+        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, {len(markdown_full)} chars markdown, equations: {has_equations}")
+        
+        return {
+            'images': images,
+            'tables': tables,
+            'markdown_full': markdown_full,  # Full markdown for advanced indexing
+            'has_equations': has_equations,
+            'total_items': len(images) + len(tables)
+        }
+        # Detect equations (pass markdown to avoid re-extraction)
+        has_equations = self.detect_equations(pdf_path, markdown_content=markdown_full)
         
         print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, {len(markdown_full)} chars markdown, equations: {has_equations}")
         
