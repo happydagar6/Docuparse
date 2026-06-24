@@ -78,7 +78,7 @@ You are a GROUNDED EXTRACTION SYSTEM, not a knowledge base. Output ONLY what the
 class LiteratureReviewService:
     def __init__(self):
         self.client = OpenAI(
-            api_key=os.getenv("XAI_API_KEY"), base_url="https://api.x.ai/v1"
+            api_key=os.getenv("OPENAI_API_KEY")
         )
         self.qdrant_client = QdrantClient(
             url=os.getenv("QDRANT_URL"),
@@ -157,7 +157,7 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
 
         try:
             response = self.client.chat.completions.create(
-                model="grok-4-1-fast-reasoning",
+                model="gpt-5-mini-2025-08-07",
                 messages=[{"role": "user", "content": decomposition_prompt}],
                 temperature=0.4,  # Slightly higher for query variety
                 max_tokens=800,
@@ -510,7 +510,7 @@ Before responding, verify:
 </FINAL_CHECKLIST>"""
         
         response = self.client.chat.completions.create(
-            model="grok-4-1-fast-reasoning",
+            model="gpt-5-mini-2025-08-07",
             messages=[
                 {
                     "role": "system",

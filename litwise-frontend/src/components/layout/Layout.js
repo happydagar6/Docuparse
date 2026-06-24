@@ -37,7 +37,7 @@ export function RootLayout({ children }) {
       <Navigation />
 
       {/* Main Content Area with sidebar margin */}
-      <main className="lg:ml-64 flex-1">{children}</main>
+      <main className="lg:ml-60 flex-1">{children}</main>
 
       {/* Footer - positioned after main content, before mobile nav padding */}
       <InteractiveFooter />
@@ -66,7 +66,7 @@ export function PageLayout({
   return (
     <div className={`min-h-full ${className}`}>
       {title && (
-        <div className="bg-white border-b border-gray-200 py-4 sm:py-6 lg:py-8 mt-16 lg:mt-0">
+        <div className="bg-white border-b border-gray-200 py-4 sm:py-6 lg:py-8 mt-14 lg:mt-0">
           <div
             className={`${
               fullWidth ? "px-4 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"

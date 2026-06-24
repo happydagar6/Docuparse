@@ -10,7 +10,7 @@ import os
 class StudyPlanService:
     def __init__(self):
         self.client = OpenAI(
-            api_key=os.getenv("XAI_API_KEY"), base_url="https://api.x.ai/v1"
+            api_key=os.getenv("OPENAI_API_KEY")
         )
         self.qdrant_client = QdrantClient(
             url=os.getenv("QDRANT_URL"),
@@ -121,7 +121,7 @@ Generate a structured JSON with this EXACT format:
 ⚠️ OUTPUT: Respond with ONLY valid JSON. No markdown, no code blocks, no explanations."""
 
         response = self.client.chat.completions.create(
-            model="grok-3-fast",
+            model="gpt-5-mini-2025-08-07",
             messages=[
                 {
                     "role": "system",

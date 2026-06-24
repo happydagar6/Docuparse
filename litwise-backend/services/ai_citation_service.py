@@ -5,7 +5,7 @@ Hybrid cost-saving architecture:
 1. Extract text from first 2 pages of PDF
 2. Try to find DOI with regex
 3. If DOI found: Use free Crossref API
-4. If no DOI: Use Grok AI to extract metadata
+4. If no DOI: Use OpenAI to extract metadata
 5. Format into APA 7th Edition
 
 Author: Senior Backend Engineer
@@ -34,15 +34,13 @@ class AICitationService:
     DOI_PATTERN = r'10\.\d{4,9}/[-._;()/:A-Z0-9]+'
     
     def __init__(self):
-        """Initialize the citation service with Grok AI model"""
-        # Initialize Grok LLM (same config as chat interface)
+        """Initialize the citation service with OpenAI model"""
         self.llm = ChatOpenAI(
-            model="grok-4-1-fast-reasoning",
-            api_key=os.getenv("XAI_API_KEY"),
-            base_url="https://api.x.ai/v1",
+            model="gpt-5-mini-2025-08-07",
+            api_key=os.getenv("OPENAI_API_KEY"),
             temperature=0.1  # Low temperature for factual extraction
         )
-        print("✅ AI Citation Service initialized with Grok model")
+        print("✅ AI Citation Service initialized with OpenAI model")
     
     async def generate_citation_from_pdf(self, pdf_path: str) -> Dict:
         """
@@ -101,7 +99,7 @@ class AICitationService:
                 print("⚠️ No DOI found in text")
             
             # Step 3b: Fallback to AI extraction
-            print("🤖 Using Grok AI to extract metadata...")
+            print("🤖 Using AI to extract metadata...")
             metadata = await self._extract_metadata_with_ai(text_chunk)
             
             if metadata and metadata.get('title'):
@@ -279,7 +277,7 @@ class AICitationService:
     
     async def _extract_metadata_with_ai(self, text_chunk: str) -> Optional[Dict]:
         """
-        Use Grok AI to extract metadata from PDF text
+        Use AI to extract metadata from PDF text
         
         Args:
             text_chunk: Text from first 2 pages
@@ -288,7 +286,7 @@ class AICitationService:
             Metadata dict or None if failed
         """
         try:
-            # Prompt for Grok to extract structured metadata
+            # Prompt for AI to extract structured metadata
             prompt = f"""You are an expert academic librarian. Extract citation metadata from this academic paper's first pages.
 
 **CRITICAL INSTRUCTIONS:**
@@ -317,7 +315,7 @@ class AICitationService:
 
 Return ONLY the JSON object, nothing else."""
 
-            # Call Grok AI
+            # Call AI
             response = await self.llm.ainvoke(prompt)
             response_text = response.content.strip()
             

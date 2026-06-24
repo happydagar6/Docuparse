@@ -111,10 +111,9 @@ class QuizService:
     def __init__(self):
         """Initialize quiz service with API clients"""
         try:
-            # Initialize XAI Grok API client
+            # Initialize OpenAI API client
             self.client = OpenAI(
-                api_key=os.getenv("XAI_API_KEY"),
-                base_url="https://api.x.ai/v1"
+                api_key=os.getenv("OPENAI_API_KEY")
             )
             
             # Initialize Qdrant vector database client
@@ -128,7 +127,7 @@ class QuizService:
             self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
             
             logger.info("✅ Quiz Service initialized successfully")
-            logger.info(f"   - LLM Model: Grok-4-1-Fast-Reasoning")
+            logger.info(f"   - LLM Model: gpt-5-mini-2025-08-07")
             logger.info(f"   - Vector DB: Qdrant")
             logger.info(f"   - Embeddings: text-embedding-3-small")
             
@@ -149,7 +148,7 @@ class QuizService:
         RAG Flow:
         1. Semantic search for topic-relevant context chunks from vector DB
         2. Construct LLM prompt with retrieved context
-        3. Call Grok LLM to generate quiz questions as JSON
+        3. Call LLM to generate quiz questions as JSON
         4. Safely parse and validate JSON output
         5. Save quiz to Supabase with source citations
         
@@ -200,7 +199,7 @@ class QuizService:
             logger.info(f"   ✅ Prompt size: {len(user_prompt)} characters")
             
             # ========== STEP 3: CALL LLM TO GENERATE QUIZ ==========
-            logger.info("🤖 Step 3: Calling Grok-4-1-Fast-Reasoning to generate questions...")
+            logger.info("🤖 Step 3: Calling GPT to generate questions...")
             quiz_json = await self._call_llm_for_quiz(
                 system_prompt=QUIZ_GENERATION_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
@@ -375,7 +374,7 @@ class QuizService:
             Formatted prompt string for LLM
         """
         # Limit to top 50 chunks to avoid exceeding token limits
-        # Grok has 200k context window, but we want to be conservative
+        # GPT has 128k context window, but we want to be conservative
         # Format: Just the content with clear separation, no structural labels
         context_text = "\n\n---\n\n".join([
             chunk['text']
@@ -412,10 +411,10 @@ Generate the quiz as valid JSON now."""
         max_retries: int = 3
     ) -> Dict:
         """
-        Call Grok-4-1-Fast-Reasoning LLM to generate quiz
+        Call LLM to generate quiz
         
         Implements retry logic for JSON parsing failures.
-        Grok-4-1-Fast-Reasoning is optimized for reasoning tasks.
+        GPT is optimized for reasoning tasks.
         
         Args:
             system_prompt: System prompt with instructions
@@ -432,9 +431,9 @@ Generate the quiz as valid JSON now."""
             try:
                 logger.info(f"   - LLM attempt {attempt + 1}/{max_retries}")
                 
-                # Call Grok LLM
+                # Call LLM
                 response = self.client.chat.completions.create(
-                    model="grok-4-1-fast-reasoning",  # Latest Grok model optimized for reasoning
+                    model="gpt-5-mini-2025-08-07",  # Latest model optimized for reasoning
                     messages=[
                         {
                             "role": "system",

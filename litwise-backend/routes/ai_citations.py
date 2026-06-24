@@ -26,7 +26,7 @@ async def generate_citation(
     1. Extract text from first 2 pages only
     2. Search for DOI using regex
     3. If DOI found: Use free Crossref API
-    4. If no DOI: Use Grok AI to extract metadata
+    4. If no DOI: Use OpenAI to extract metadata
     5. Format into APA 7th Edition
     
     **Request:**
