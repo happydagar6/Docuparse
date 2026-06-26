@@ -142,10 +142,27 @@ class PDFProcessor(BaseDocumentProcessor):
                     # Extract PDF metadata if available
                     if pdf_reader.metadata:
                         pdf_meta = pdf_reader.metadata
-                        metadata['title'] = pdf_meta.get('/Title') or pdf_meta.get('Title')
-                        metadata['authors'] = [{'name': pdf_meta.get('/Author') or pdf_meta.get('Author')}] if (pdf_meta.get('/Author') or pdf_meta.get('Author')) else []
-                        metadata['keywords'] = (pdf_meta.get('/Keywords') or pdf_meta.get('Keywords') or '').split(',') if (pdf_meta.get('/Keywords') or pdf_meta.get('Keywords')) else []
-                    
+
+                        def _safe_str(val) -> str | None:
+                            """
+                            Convert any PyPDF2 value (including IndirectObject) to a plain
+                            Python string.  IndirectObject is a lazy reference that is NOT
+                            JSON-serializable; str() resolves it to its actual value.
+                            Returns None for blank/missing values.
+                            """
+                            if val is None:
+                                return None
+                            resolved = str(val).strip()
+                            return resolved if resolved else None
+
+                        raw_title = _safe_str(pdf_meta.get('/Title') or pdf_meta.get('Title'))
+                        raw_author = _safe_str(pdf_meta.get('/Author') or pdf_meta.get('Author'))
+                        raw_keywords = _safe_str(pdf_meta.get('/Keywords') or pdf_meta.get('Keywords'))
+
+                        metadata['title'] = raw_title
+                        metadata['authors'] = [{'name': raw_author}] if raw_author else []
+                        metadata['keywords'] = [k.strip() for k in raw_keywords.split(',') if k.strip()] if raw_keywords else []
+
                     # Note: ⚠️ For full AI-powered extraction, use async api in RAG pipeline
                     self.logger.debug(f"Extracted {len(pdf_reader.pages)} pages from PDF")
             
@@ -153,6 +170,7 @@ class PDFProcessor(BaseDocumentProcessor):
                 self.logger.debug(f"PyPDF2 extraction failed: {e}")
             
             return metadata
+
         
         except Exception as e:
             self.logger.debug(f"Metadata extraction failed: {e} - continuing without metadata")

@@ -207,8 +207,8 @@ RATE_LIMITS = {
     
     # Study plan - most intensive
     "/api/study-plan/generate": {
-        "max_requests": 3,
-        "window_seconds": 86400,  # 1 day
+        "max_requests": 50,
+        "window_seconds": 3600,  # 1 hour
         "description": "Study plan generation"
     },
     

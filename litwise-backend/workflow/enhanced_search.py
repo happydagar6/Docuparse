@@ -314,71 +314,75 @@ class EnhancedSearchSystem:
         
         return final_results
     
-    async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]], 
+    async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]],
                            top_k: int = 25, boost_tables: bool = False) -> List[Tuple[Dict, float]]:
         """
-        Simple re-ranking based on query term overlap and diversity
-        
-        ✅ FIX: Add table boosting for financial queries
-        
-        Args:
-            query: User query
-            results: Combined search results
-            top_k: Number of results to return
-            boost_tables: Whether to boost table chunks (for financial queries)
+        Re-ranking with three scoring layers:
+
+        1. Tokenized overlap bonus (raised cap 0.2→0.35) — rewards chunks whose
+           preprocessed tokens overlap with the query.
+        2. Verbatim exact-match boost (+0.25) — awards chunks that contain the raw
+           query words literally (catches specific terms/acronyms the tokenizer strips).
+        3. Table boosting for financial queries (unchanged).
         """
         if not results:
             return []
-        
-        print(f"Re-ranking {len(results)} candidates using query term overlap...")
-        
+
+        print(f"Re-ranking {len(results)} candidates using query term overlap + verbatim match...")
+
         try:
             query_tokens = set(self.preprocess_text(query))
-            
+            # Raw lower-cased words from query for verbatim matching (no stopword removal)
+            query_raw_words = set(w.lower() for w in query.split() if len(w) > 2)
+
             enhanced_results = []
             seen_content = set()
-            
+
             for doc, score in results:
                 content = doc.get('content', '')
                 content_tokens = set(self.preprocess_text(content))
-                
-                # Skip very similar content (simple deduplication)
-                content_hash = hash(content[:100])  # First 100 chars as fingerprint
+                content_lower = content.lower()
+
+                # Skip near-duplicate content
+                content_hash = hash(content[:100])
                 if content_hash in seen_content:
                     continue
                 seen_content.add(content_hash)
-                
-                # Calculate query term overlap bonus
+
+                # 1. Tokenized overlap bonus (cap raised 0.2→0.35)
                 overlap = len(query_tokens.intersection(content_tokens))
-                overlap_bonus = overlap / max(len(query_tokens), 1) * 0.2  # 20% bonus max
-                
-                # Calculate content quality score (longer content often better)
-                content_quality = min(len(content) / 1000, 1.0) * 0.1  # 10% bonus max
-                
-                # ✅ FIX: Boost table chunks for financial queries
+                overlap_bonus = overlap / max(len(query_tokens), 1) * 0.35
+
+                # 2. Verbatim exact-match boost (+0.25 if any raw query word found literally)
+                verbatim_matches = sum(1 for w in query_raw_words if w in content_lower)
+                verbatim_boost = 0.25 if verbatim_matches > 0 else 0.0
+                # Scale up if many words match verbatim
+                if verbatim_matches > 2:
+                    verbatim_boost = 0.35
+
+                # 3. Content quality bonus (unchanged)
+                content_quality = min(len(content) / 1000, 1.0) * 0.1
+
+                # 4. Table boost for financial queries (unchanged)
                 table_bonus = 0.0
                 if boost_tables:
                     metadata = doc.get('metadata', {})
                     content_type = metadata.get('type', '')
-                    
-                    # Strong boost for table chunks
                     if content_type == 'table':
-                        table_bonus = 0.3  # 30% bonus for tables
-                    
-                    # Additional boost for financial table types
+                        table_bonus = 0.3
                     table_type = metadata.get('table_type', '')
                     if table_type in ['balance_sheet', 'income_statement', 'cash_flow', 'segment_report']:
-                        table_bonus += 0.2  # Extra 20% for financial statements
-                
-                final_score = score + overlap_bonus + content_quality + table_bonus
+                        table_bonus += 0.2
+
+                final_score = score + overlap_bonus + verbatim_boost + content_quality + table_bonus
                 enhanced_results.append((doc, final_score))
-            
+
             # Sort by enhanced score
             enhanced_results.sort(key=lambda x: x[1], reverse=True)
-            
+
             print(f"✅ Re-ranked to top {min(len(enhanced_results), top_k)} results")
             return enhanced_results[:top_k]
-            
+
         except Exception as e:
             print(f"Re-ranking failed: {e}, returning original order")
             return results[:top_k]
@@ -408,23 +412,30 @@ class EnhancedSearchSystem:
         is_financial_query = self._is_financial_query(query)
         if is_financial_query:
             original_top_k = top_k
-            top_k = max(50, top_k * 2)  # At least 50 results for financial queries
+            top_k = max(50, top_k * 2)
             print(f"💰 Financial query detected! Increasing top_k: {original_top_k} → {top_k}")
-        
+
+        # Detect specific/precise queries to use a keyword-heavier alpha
+        is_specific_query = self._is_specific_query(query)
+        # Dynamic alpha: shift toward BM25 (keywords) for precise term queries
+        alpha = 0.5 if is_specific_query else 0.7
+        if is_specific_query:
+            print(f"🔍 Specific/technical query detected! Using keyword-heavy alpha={alpha}")
+
         search_type = "cross-paper" if paper_id is None else f"paper-specific ({paper_id})"
         print(f"🔍 Starting hybrid search ({search_type}) for: '{query}'")
-        
+
         # Step 1: Expand query if enabled
         expanded_query = self.expand_query(query) if use_query_expansion else query
-        
+
         # Step 2: Retrieve larger candidate set
-        candidate_size = 50 if not is_financial_query else 75  # More candidates for financial
-        
+        candidate_size = 50 if not is_financial_query else 75
+
         # Parallel vector and BM25 search
         vector_task = self.vector_search(
             qdrant_client, paper_id, expanded_query, embeddings_model, candidate_size
         )
-        
+
         # BM25 only works for single paper (requires pre-built index)
         if paper_id and paper_id in self.bm25_indices:
             bm25_task = asyncio.to_thread(
@@ -432,23 +443,22 @@ class EnhancedSearchSystem:
             )
             vector_results, bm25_results = await asyncio.gather(vector_task, bm25_task)
         else:
-            # Cross-paper search: vector only (BM25 requires per-paper indexes)
             vector_results = await vector_task
             bm25_results = []
             if paper_id:
                 print(f"⚠️ BM25 index not found for paper {paper_id}, using vector-only search")
-        
+
         print(f"📊 Vector search: {len(vector_results)} results")
         print(f"📊 BM25 search: {len(bm25_results)} results")
-        
-        # Step 3: Combine results (70% vector, 30% BM25)
-        combined_results = self.combine_search_results(vector_results, bm25_results, alpha=0.7)
-        print(f"🔗 Combined: {len(combined_results)} unique results")
-        
-        # Step 4: Re-rank with simple overlap scoring + table boosting
+
+        # Step 3: Combine results with dynamic alpha
+        combined_results = self.combine_search_results(vector_results, bm25_results, alpha=alpha)
+        print(f"🔗 Combined: {len(combined_results)} unique results (vector {int(alpha*100)}% / BM25 {int((1-alpha)*100)}%)")
+
+        # Step 4: Re-rank with overlap + verbatim boost + table boosting
         final_results = await self.simple_rerank(query, combined_results, top_k, boost_tables=is_financial_query)
-        
-        # Step 5: Add diversity scoring for cross-paper search
+
+        # Step 5: Apply diversity scoring for cross-paper search
         if paper_id is None and len(final_results) > 0:
             final_results = self._apply_diversity_scoring(final_results, top_k)
         
@@ -468,13 +478,8 @@ class EnhancedSearchSystem:
         return enhanced_documents
     
     def _is_financial_query(self, query: str) -> bool:
-        """
-        Detect if query is asking for financial/numeric data
-        
-        ✅ FIX: Identify queries that need comprehensive table retrieval
-        """
+        """Detect if query is asking for financial/numeric data"""
         query_lower = query.lower()
-        
         financial_keywords = [
             'margin', 'revenue', 'profit', 'sales', 'utop', 'ebitda', 'ebit',
             'cash flow', 'capex', 'opex', 'balance sheet', 'assets', 'liabilities',
@@ -484,9 +489,36 @@ class EnhancedSearchSystem:
             'increase', 'decrease', 'total', 'net', 'gross',
             'financial', 'accounting', 'fiscal', 'quarter', 'annual'
         ]
-        
         return any(kw in query_lower for kw in financial_keywords)
-    
+
+    def _is_specific_query(self, query: str) -> bool:
+        """
+        Detect queries that ask for a specific technical term, acronym, quoted phrase,
+        or proper noun — these benefit from a higher BM25 weight (lower alpha).
+
+        Heuristics:
+        - Query contains ALL-CAPS words (acronyms: GAN, LSTM, Rule 86B)
+        - Query contains quoted phrases ("exact term")
+        - Query is short and mostly noun-like (3 words or fewer after stopwords)
+        - Query contains digits (version numbers, section references, years)
+        """
+        import re
+        # Quoted phrase
+        if re.search(r'["\'].+["\']', query):
+            return True
+        # Contains digits (e.g. "Rule 86B", "Section 4.2", "gpt-4")
+        if re.search(r'\d', query):
+            return True
+        # Contains all-caps token of 2+ chars (acronym)
+        tokens = query.split()
+        if any(t.isupper() and len(t) >= 2 for t in tokens):
+            return True
+        # Very short precise query (1-3 meaningful words) — likely looking for a specific term
+        meaningful_words = [t for t in tokens if len(t) > 3]
+        if len(meaningful_words) <= 3:
+            return True
+        return False
+
     def _apply_diversity_scoring(self, results: List[Tuple[Dict, float]], 
                                  top_k: int) -> List[Tuple[Dict, float]]:
         """

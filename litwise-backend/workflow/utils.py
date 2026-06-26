@@ -374,40 +374,66 @@ def find_chunk_page(chunk_start_pos: int, chunk_end_pos: int, page_info: list[di
     
     return closest_page
 
-def chunk_text(text: str, chunk_size: int = 3000, chunk_overlap: int = 400) -> list[tuple[str, int, int]]:
+def chunk_text(text: str, chunk_size: int = 3000, chunk_overlap: int = 800) -> list[tuple[str, int, int]]:
     """
     Split text into chunks with position tracking.
-    
-    Optimized for financial documents:
-    - chunk_size=3000 (~750 tokens) - larger for complete financial context
-    - chunk_overlap=400 (~100 tokens, 13% overlap) - reduced waste vs 19%
-    
-    Returns:
-        List of tuples: (chunk_text, start_position, end_position)
+
+    Boundary-safe strategy:
+    - Separators: paragraph breaks > single newline > sentence-ending period > nothing
+      (" " and "" removed — they cause mid-word / mid-sentence cuts)
+    - chunk_overlap raised from 400 → 800 chars (≈200 tokens) for stronger continuity
+    - Post-processing trims the last incomplete sentence so no chunk ends mid-thought
+
+    Optimised for research/financial documents:
+    - chunk_size=3000 (~750 tokens) — large enough for complete financial context
+    - chunk_overlap=800 (~200 tokens, 27% overlap) — ensures no boundary drops
     """
+    import re
+
+    def trim_to_last_sentence(s: str) -> str:
+        """
+        Return s trimmed to its last complete sentence.
+        Falls back to the full string if no sentence boundary is found.
+        """
+        # Sentence-ending punctuation followed by whitespace or end-of-string
+        endings = list(re.finditer(r'[.!?][\"\']?(?=\s|$)', s))
+        if not endings:
+            return s
+        last_end = endings[-1].end()
+        # Only trim if we'd keep at least 50% of the chunk
+        if last_end >= len(s) * 0.5:
+            return s[:last_end]
+        return s
+
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         length_function=len,
-        separators=["\n\n", "\n", ". ", " ", ""],  # Added period-space for better sentence breaks
+        # Separators ordered from most to least preferred boundary.
+        # "" (empty) and " " removed — they cut anywhere in the middle of words.
+        separators=["\n\n", "\n", ". ", "? ", "! "],
     )
-    
-    # Get chunks with metadata (includes start positions)
+
     chunks_with_metadata = text_splitter.create_documents([text])
-    
+
     chunks_with_positions = []
     current_pos = 0
-    
+
     for doc in chunks_with_metadata:
-        chunk_text = doc.page_content
-        start_pos = text.find(chunk_text, current_pos)
-        if start_pos == -1:  # Fallback if exact match not found
+        raw_chunk = doc.page_content
+        # Trim to the last complete sentence to avoid boundary truncation
+        trimmed_chunk = trim_to_last_sentence(raw_chunk)
+        if not trimmed_chunk.strip():
+            trimmed_chunk = raw_chunk  # safety: keep original if trim removes everything
+
+        start_pos = text.find(raw_chunk, current_pos)
+        if start_pos == -1:
             start_pos = current_pos
-        end_pos = start_pos + len(chunk_text)
-        
-        chunks_with_positions.append((chunk_text, start_pos, end_pos))
-        current_pos = start_pos + len(chunk_text) - chunk_overlap
-    
+        end_pos = start_pos + len(trimmed_chunk)
+
+        chunks_with_positions.append((trimmed_chunk, start_pos, end_pos))
+        current_pos = start_pos + len(raw_chunk) - chunk_overlap
+
     return chunks_with_positions
 
 def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_type: str = "basic", page_info: list[dict] = None):

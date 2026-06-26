@@ -68,8 +68,7 @@ Format: "This [type] shows [description]. [Key insights]. [Notable details]."
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=self.max_completion_tokens,
-                temperature=0.3
+                max_completion_tokens=self.max_completion_tokens
             )
             
             caption = response.choices[0].message.content.strip()

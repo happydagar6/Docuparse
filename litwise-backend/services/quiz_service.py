@@ -436,17 +436,11 @@ Generate the quiz as valid JSON now."""
                     model="gpt-5-mini-2025-08-07",  # Latest model optimized for reasoning
                     messages=[
                         {
-                            "role": "system",
-                            "content": system_prompt
-                        },
-                        {
                             "role": "user",
-                            "content": user_prompt
+                            "content": f"{system_prompt}\n\n{user_prompt}"
                         }
                     ],
-                    temperature=0.3,  # Lower temperature for consistency and factuality
-                    max_tokens=4000,
-                    timeout=120
+                    max_completion_tokens=4000
                 )
                 
                 response_text = response.choices[0].message.content.strip()

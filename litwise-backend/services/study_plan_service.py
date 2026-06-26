@@ -123,17 +123,18 @@ Generate a structured JSON with this EXACT format:
         response = self.client.chat.completions.create(
             model="gpt-5-mini-2025-08-07",
             messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert study planner who creates detailed, actionable, and comprehensive study schedules. Your plans are thorough, specific, and help students understand exactly what to do each day. Always output valid JSON only.",
-                },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": f"You are an expert study planner who creates detailed, actionable, and comprehensive study schedules. Your plans are thorough, specific, and help students understand exactly what to do each day. Always output valid JSON only.\n\n{prompt}"},
             ],
-            temperature=0.4,
-            max_tokens=8000,
+            max_completion_tokens=8000,
         )
 
-        plan_json = json.loads(response.choices[0].message.content)
+        response_text = response.choices[0].message.content.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        
+        plan_json = json.loads(response_text.strip())
 
         return StudyPlanResponse(
             id=str(uuid.uuid4()),

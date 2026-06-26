@@ -37,8 +37,7 @@ class AICitationService:
         """Initialize the citation service with OpenAI model"""
         self.llm = ChatOpenAI(
             model="gpt-5-mini-2025-08-07",
-            api_key=os.getenv("OPENAI_API_KEY"),
-            temperature=0.1  # Low temperature for factual extraction
+            api_key=os.getenv("OPENAI_API_KEY")
         )
         print("✅ AI Citation Service initialized with OpenAI model")
     

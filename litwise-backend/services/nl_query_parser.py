@@ -277,13 +277,11 @@ Rules:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini-2025-08-07",
                 messages=[
-                    {"role": "system", "content": "You are an expert at parsing academic search queries. Return ONLY valid JSON."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": f"You are an expert at parsing academic search queries. Return ONLY valid JSON.\n\n{prompt}"}
                 ],
-                temperature=0.1,  # Low temperature for consistency
-                response_format={"type": "json_object"}
+                max_tokens=400
             )
             
             import json

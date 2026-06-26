@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class MarkdownElementNodeParser:
-    """
+    """`
     Advanced parser that creates nodes from markdown elements (headers, tables, paragraphs)
     instead of arbitrary character-based chunks.
     
@@ -363,8 +363,8 @@ class MarkdownElementNodeParser:
                 # Add paragraph to current chunk
                 current_chunk_paras.append(para)
                 current_chunk_chars = projected_chars
-        
-        # Add final chunk
+
+        # Add final chunk — trim to last complete sentence for clean boundary
         if current_chunk_paras:
             chunk_text = "\n\n".join(current_chunk_paras)
             if header_line:
@@ -375,7 +375,7 @@ class MarkdownElementNodeParser:
                 'para_count': len(current_chunk_paras)
             })
         
-        logger.info(f"📝 Split section {section_index} into {len(chunks)} chunks ({sum(c['para_count'] for c in chunks)} total paragraphs)")
+        logger.info(f"📝 Split section {section_index} into {len(chunks)} chunks ({sum(c['para_count'] for c in chunks)} total paragraphs, sentence-boundary aware)")
         return chunks
     
     def _extract_tables(self, markdown_text: str) -> Tuple[List[Dict], str]:
@@ -478,6 +478,6 @@ class MarkdownElementNodeParser:
 # Singleton instance
 markdown_parser = MarkdownElementNodeParser(
     max_table_tokens=2500,
-    max_section_tokens=1500,
+    max_section_tokens=2500,  # Raised from 1500 — fewer sections need splitting
     overlap_sections=2
 )

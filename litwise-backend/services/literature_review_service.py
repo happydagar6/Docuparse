@@ -159,8 +159,7 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
             response = self.client.chat.completions.create(
                 model="gpt-5-mini-2025-08-07",
                 messages=[{"role": "user", "content": decomposition_prompt}],
-                temperature=0.4,  # Slightly higher for query variety
-                max_tokens=800,
+                max_completion_tokens=800,
             )
             
             result = response.choices[0].message.content.strip()
@@ -512,14 +511,9 @@ Before responding, verify:
         response = self.client.chat.completions.create(
             model="gpt-5-mini-2025-08-07",
             messages=[
-                {
-                    "role": "system",
-                    "content": CLOSED_WORLD_SYSTEM_PROMPT,
-                },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": f"{CLOSED_WORLD_SYSTEM_PROMPT}\n\n{prompt}"},
             ],
-            temperature=0.2,  # Lower temperature for more deterministic, grounded output
-            max_tokens=18000,
+            max_completion_tokens=18000,
         )
         
         # Parse response - handle potential JSON issues
