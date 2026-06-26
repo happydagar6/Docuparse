@@ -79,18 +79,19 @@ class RAGChatPipeline:
                     embeddings_model=embeddings_model,
                     paper_id=paper_id,
                     query=question,
-                    top_k=35  # Get top 35 most relevant results
+                    top_k=60  # Raised from 35 — broader retrieval for multi-part & comparative questions
                 )
                 
                 if enhanced_documents:
                     print(f"✅ Enhanced hybrid search found {len(enhanced_documents)} relevant results")
                     
-                    # Filter out low-relevance results
-                    high_relevance_docs = [doc for doc in enhanced_documents if doc['relevance_score'] > 0.3]
-                    
+                    # Filter out clearly irrelevant results (threshold lowered 0.3→0.15
+                    # so borderline-relevant chunks that span multi-part answers are kept)
+                    high_relevance_docs = [doc for doc in enhanced_documents if doc['relevance_score'] > 0.15]
+
                     if not high_relevance_docs:
                         print("⚠️ No high-relevance results found, using best available")
-                        high_relevance_docs = enhanced_documents[:3]  # Use top 3 as fallback
+                        high_relevance_docs = enhanced_documents[:8]  # Raised fallback 3→8
                     
                     # ✨ NEW: Process financial questions with deterministic calculations
                     financial_results = await asyncio.to_thread(
@@ -223,33 +224,35 @@ class RAGChatPipeline:
             
         return state
     
-    def _select_optimal_context(self, results: List[Dict], max_tokens: int = 2500) -> List[Dict]:
-        """Select optimal context based on relevance and token budget - optimized for speed"""
+    def _select_optimal_context(self, results: List[Dict], max_tokens: int = 6000) -> List[Dict]:
+        """Select optimal context based on relevance and token budget.
+        Limits raised (2500→6000 tokens, 8→20 chunks) to leverage the 128k context window
+        of GPT-5-mini and provide comprehensive context for broad questions."""
         if not results:
             return []
-        
-        # Sort by relevance score (descending) - limit to top 8 for speed
-        sorted_results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)[:8]
-        
+
+        # Sort by relevance score (descending) — raised cap from 8→20 for broader coverage
+        sorted_results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)[:20]
+
         selected_context = []
         total_tokens = 0
-        
+
         # Simplified token estimation (6 chars ≈ 1 token for faster calculation)
         for result in sorted_results:
             content = result["content"]
             estimated_tokens = len(content) // 6  # Faster estimation
-            
+
             # Include if we have budget
             if total_tokens + estimated_tokens < max_tokens:
                 selected_context.append(result)
                 total_tokens += estimated_tokens
             else:
-                break  # Stop when we hit the limit for speed
-        
+                break  # Stop when we hit the limit
+
         # Ensure we have at least one context item
         if not selected_context and sorted_results:
             selected_context = [sorted_results[0]]
-        
+
         print(f"Context selection: {len(selected_context)} chunks, ~{total_tokens} tokens")
         return selected_context
 
