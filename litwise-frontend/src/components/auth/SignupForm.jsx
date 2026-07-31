@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Mail, Lock, AlertCircle, User, Sparkles } from 'lucide-react'
+import { Loader2, Mail, Lock, AlertCircle, User, Sparkles, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -16,6 +16,8 @@ export default function SignupForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -173,15 +175,27 @@ export default function SignupForm() {
               <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
-                className="pl-11 h-12 border-gray-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                className="pl-11 pr-10 h-12 border-gray-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
                 minLength={6}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex="-1"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
             </div>
             <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
           </div>
@@ -192,15 +206,27 @@ export default function SignupForm() {
               <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
               <Input
                 id="confirmPassword"
-                type="password"
+                type={showConfirmPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={loading}
-                className="pl-11 h-12 border-gray-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                className="pl-11 pr-10 h-12 border-gray-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
                 minLength={6}
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex="-1"
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
             </div>
           </div>
 
