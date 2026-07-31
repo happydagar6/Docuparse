@@ -97,6 +97,8 @@ class RateLimiterService:
             return {
                 "allowed": True,
                 "remaining": -1,
+                "limit": max_requests,
+                "reset_in": window_seconds
             }  # No rate limiting if Redis is not connected
 
         window_type = self._get_window_type(window_seconds)
@@ -134,7 +136,12 @@ class RateLimiterService:
 
         except Exception as e:
             print(f"❌ Error in rate limiting {user_id}: {e}")
-            return {"allowed": True, "remaining": -1}  # Fail open on error
+            return {
+                "allowed": True, 
+                "remaining": -1,
+                "limit": max_requests,
+                "reset_in": window_seconds
+            }  # Fail open on error
 
     @staticmethod
     def _get_window_type(window_seconds: int) -> str:
