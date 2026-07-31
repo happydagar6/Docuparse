@@ -52,7 +52,10 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Security(secu
         token = credentials.credentials
         jwt_secret = get_supabase_jwt_secret()
         
-        # Decode and verify the JWT token
+        # This is our Stateless JWT Authentication.
+        # Instead of doing a database lookup to see if the user is logged in,
+        # we decode the token using the secret. If the signature matches, the token
+        # is valid and hasn't been tampered with. This is highly scalable.
         payload = jwt.decode(
             token,
             jwt_secret,

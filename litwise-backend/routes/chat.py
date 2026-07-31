@@ -389,13 +389,15 @@ async def stream_chat(
                 full_response = ""
                 sources = []
                 
+                # This async for-loop reads the streaming output from the LLM.
+                # Instead of waiting for the entire paragraph to be generated, we process it word-by-word.
                 async for chunk in rag_pipeline.chat_stream(
-                    question=request.message,
-                    session_id=session_id,
-                    paper_id=paper_id
+                    question=request.message, # User's question
+                    session_id=session_id,  # Chat session ID
+                    paper_id=paper_id # PDF ID
                 ):
-                    # Chunk is already a dict from the updated pipeline
-                    # Send chunk to client
+                    # Server-Sent Events (SSE) format requires 'data: <json>\n\n'.
+                    # We 'yield' this chunk instantly to the frontend so the user sees the AI typing live.
                     yield f"data: {json.dumps(chunk)}\n\n"
                     
                     if chunk.get("type") == "token" and chunk.get("content"):

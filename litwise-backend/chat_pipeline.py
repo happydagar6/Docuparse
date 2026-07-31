@@ -70,10 +70,12 @@ class RAGChatPipeline:
             
             # Use hybrid search for better results
             try:
-                # Use OpenAI embedder for query
+                # We use OpenAI text-embedding-3-small to generate dense vectors.
                 print(f"✅ Using OpenAI embedder for hybrid search")
                 embeddings_model = self.embeddings
                 
+                # Here we perform Hybrid Search (Dense Vectors + BM25 Sparse Vectors).
+                # This ensures we match both semantic meaning (vectors) AND exact keywords (BM25).
                 enhanced_documents = await enhanced_search.hybrid_search(
                     qdrant_client=self.qdrant_client,
                     embeddings_model=embeddings_model,

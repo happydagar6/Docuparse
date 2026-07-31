@@ -21,6 +21,9 @@ rate_limit_check = Depends(rate_limit_dependency)
         raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
     try:
+        # We delegate the actual Study Plan Generation to `study_plan_service`.
+        # Under the hood, this uses a LangChain agent and an LLM to generate
+        # a structured, day-by-day JSON schedule based on the user's exam type and duration.
         plan = await study_plan_service.generate_plan(request, paper.data["title"])
         
         # Save to database

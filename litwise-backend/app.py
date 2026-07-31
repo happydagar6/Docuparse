@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
@@ -99,7 +99,9 @@ init_sentry()
 # CORS configuration - support both local development and production
 def get_allowed_origins():
     """
-    Get allowed origins from environment variable or use defaults for development.
+    This sets up Cross-Origin Resource Sharing (CORS).
+    It ensures our frontend (Vercel) is allowed to make requests to our backend (Render/Railway).
+    If the backend crashes and doesn't return these headers, the browser throws a CORS error.
     
     Environment variable: ALLOWED_ORIGINS (comma-separated list)
     Default for development: http://localhost:3000, http://127.0.0.1:3000, https://localhost:3000

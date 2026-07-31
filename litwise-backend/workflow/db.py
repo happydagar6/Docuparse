@@ -5,7 +5,11 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
+# We use the Service Role Key for Supabase to bypass Row Level Security internally.
+# The user's JWT validates authorization at the API route level before reaching here.
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+
+# We connect to Qdrant Cloud for our Vector Database.
 qdrant = QdrantClient(
     os.getenv("QDRANT_URL"), 
     api_key=os.getenv("QDRANT_API_KEY"),

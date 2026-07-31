@@ -42,7 +42,9 @@ async def generate_quiz(
         if not paper.data:
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
-        # Generate quiz
+        # We delegate the actual Quiz Generation to `quiz_service`.
+        # Under the hood, this extracts text from Qdrant and prompts an LLM 
+        # (like Groq or XAI) to output a strictly formatted JSON array of questions.
         quiz = await quiz_service.generate_quiz(
             config=request,
             paper_id=request.paper_id,

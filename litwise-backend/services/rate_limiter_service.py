@@ -136,6 +136,9 @@ class RateLimiterService:
 
         except Exception as e:
             print(f"❌ Error in rate limiting {user_id}: {e}")
+            # This is our 'Fail-Open' architecture.
+            # If the Redis connection drops, we DO NOT want the entire backend to crash with a 500 Error.
+            # Instead, we catch the exception and return a valid mock dictionary allowing the user to pass through.
             return {
                 "allowed": True, 
                 "remaining": -1,

@@ -73,6 +73,9 @@ def extract_metadata(paper: dict) -> PaperMetadata:
 @router.post("/generate", response_model=CitationResponse)
 async def generate_citation(request: CitationRequest, current_user: AuthUser = Depends(get_current_user)):
     """Generate citation for a single paper. User must own the paper."""
+    
+    # We query Supabase directly to get the paper metadata.
+    # Notice the `.eq("user_id", current_user.id)` - this guarantees users can only access their own data.
     result = supabase.table("papers").select("*").eq("id", request.paper_id).eq("user_id", current_user.id).single().execute()
     
     if not result.data:
