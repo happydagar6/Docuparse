@@ -87,7 +87,7 @@ const ChatInterface = ({ paper }) => {
   // Auto-scroll to bottom using useLayoutEffect for better performance
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  }, []); 
 
   // Manual scroll to bottom
   const forceScrollToBottom = useCallback(() => {

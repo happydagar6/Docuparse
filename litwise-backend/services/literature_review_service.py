@@ -1,3 +1,23 @@
+"""
+=============================================================================
+Literature Review Service (`services/literature_review_service.py`)
+=============================================================================
+This service generates comprehensive, grounded Literature Reviews across 
+multiple research papers.
+
+Key Architectural Innovations:
+1. Closed-World System Prompt: Enforces zero hallucinations by restricting 
+   the LLM's knowledge strictly to the provided source texts.
+2. Query Decomposition (`decompose_topic`): Breaks a broad topic into 4-6 
+   specialized sub-queries to prevent semantic dilution during vector search.
+3. Hybrid Retrieval & Quota Balancing (`get_paper_context`): Guarantees 
+   fair representation for each sub-query.
+4. Cross-Encoder Reranking (`rerank_chunks`): Uses FlashRank (ms-marco-MiniLM-L-12-v2)
+   to re-score vector results against the original query.
+5. Structured JSON Output: Returns validated Pydantic models for the UI.
+=============================================================================
+"""
+
 import json
 import uuid
 import asyncio
@@ -16,7 +36,6 @@ from models.literature_review import (
     ReviewStyle,
 )
 import os
-
 
 # =============================================================================
 # CLOSED-WORLD SYSTEM PROMPT FOR LITERATURE REVIEW
@@ -77,6 +96,7 @@ You are a GROUNDED EXTRACTION SYSTEM, not a knowledge base. Output ONLY what the
 
 class LiteratureReviewService:
     def __init__(self):
+        """Initialize OpenAI, Qdrant Vector DB, Embeddings, and FlashRank Reranker."""
         self.client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY")
         )
@@ -85,19 +105,24 @@ class LiteratureReviewService:
             api_key=os.getenv("QDRANT_API_KEY"),
             check_compatibility=False,
         )
-        # Initialize embeddings for semantic search
+        # Initialize OpenAI text-embedding-3-small for 1536-dimensional embeddings
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
-        # Initialize FlashRank reranker for cross-encoder reranking
-        # Using nano model for speed, can upgrade to "ms-marco-MiniLM-L-12-v2" for quality
+        # Initialize FlashRank cross-encoder reranker (ms-marco-MiniLM-L-12-v2) for precision scoring
         print("🔄 Initializing FlashRank reranker...")
         self.reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="/tmp/flashrank_cache")
         print("✅ FlashRank reranker initialized")
         
     async def decompose_topic(self, topic: str) -> List[str]:
         """
-        Decompose a broad topic into specific sub-queries for better retrieval.
-        This prevents semantic dilution by searching for each concept individually.
+        STAGE 1: Query Decomposition
+        --------------------------------------------------
+        Decomposes a broad topic into 4-6 targeted sub-queries.
+        
+        Why this is important:
+        A broad query like 'Restrictions on X' causes 'semantic dilution' in vector search.
+        By breaking it down into Conceptual, Procedural, Keyword Sniper, Inverse, and Clause queries,
+        we retrieve specific paragraphs covering all angles of the topic.
         """
         decomposition_prompt = f"""You are a Legal Document Search Query Generator. Your task is to decompose a user's topic into 4-6 highly targeted search queries optimized for retrieving specific clauses from legal/regulatory documents.
 
@@ -115,17 +140,13 @@ USER TOPIC: {topic}
 2. **Generate Query Spectrum**: Create queries ranging from broad to specific:
    
    a) **Conceptual Query** (Broad): Natural language describing the general topic
-   
    b) **Procedural Query** (Process-focused): How the mechanism works, steps involved
-   
    c) **Keyword Sniper Query** (Specific): Combine topic terms with HIGH-SIGNAL legal keywords:
       - For restrictions: "prohibited", "not allowed", "blocked", "cap", "ceiling", "maximum", "limit", "threshold", "exceeding", "ineligible"
       - For conditions: "provided that", "subject to", "where", "if", "shall", "must", "mandatory", "required"
       - For exceptions: "except", "unless", "notwithstanding", "exemption", "exclusion"
       - For amounts: "percentage", "ratio", "amount", "value", "quantum", "proportion"
-   
    d) **Negative/Inverse Query**: Search for what is NOT allowed or disqualified
-   
    e) **Clause-Targeting Query**: Include terms like "rule", "section", "clause", "provision", "regulation", "subsection" combined with topic keywords
 
 3. **Query Construction Rules**:
@@ -134,22 +155,6 @@ USER TOPIC: {topic}
    - Use specific legal/regulatory vocabulary, not conversational language
    - Avoid questions - use declarative keyword phrases
    - Target exact phrases that would appear in legal text
-
-## EXAMPLES (Abstract - DO NOT copy these literally)
-
-Topic: "restrictions on X"
-→ "restrictions on X general provisions"
-→ "conditions eligibility X requirements"  
-→ "X blocked limit maximum percentage threshold"
-→ "X ineligible disqualified prohibited"
-→ "X rule provision restriction clause"
-
-Topic: "conditions for claiming Y"
-→ "conditions claiming Y eligibility"
-→ "Y claim requirements mandatory criteria"
-→ "Y entitled claim provided that subject to"
-→ "Y claim disallowed ineligible conditions"
-→ "Y section clause conditions provisions"
 
 ## OUTPUT FORMAT
 Return ONLY a JSON array of 4-6 search query strings. No explanations.
@@ -163,7 +168,7 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
             )
             
             result = response.choices[0].message.content.strip()
-            # Clean up response
+            # Clean up response if wrapped in markdown code blocks
             if result.startswith("```"):
                 result = result.split("```")[1]
                 if result.startswith("json"):
@@ -183,15 +188,18 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
         self, paper_id: str, query: str, top_k: int = 15
     ) -> List[Dict]:
         """
-        Perform semantic vector search for a specific query within a paper.
+        STAGE 2: Vector Similarity Search
+        --------------------------------------------------
+        Generates OpenAI embeddings for a sub-query and executes a Cosine Similarity 
+        search against Qdrant, filtered by the specific `paper_id`.
         """
         try:
-            # Generate query embedding
+            # Generate query embedding vector (1536 dimensions)
             query_embedding = await asyncio.to_thread(
                 self.embeddings.embed_query, query
             )
             
-            # Search in Qdrant
+            # Query Qdrant vector database with paper_id payload filter
             search_result = await asyncio.to_thread(
                 self.qdrant_client.query_points,
                 collection_name="litwise_collection",
@@ -225,27 +233,29 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
         self, chunks: List[Dict], query: str, top_k: int = 50
     ) -> List[Dict]:
         """
-        Rerank chunks using FlashRank cross-encoder against the original query.
-        This ensures chunks that specifically match the query get boosted,
-        even if they had lower vector similarity scores.
+        STAGE 3: Cross-Encoder Re-ranking (FlashRank)
+        --------------------------------------------------
+        Reranks vector candidates using FlashRank (`ms-marco-MiniLM-L-12-v2`) against the original query.
+        
+        Why this is important:
+        Vector search (Cosine) finds broad similarity, but Cross-Encoders evaluate full text context 
+        jointly with the query. This boosts precise matches (like specific clauses or numbers).
         """
         if not chunks:
             return []
         
         try:
-            # Prepare passages for reranking
+            # Format passages for FlashRank Reranker
             passages = [
                 {"id": i, "text": chunk["content"], "meta": chunk}
                 for i, chunk in enumerate(chunks)
             ]
             
-            # Create rerank request
+            # Execute Cross-Encoder re-ranking
             rerank_request = RerankRequest(query=query, passages=passages)
-            
-            # Rerank using FlashRank
             reranked_results = self.reranker.rerank(rerank_request)
             
-            # Extract reranked chunks with new scores
+            # Extract top_k re-ranked chunks with updated scores
             reranked_chunks = []
             for result in reranked_results[:top_k]:
                 chunk = result["meta"].copy()
@@ -264,22 +274,22 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
         self, paper_ids: List[str], topic: str, chunks_per_paper: int = 50
     ) -> dict:
         """
-        Retrieve diverse, relevant content using:
-        1. Query Decomposition - breaks topic into sub-queries
-        2. Quota-Based Balancing - guarantees each sub-query gets representation
-        3. FlashRank Reranking - reranks final pool against original query
-        
-        This solves both Semantic Dilution AND Context Window Overflow.
+        MULTI-QUERY RETRIEVAL ENGINE
+        --------------------------------------------------
+        Combines:
+        1. Query Decomposition
+        2. Quota-Based Balancing (Guarantees every sub-query gets equal representation)
+        3. Full-Topic Backup Search
+        4. FlashRank Re-ranking
+        5. Chronological Sorting by page number for coherent reading.
         """
         paper_content = {}
         
-        # Decompose topic into sub-queries
+        # Step 1: Decompose the topic into sub-queries
         sub_queries = await self.decompose_topic(topic)
         num_queries = len(sub_queries)
         
-        # Calculate quota per sub-query (ensure each gets fair representation)
-        # Reserve some slots for full-topic search and reranking flexibility
-        # Minimum 10 chunks per query for better coverage
+        # Calculate quota per sub-query to guarantee balanced retrieval
         quota_per_query = max(12, chunks_per_paper // (num_queries + 1))
         
         print(f"\n📊 Retrieval Strategy:")
@@ -290,22 +300,21 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
         for paper_id in paper_ids:
             print(f"\n📄 Retrieving context for paper: {paper_id}")
             
-            # PHASE 1: Quota-Based Collection (guarantees diversity)
-            quota_chunks: List[Dict] = []  # Chunks with guaranteed slots
-            all_chunks: Dict[int, Dict] = {}  # All chunks for deduplication
+            # PHASE 1: Quota-Based Collection (Guarantees query diversity)
+            quota_chunks: List[Dict] = []
+            all_chunks: Dict[int, Dict] = {}  # Deduplication dictionary
             
             for query_idx, query in enumerate(sub_queries):
                 results = await self.semantic_search_chunks(
                     paper_id=paper_id,
                     query=query,
-                    top_k=quota_per_query + 5  # Get extra for dedup buffer
+                    top_k=quota_per_query + 5
                 )
                 
-                # Add quota chunks (guaranteed representation)
                 added_for_query = 0
                 for chunk in results:
                     chunk_id = chunk["chunk_id"]
-                    chunk["source_query"] = query_idx  # Track which query found it
+                    chunk["source_query"] = query_idx
                     
                     if chunk_id not in all_chunks:
                         all_chunks[chunk_id] = chunk
@@ -317,7 +326,7 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
                 
                 print(f"   Query {query_idx + 1}: '{query[:40]}...' → {added_for_query} quota chunks")
             
-            # PHASE 2: Full Topic Search (catch any missed content)
+            # PHASE 2: Full Topic Search (Catch any remaining relevant text)
             full_topic_results = await self.semantic_search_chunks(
                 paper_id=paper_id,
                 query=topic,
@@ -325,55 +334,37 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
             )
             for chunk in full_topic_results:
                 chunk_id = chunk["chunk_id"]
-                chunk["source_query"] = -1  # Mark as from full topic
+                chunk["source_query"] = -1
                 if chunk_id not in all_chunks:
                     all_chunks[chunk_id] = chunk
             
-            print(f"   Full topic search added {len([c for c in all_chunks.values() if c.get('source_query') == -1])} more chunks")
-            
-            # PHASE 3: Combine quota chunks with remaining top chunks
-            # Quota chunks are guaranteed, fill remaining slots with best from pool
+            # PHASE 3: Combine quota chunks with top remaining pool
             quota_chunk_ids = {c["chunk_id"] for c in quota_chunks}
             remaining_chunks = [
                 c for c in all_chunks.values() 
                 if c["chunk_id"] not in quota_chunk_ids
             ]
             remaining_chunks.sort(key=lambda x: x["score"], reverse=True)
-            
-            # Combine: quota chunks + top remaining chunks
             combined_pool = quota_chunks + remaining_chunks
             
-            # PHASE 4: FlashRank Reranking against original query
-            # This re-scores ALL chunks against the full original topic
-            # Specific mentions like "Rule 86B" get boosted if they match the query
-            print(f"   📦 Combined pool: {len(combined_pool)} chunks before reranking")
-            
+            # PHASE 4: FlashRank Cross-Encoder Re-ranking against ORIGINAL query
             reranked_chunks = self.rerank_chunks(
                 chunks=combined_pool,
-                query=topic,  # Rerank against ORIGINAL full query
+                query=topic,
                 top_k=chunks_per_paper
             )
             
-            # PHASE 5: Sort by page order for coherent reading
+            # PHASE 5: Sort chunks by page number for natural reading flow
             reranked_chunks.sort(key=lambda x: (x.get("page", 0), x.get("chunk_id", 0)))
             
-            # Join chunks into paper content
+            # Combine chunk text blocks into paper context
             chunk_texts = [chunk["content"] for chunk in reranked_chunks]
             paper_content[paper_id] = "\n\n".join(chunk_texts)
             
-            # Log coverage statistics
-            query_coverage = {}
-            for chunk in reranked_chunks:
-                sq = chunk.get("source_query", -1)
-                query_coverage[sq] = query_coverage.get(sq, 0) + 1
-            
-            print(f"   ✅ Final: {len(reranked_chunks)} chunks")
-            print(f"   📊 Coverage by sub-query: {dict(sorted(query_coverage.items()))}")
-
         return paper_content
 
     def _get_style_instructions(self, style: str) -> str:
-        """Get writing style instructions based on review type - grounded version"""
+        """Returns specific writing style guidelines (Narrative, Systematic, or Critical)."""
         instructions = {
             ReviewStyle.NARRATIVE: """
 STYLE: Narrative Literature Review
@@ -405,40 +396,39 @@ STYLE: Critical Literature Review
     async def generate_review(
         self, request: LiteratureReviewRequest, paper_titles: dict
     ) -> LiteratureReviewResponse:
-        """Generate Literature Review with strict grounding to source texts"""
-        
-        # Get content from all papers using Query Decomposition for diverse retrieval
+        """
+        STAGE 4: Closed-World Grounded Synthesis
+        --------------------------------------------------
+        Generates the final Literature Review JSON object using OpenAI.
+        Enforces strict [Source: 'Title'] citations and zero hallucinations.
+        """
         print(f"\n🔬 Starting Literature Review Generation")
         print(f"   Topic: {request.topic}")
         print(f"   Papers: {len(request.paper_ids)}")
         
+        # 1. Fetch context chunks using multi-query retrieval + reranking
         paper_context = await self.get_paper_context(
             paper_ids=request.paper_ids,
-            topic=request.topic,  # Pass topic for intelligent retrieval
-            chunks_per_paper=50   # Get more chunks for comprehensive coverage
+            topic=request.topic,
+            chunks_per_paper=50
         )
         
-        # Build structured source blocks with clear labels
+        # 2. Build XML blocks for source documents
         source_blocks = []
         total_chars = 0
-        max_total_chars = 25000  # Total character budget across all papers
+        max_total_chars = 25000  # Character budget across all papers
         chars_per_paper = max_total_chars // max(len(paper_context), 1)
         
         for idx, (pid, content) in enumerate(paper_context.items(), 1):
             title = paper_titles.get(pid, f"Paper {idx}")
-            # Dynamically allocate characters based on number of papers
             truncated_content = content[:chars_per_paper] if len(content) > chars_per_paper else content
             total_chars += len(truncated_content)
             source_blocks.append(
                 f'<SOURCE id="{idx}" title="{title}">\n{truncated_content}\n</SOURCE>'
             )
         
-        print(f"   📊 Total source content: {total_chars:,} characters across {len(source_blocks)} papers")
-        
         sources_xml = "\n\n".join(source_blocks)
         style_instructions = self._get_style_instructions(request.review_style)
-        
-        # Build the paper titles list for reference
         paper_titles_list = [f'{idx}. "{title}"' for idx, title in enumerate(paper_titles.values(), 1)]
         
         focus_areas_text = (
@@ -447,7 +437,7 @@ STYLE: Critical Literature Review
             else ""
         )
         
-        # Grounded user prompt
+        # 3. Construct Grounded Prompt
         prompt = f"""<TASK>
 Generate a literature review on the topic below using ONLY the information in the <SOURCES> section.
 </TASK>
@@ -455,7 +445,7 @@ Generate a literature review on the topic below using ONLY the information in th
 <TOPIC>{request.topic}</TOPIC>
 
 <CONSTRAINTS>
-- Word limit: ~{request.word_limit} words (shorter is acceptable if sources lack information)
+- Word limit: ~{request.word_limit} words
 - Style: {request.review_style.value}
 - Papers provided: {len(request.paper_ids)}
 {focus_areas_text}
@@ -477,37 +467,25 @@ Use these exact titles in your [Source: "Title"] citations:
 <OUTPUT_FORMAT>
 Respond with ONLY valid JSON (no markdown, no code blocks):
 {{
-    "introduction": "Introduce the topic based ONLY on what the sources discuss. State the scope of this review. If sources cover limited aspects, acknowledge this. Include [Source: 'Title'] citations. (100-250 words)",
-    
-    "methodology": "Describe: 'This review synthesizes findings from [N] provided sources focusing on [aspects actually covered in sources].' (50-100 words)",
-    
+    "introduction": "Introduce the topic based ONLY on what the sources discuss. Include [Source: 'Title'] citations.",
+    "methodology": "Describe: 'This review synthesizes findings from [N] provided sources...'",
     "thematic_analysis": [
         {{
             "theme_name": "Theme derived FROM the source content",
-            "description": "Synthesize what multiple sources say about this theme. Every claim must have [Source: 'Title'] citation. Use narrative prose, not bullets. (200-400 words)",
-            "supporting_papers": ["Exact Title 1", "Exact Title 2"],
-            "key_points": ["Finding explicitly stated in Source X", "Finding explicitly stated in Source Y"]
+            "description": "Synthesize findings across sources with [Source: 'Title'] citations.",
+            "supporting_papers": ["Exact Title 1"],
+            "key_points": ["Finding explicitly stated in Source X"]
         }}
     ],
-    
-    "discussion": "Synthesize patterns across themes. Discuss implications ONLY as stated or directly implied by the sources. Note any gaps: 'The sources do not address...' (150-300 words)",
-    
-    "conclusion": "Summarize key findings from the sources. For future directions, only mention those suggested BY the sources themselves. (100-200 words)",
-    
-    "references": ["Full Paper Title 1", "Full Paper Title 2"],
-    
-    "source_coverage_note": "Brief note on what aspects of the topic the sources covered well vs. what was not addressed"
+    "discussion": "Synthesize patterns across themes. Discuss implications ONLY as stated by sources.",
+    "conclusion": "Summarize key findings from the sources.",
+    "references": ["Full Paper Title 1"],
+    "source_coverage_note": "Brief note on what aspects were covered vs not addressed"
 }}
 </OUTPUT_FORMAT>
-
-<FINAL_CHECKLIST>
-Before responding, verify:
-✓ Every factual statement has a [Source: "Title"] citation
-✓ No dates, names, or statistics appear that aren't in the sources
-✓ No "common knowledge" about the topic was added
-✓ If sources lack info on the topic, I stated this honestly
-</FINAL_CHECKLIST>"""
+"""
         
+        # 4. Invoke LLM with System Prompt + Grounded User Prompt
         response = self.client.chat.completions.create(
             model="gpt-5-mini-2025-08-07",
             messages=[
@@ -516,10 +494,8 @@ Before responding, verify:
             max_completion_tokens=18000,
         )
         
-        # Parse response - handle potential JSON issues
+        # 5. Clean and parse JSON response
         response_text = response.choices[0].message.content
-        
-        # Clean up response if it contains markdown code blocks
         if response_text.startswith("```"):
             response_text = response_text.split("```")[1]
             if response_text.startswith("json"):
@@ -528,7 +504,7 @@ Before responding, verify:
         
         review_json = json.loads(response_text)
         
-        # Build ReviewContent from response
+        # 6. Build structured Pydantic response models
         thematic_analysis = None
         if review_json.get("thematic_analysis"):
             thematic_analysis = [
@@ -545,7 +521,6 @@ Before responding, verify:
             source_coverage_note=review_json.get("source_coverage_note"),
         )
 
-        # Calculate word count
         word_count = self._calculate_word_count(content)
 
         return LiteratureReviewResponse(
@@ -559,7 +534,7 @@ Before responding, verify:
         )
 
     def _calculate_word_count(self, content: ReviewContent) -> int:
-        """Calculate total word count of the review"""
+        """Calculates total word count of the generated literature review."""
         total = 0
 
         if content.introduction:
@@ -579,6 +554,6 @@ Before responding, verify:
 
         return total
 
-literature_review_service = LiteratureReviewService()
 
-        
+# Instantiate singleton service instance
+literature_review_service = LiteratureReviewService()

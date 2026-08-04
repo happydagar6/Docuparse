@@ -303,4 +303,4 @@ Rules:
 
 
 # Global instance
-nl_query_parser = NLQueryParser()
+nl_query_parser = NLQueryParser();
