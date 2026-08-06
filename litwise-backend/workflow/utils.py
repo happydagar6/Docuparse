@@ -16,13 +16,10 @@ openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def sanitize_text(text: str) -> str:
     """
-    Remove null bytes and other problematic Unicode characters that PostgreSQL doesn't accept.
-    
-    Args:
-        text: Raw text that may contain null bytes
-        
-    Returns:
-        Sanitized text safe for database storage
+    [LITWISE RAG LOGIC]: Text Sanitization
+    Why we do this: PDFs are incredibly dirty files. They often contain "null bytes" (invisible characters).
+    If you try to save a null byte to a PostgreSQL or Qdrant database, the entire database will throw a Fatal Error and crash.
+    This function acts as a vacuum cleaner, scrubbing out poison characters before they hit the database.
     """
     if not text:
         return ""
@@ -57,6 +54,9 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, list[dict]]:
                 except Exception as decrypt_error:
                     raise Exception(f"PDF is encrypted and cannot be decrypted. Please use an unencrypted PDF. Error: {decrypt_error}")
             
+            # [LITWISE RAG LOGIC]: Accurate Page Tracking
+            # Why we do this: If the LLM says "Revenue was $1M", the user needs to know what page 
+            # that number came from. We record the exact start and end string index for every single page.
             full_text = ""
             page_info = []
             
@@ -119,8 +119,11 @@ def extract_multimodal_from_pdf(file_path: str) -> tuple[str, list[dict], dict]:
 
 def calculate_semantic_similarity(text1: str, text2: str) -> float:
     """
-    Calculate semantic similarity between two text chunks using embeddings.
-    Returns similarity score between 0 and 1.
+    [LITWISE RAG LOGIC]: Semantic Math (Cosine Similarity)
+    Why we do this: How does a computer know that "Apple" and "iPhone" are related? 
+    We convert words into 1,536-dimensional math vectors using OpenAI. Then we use a physics equation 
+    (Cosine Similarity Dot Product) to calculate the exact angle between those two vectors. 
+    If the angle is close to 0, the words mean the exact same thing (Score = 1.0).
     """
     if not text1.strip() or not text2.strip():
         return 0.0
@@ -147,15 +150,11 @@ def calculate_semantic_similarity(text1: str, text2: str) -> float:
 
 def deduplicate_chunks(chunks: list[str], similarity_threshold: float = 0.85) -> list[str]:
     """
-    Remove similar chunks using FAST text-based deduplication.
-    This avoids expensive embedding API calls during processing.
-    
-    Args:
-        chunks: List of text chunks
-        similarity_threshold: Not used - kept for compatibility
-    
-    Returns:
-        List of deduplicated chunks
+    [LITWISE RAG LOGIC]: Fast Deduplication (Cost Savings)
+    Why we do this: If a PDF has a massive disclaimer text at the bottom of all 50 pages, 
+    sending that same disclaimer to OpenAI 50 times costs money.
+    We hash the first 200 characters of every chunk. If the hashes match, we delete the duplicate 
+    chunk instantly, saving API costs and database space.
     """
     if len(chunks) <= 1:
         return chunks
@@ -180,15 +179,11 @@ def deduplicate_chunks(chunks: list[str], similarity_threshold: float = 0.85) ->
 
 def truncate_to_token_limit(text: str, max_tokens: int = 8000) -> str:
     """
-    Truncate text to stay within token limit for embeddings.
-    Uses rough approximation: 1 token ≈ 4 characters.
-    
-    Args:
-        text: Text to truncate
-        max_tokens: Maximum token limit (default 8000 for text-embedding-3-small's 8191 limit)
-        
-    Returns:
-        Truncated text that fits within token limit
+    [LITWISE RAG LOGIC]: Token Safety Net
+    Why we do this: OpenAI's Embedding model strictly crashes if you send it more than 8,191 tokens.
+    If our smart chunking fails (e.g. a PDF table is 10,000 words long with no periods or newlines), 
+    this function acts as the final safety net. It violently chops the text at the 8,000 token limit
+    so the API call doesn't crash the entire backend.
     """
     # Rough estimate: 1 token ≈ 4 characters
     max_chars = max_tokens * 4
@@ -221,6 +216,10 @@ def generate_embeddings_batch(texts: list[str], batch_size: int = 100) -> list[l
     Returns:
         List of embedding vectors in the same order as input texts
     """
+    # [LITWISE RAG LOGIC]: OpenAI Batch Embeddings
+    # Why we do this: If a PDF has 5,000 chunks of text, making 5,000 separate API calls to OpenAI 
+    # will take 10 minutes and might crash due to rate limits.
+    # By using the batch API, we send 100 chunks in a single network request. It takes seconds instead of minutes.
     print(f"🚀 [VERSION 3.0] Starting DIRECT OpenAI batch embedding for {len(texts)} texts (batch size: {batch_size})")
     print(f"🔧 Using direct openai_client.embeddings.create() for guaranteed batching")
     print(f"📋 All texts pre-chunked by smart_chunk_table (table oversizing handled)")
@@ -405,6 +404,11 @@ def chunk_text(text: str, chunk_size: int = 3000, chunk_overlap: int = 800) -> l
             return s[:last_end]
         return s
 
+    # [LITWISE RAG LOGIC]: Smart Text Chunking
+    # Why we do this: LLMs can't read a 300 page PDF at once. We have to chop it into "chunks".
+    # But if we just chop exactly every 3000 characters, we might cut a sentence in half!
+    # e.g., "The revenue for this year was [CHOP] 1.5 million."
+    # We explicitly tell the algorithm to ONLY chop at double newlines (\n\n), single newlines (\n), or periods (.).
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -689,15 +693,10 @@ def store_multimodal_embeddings(
     page_info: list[dict]
 ):
     """
-    Store text + image + table embeddings in Qdrant
-    Uses same collection with 'type' field to distinguish content types
-    
-    Args:
-        text: Full document text
-        multimodal_content: Dict with 'images' and 'tables'
-        metadata: Base metadata
-        paper_id: Paper ID
-        page_info: Page information
+    [LITWISE RAG LOGIC]: The Database Ingestion Engine
+    Why we do this: This is where everything comes together. We have Text chunks, Image captions, and Tables.
+    This function tags each vector with a 'type' (e.g., type='image' vs type='text'), attaches the metadata 
+    (like page numbers and paper ID), and executes a massive HTTP bulk-insert into the Qdrant Vector Database.
     """
     print(f"🎯 [MULTIMODAL STORE] Starting for paper: {paper_id}")
     

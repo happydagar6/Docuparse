@@ -86,18 +86,25 @@ class FinancialCalculator:
         Raises:
             ValueError: If inputs are invalid (headers, non-numeric, NaN, zero denominator)
         """
-        # ✅ FIX #1 & #6: Validate inputs HARD - no fabrication allowed
+        # [LITWISE FINANCIAL LOGIC]: Strict Input Validation
+        # Why we do this: LLMs are terrible at math. We don't let the LLM do the math. 
+        # We only let the LLM extract the numbers, and then THIS Python function does the math.
+        
+        # 1. Validate both the numerator and denominator to ensure they are actual numbers
+        # The _validate_and_convert method will throw a hard error if the LLM hallucinated the number.
         num = self._validate_and_convert(numerator, "numerator", label)
         denom = self._validate_and_convert(denominator, "denominator", label)
         
-        # ✅ FIX #2: Hard guard - zero denominator
+        # 2. Hard guard against ZeroDivisionError. 
+        # If the denominator is 0, the calculation is mathematically impossible.
         if denom == 0:
             raise ValueError(
                 f"❌ HARD FAILURE: Cannot calculate {label} - denominator is ZERO. "
                 f"Value not available in source document."
             )
         
-        # ✅ FIX #2: Hard guard - NaN inputs
+        # 3. Hard guard against NaN (Not a Number) inputs.
+        # Python's Decimal library allows 'NaN', but financial reports do not!
         if num.is_nan() or denom.is_nan():
             raise ValueError(
                 f"❌ HARD FAILURE: Cannot calculate {label} - input is NaN (numerator={num}, denominator={denom})"
@@ -131,22 +138,13 @@ class FinancialCalculator:
     def _validate_and_convert(self, value: Any, field_name: str, context: str = "") -> Decimal:
         """
         ❌ ISSUE #1 & #6: HARD VALIDATION - Reject ANY fabricated/hypothetical values
-        
-        This function is THE GATEKEEPER - if a number doesn't come from the document,
-        it must be rejected. No substitutes, no hypotheticals, no invented baselines.
-        
-        Args:
-            value: Input value (MUST be from document)
-            field_name: Name of the field (for error messages)
-            context: Additional context for error messages
-            
-        Returns:
-            Decimal value
-            
-        Raises:
-            ValueError: If value is invalid, fabricated, or not from source
         """
-        # ✅ FIX #1 & #6: Reject None/null - NO FABRICATION
+        # [LITWISE FINANCIAL LOGIC]: The Gatekeeper Function
+        # Why we do this: PDFs are messy. Sometimes the LLM extracts "(in millions)" instead of "1.5".
+        # This function catches bad extractions and enforces strict Decimal types to prevent floating-point errors.
+        
+        # 1. Check for empty or missing values immediately.
+        # If it's empty, it means the LLM couldn't find the number in the PDF.
         if value is None or value == '' or str(value).strip() == '':
             raise ValueError(
                 f"❌ HARD FAILURE: {field_name} is missing/empty. "
@@ -154,10 +152,13 @@ class FinancialCalculator:
                 f"CANNOT PROCEED - no fabricated values allowed."
             )
         
-        # Check if value is already a number
+        # 2. If the value is already a standard Python number type (int, float, Decimal)
         if isinstance(value, (int, float, Decimal)):
+            # Convert it strictly to a Decimal. 
+            # (In finance, never use 'float' because 0.1 + 0.2 = 0.30000000000000004 in floats!)
             result = Decimal(str(value))
-            # ✅ FIX #2: Validate numeric result
+            
+            # 3. Double check that the Decimal isn't technically "NaN"
             if result.is_nan():
                 raise ValueError(
                     f"❌ HARD FAILURE: {field_name} is NaN (context: {context}). "
@@ -170,40 +171,43 @@ class FinancialCalculator:
                 )
             return result
         
-        # Convert to string and check for descriptor patterns
+        # 4. If the value is a String, we need to make sure it's actually a number
+        # and not a table header that the LLM accidentally extracted.
         value_str = str(value).strip()
         
-        # ✅ CRITICAL: Detect header/descriptor patterns - EXPANDED for financial docs
+        # 5. Define Regex patterns for common PDF table headers and placeholders
         descriptor_patterns = [
-            r'\(in (millions?|thousands?|billions?)\)',
-            r'\(in (CHF|USD|EUR|GBP|JPY)\)',
-            r'\((un)?audited\)',
-            r'(20\d{2})',  # Years like 2024
+            r'\(in (millions?|thousands?|billions?)\)', # e.g., "(in millions)"
+            r'\(in (CHF|USD|EUR|GBP|JPY)\)',            # e.g., "(in USD)"
+            r'\((un)?audited\)',                        # e.g., "(unaudited)"
+            r'(20\d{2})',                               # e.g., "2024" (We don't want to use years as financial values)
             r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)',  # Months
             r'(millions?|thousands?|billions?) of',
             r'^total$',
             r'^subtotal$',
-            r'^note \d+',
-            r'^n/?a$',  # Not available
-            r'^-$',  # Dash placeholder
-            r'^\.\.\.$',  # Ellipsis
+            r'^note \d+',                               # e.g., "Note 4"
+            r'^n/?a$',                                  # e.g., "N/A"
+            r'^-$',                                     # e.g., "-" (Common in financial tables for zero)
+            r'^\.\.\.$',  
             r'not applicable',
             r'not available',
             r'not disclosed',
         ]
         
+        # 6. Loop through all the Regex patterns to see if the extracted string matches any of them
         value_lower = value_str.lower()
         for pattern in descriptor_patterns:
             if re.search(pattern, value_lower):
+                # 7. If it matches a header, THROW AN ERROR! Do not allow the calculation to proceed.
                 raise ValueError(
                     f"❌ HARD FAILURE: {field_name} appears to be a header/descriptor/placeholder, not a numeric value. "
                     f"Value: '{value_str}' (context: {context}). "
-                    f"CANNOT PROCEED - value not available in source document."
+                    f"Value not available in source document."
                 )
         
-        # Try to convert to Decimal
+        # 8. Try to convert the remaining strings to a Decimal format.
         try:
-            # Remove common formatting
+            # Remove characters commonly used in financial formatting
             cleaned = value_str.replace(',', '').replace(' ', '').replace('$', '').replace('€', '')
             
             # Handle parentheses (negative numbers)

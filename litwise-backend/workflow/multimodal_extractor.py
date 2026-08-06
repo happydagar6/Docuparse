@@ -56,19 +56,23 @@ class MultiModalExtractor:
                         image_bytes = base_image["image"]
                         image_ext = base_image["ext"]
                         
-                        # Open with PIL to get dimensions and validate
+                        # 2. Open the image in RAM using Pillow (PIL) to get its real width and height
                         pil_image = Image.open(io.BytesIO(image_bytes))
                         width, height = pil_image.size
                         
-                        # Filter small images (likely logos/icons)
+                        # [LITWISE RAG LOGIC]: Image Filtering
+                        # Why we do this: PDFs are full of tiny 10x10 pixel icons, background dots, or tiny company logos.
+                        # We only want to extract REAL graphs or charts. If the image is too small, we throw it away.
                         if width < self.min_image_size or height < self.min_image_size:
                             continue
                         
-                        # Create content hash for deduplication
-                        content_hash = hashlib.md5(image_bytes).hexdigest()
-                        
-                        # Check if already extracted (PDFs often deduplicate images)
-                        if any(img["hash"] == content_hash for img in images):
+                        # [LITWISE RAG LOGIC]: Image Deduplication (Hashing)
+                        # Why we do this: If a company logo is on the header of all 100 pages, the PDF 
+                        # technically stores 100 images! We use MD5 hashing to create a unique fingerprint
+                        # of the image. If we've seen this fingerprint before, we skip it!
+                        content_hash = hashlib.md5(image_bytes).hexdigest() # gives unique id to each image
+                         
+                        if any(img["hash"] == content_hash for img in images): # if hash already exists in images list
                             continue # Skip duplicates
                         
                         # Convert to base64 for easier transport/storage
@@ -127,7 +131,9 @@ class MultiModalExtractor:
         seen_tables = set()  # Track by hash to avoid duplicates
         
         try:
-            # STEP 1: Try PyMuPDF find_tables() method (catches border-based tables)
+            # [LITWISE RAG LOGIC]: Method 1 - PyMuPDF Extraction (Visible Borders)
+            # Why we do this: PyMuPDF is extremely fast at finding tables, but it ONLY finds tables
+            # that have visible black lines drawn around them (borders).
             logger.info("📊 Extracting tables using PyMuPDF find_tables()...")
             print("📊 Extracting tables using PyMuPDF find_tables().")
             
@@ -137,6 +143,7 @@ class MultiModalExtractor:
                 page = doc[page_num]
                 
                 try:
+                    # 1. Ask PyMuPDF to scan the page for drawn borders
                     table_finder = page.find_tables()
                     
                     if table_finder and table_finder.tables:
@@ -176,18 +183,24 @@ class MultiModalExtractor:
             
             print(f"📊 Found {len(tables)} tables using PyMuPDF find_tables()")
             
-            # STEP 2: FALLBACK - Extract tables from markdown (catches tables without borders)
+            # [LITWISE RAG LOGIC]: Method 2 - Fallback Markdown Extraction (Invisible Borders)
+            # Why we do this: Most modern financial statements (like an Income Statement) DO NOT use
+            # drawn black borders. They just use whitespace! PyMuPDF fails to see them.
+            # To fix this, we convert the entire page to Markdown first, then use Regex to find
+            # markdown-style tables (e.g. | Revenue | $100 |).
             logger.info("🔄 FALLBACK: Extracting tables from markdown content...")
             print("🔄 FALLBACK: Extracting tables from markdown content (for border-less tables)...")
             
-            # ✅ OPTIMIZATION: Use pre-extracted markdown if provided (avoids duplicate extraction)
+            # ✅ OPTIMIZATION: If the pipeline already converted this page to markdown earlier,
+            # reuse that variable to save processing time!
             if markdown_content is None:
                 markdown_content = self.extract_full_markdown(pdf_path)
             
             if markdown_content:
+                # 2. Use Regex to scrape out the tables
                 markdown_tables = self._extract_tables_from_markdown(markdown_content)
                 
-                # Add markdown-extracted tables that aren't duplicates
+                # 3. Add markdown-extracted tables that aren't duplicates (using Hash deduplication)
                 for md_table in markdown_tables:
                     md_table_hash = hashlib.md5(md_table['markdown_table'].encode()).hexdigest()
                     if md_table_hash not in seen_tables:

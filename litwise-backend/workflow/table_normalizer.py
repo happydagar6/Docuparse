@@ -77,6 +77,9 @@ class TableNormalizer:
                 logger.debug(f"Empty table after parsing, page {metadata.get('page', 'unknown')}")
                 return None
             
+            # [LITWISE RAG LOGIC]: Financial Unit Detection & Normalization
+            # Why we do this: If a PDF says "Revenue: 1.5" but the top of the page says "(in millions)",
+            # the real revenue is 1,500,000! If we don't scale this, all our math will be off by a factor of a million.
             # ✅ FIX #3: DETECT UNIT from headers/metadata
             detected_unit, unit_multiplier = self._detect_table_unit(df, content, metadata)
             logger.info(
@@ -88,6 +91,7 @@ class TableNormalizer:
             df = self._normalize_dataframe(df)
             
             # ✅ FIX #3: NORMALIZE to standard unit (millions)
+            # If the unit was thousands (multiplier = 1000), we multiply all numbers in the table by 1000.
             if unit_multiplier != 1.0:
                 df = self._apply_unit_normalization(df, unit_multiplier)
                 logger.info(f"✅ Normalized table values by {unit_multiplier}x to millions")
@@ -289,13 +293,16 @@ class TableNormalizer:
     
     def _normalize_value(self, value: Any) -> Any:
         """
-        Normalize a single value
+        [LITWISE RAG LOGIC]: Data Cleaning (The Accountant)
+        Why we do this: PDFs are designed for humans to read, not computers. 
+        Accountants write negative numbers inside parentheses like (1,234.56). 
+        Computers crash if you try to do math on parentheses. This function cleans it up.
         
         Examples:
             "(1,234.56)" → -1234.56
-            "$1,234.56" → 1234.56
-            "22.27%" → 0.2227
-            "1,234" → 1234
+            "$1,234.56"  → 1234.56
+            "22.27%"     → 0.2227
+            "1,234"      → 1234
         """
         # ✅ FIX: Handle Series inputs (should be rare after _normalize_dataframe flattening)
         if isinstance(value, pd.Series):
@@ -327,25 +334,25 @@ class TableNormalizer:
         if value_str == '' or value_str.strip('-') == '':
             return None
         
-        # Check for parentheses (negative numbers in accounting)
+        # 1. Check for accounting parentheses (e.g., "(100)" means -100)
         is_negative = False
         if value_str.startswith('(') and value_str.endswith(')'):
             is_negative = True
             value_str = value_str[1:-1].strip()
         
-        # Remove currency symbols
+        # 2. Remove currency symbols
         value_str = re.sub(r'[$€£¥₹฿]', '', value_str)
         
-        # Check for percentage
+        # 3. Check for percentage (e.g. "15%" means 0.15)
         is_percentage = False
         if '%' in value_str:
             is_percentage = True
             value_str = value_str.replace('%', '').strip()
         
-        # Remove thousands separators
+        # 4. Remove thousands separators (e.g. "1,000" means 1000)
         value_str = value_str.replace(',', '').replace(' ', '')
         
-        # Try to convert to float
+        # 5. Try to convert to Python Float for real math
         try:
             numeric_value = float(value_str)
             

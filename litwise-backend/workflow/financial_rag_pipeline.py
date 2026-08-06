@@ -33,19 +33,12 @@ class CalculationGate:
     def validate(self, extracted_data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str, Any]]:
         """
         Validate if calculation can proceed
-        
-        Args:
-            extracted_data: Dictionary of extracted values from tables
-            
-        Returns:
-            Tuple of:
-            - can_proceed: bool (True if ALL inputs exist)
-            - missing_inputs: List of missing field names
-            - validated_inputs: Dict of validated values (only if can_proceed=True)
-            
-        Raises:
-            Never raises - returns structured decision
         """
+        # [LITWISE RAG LOGIC]: The Deterministic AI Gate
+        # Why we do this: LLMs are "people pleasers". If you ask an LLM to calculate a gross margin,
+        # and the PDF is missing the revenue, the LLM will often invent a revenue number just to give you an answer!
+        # This Gate stops the LLM in its tracks.
+        
         missing_inputs = []
         validated_inputs = {}
         
@@ -53,6 +46,7 @@ class CalculationGate:
             value = extracted_data.get(required_field)
             
             # ✅ GATE RULE: Check if value exists and is valid
+            # If the LLM failed to extract a number, we log it and add it to our "missing" list.
             if value is None:
                 missing_inputs.append(required_field)
                 logger.info(f"⛔ Gate blocked: '{required_field}' is None")
@@ -63,7 +57,7 @@ class CalculationGate:
                 missing_inputs.append(required_field)
                 logger.info(f"⛔ Gate blocked: '{required_field}' is placeholder: '{value}'")
             else:
-                # Value exists and is not a placeholder
+                # Value exists! Now we pass it to the strict Decimal parser.
                 try:
                     # Validate it's numeric (will raise if not)
                     from decimal import Decimal
@@ -71,9 +65,11 @@ class CalculationGate:
                     validated_inputs[required_field] = float(numeric_val)
                     logger.debug(f"✅ Gate validated: '{required_field}' = {numeric_val}")
                 except Exception as e:
+                    # If it's not a number (e.g., the LLM extracted a header), we fail the gate.
                     missing_inputs.append(required_field)
                     logger.info(f"⛔ Gate blocked: '{required_field}' is not numeric: '{value}' ({e})")
         
+        # The ultimate decision: We ONLY proceed if the missing_inputs array is perfectly empty (Length == 0)
         can_proceed = len(missing_inputs) == 0
         
         if can_proceed:
@@ -140,9 +136,14 @@ class FinancialRAGPipeline:
             - error: error message (if blocked)
             - gate_decision: audit trail
         """
+        # [LITWISE RAG LOGIC]: Pipeline Orchestrator
+        # Why we do this: This is the traffic controller. It checks the Gate. If the gate says NO, 
+        # it returns a hard error to the LLM. If the gate says YES, it passes the numbers to the calculator.
+        
         # ✅ STEP 1: GATE VALIDATION (DETERMINISTIC)
         can_proceed, missing_inputs, validated_inputs = gate.validate(extracted_data)
         
+        # Create an audit trail of the decision
         gate_decision = {
             'calculation_type': gate.calculation_type,
             'required_inputs': gate.required_inputs,
@@ -153,7 +154,8 @@ class FinancialRAGPipeline:
         
         # ✅ STEP 2: DETERMINISTIC EXECUTION OR HARD BLOCK
         if not can_proceed:
-            # ⛔ GATE BLOCKED → HARD ERROR (no LLM override allowed)
+            # ⛔ GATE BLOCKED → HARD ERROR
+            # We explicitly instruct the LLM: DO NOT GUESS. Tell the user exactly what is missing.
             error_msg = gate.get_block_message(missing_inputs)
             logger.error(f"Calculation blocked: {error_msg}")
             

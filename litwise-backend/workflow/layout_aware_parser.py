@@ -50,12 +50,17 @@ class LayoutAwareParser:
         Returns:
             List of tables with page-spanning tables merged
         """
+        # [LITWISE RAG LOGIC]: Handling Page-Spanning Tables
+        # Why we do this: If a massive income statement starts on page 4 but finishes on page 5,
+        # the PDF parser thinks they are two separate tables! The second table will have NO headers,
+        # so the LLM won't know what the numbers mean. This function sews them back together.
+        
         if not tables or len(tables) <= 1:
             return tables
         
         logger.info(f"Analyzing {len(tables)} tables for page spans...")
         
-        # Sort tables by page number to process in order
+        # 1. Sort tables by page number so we can process them sequentially (page 1, then 2, etc.)
         sorted_tables = sorted(tables, key=lambda t: t.get('page', 0))
         
         merged_tables = []
@@ -65,18 +70,20 @@ class LayoutAwareParser:
             if i in skip_next:
                 continue
             
+            # 2. Look at two tables side-by-side (Current and Next)
             current_table = sorted_tables[i]
             next_table = sorted_tables[i + 1]
             
             current_page = current_table.get('page', 0)
             next_page = next_table.get('page', 0)
             
-            # Only check consecutive pages
+            # 3. If they are not on consecutive pages (e.g. Page 4 and Page 6), we skip.
             if next_page - current_page != 1:
                 merged_tables.append(current_table)
                 continue
             
-            # Check if tables can be merged
+            # 4. Check if they should be merged.
+            # (e.g. Do they have the same number of columns? Are the headers identical?)
             if self._should_merge_tables(current_table, next_table):
                 logger.info(
                     f"✅ Merging page-spanning table: "
@@ -84,13 +91,14 @@ class LayoutAwareParser:
                     f"Page {next_page} ({len(next_table['rows'])} rows)"
                 )
                 
+                # 5. Concatenate the rows together into one massive, fixed table
                 merged = self._merge_tables(current_table, next_table)
                 merged_tables.append(merged)
-                skip_next.add(i + 1)  # Skip next table as it's been merged
+                skip_next.add(i + 1)  # Skip the next table because we just ate it!
             else:
                 merged_tables.append(current_table)
         
-        # Add last table if not merged
+        # 6. Don't forget to add the very last table in the document
         if len(sorted_tables) - 1 not in skip_next:
             merged_tables.append(sorted_tables[-1])
         
@@ -240,6 +248,11 @@ class LayoutAwareParser:
         Returns:
             List of table chunks with repeated headers
         """
+        # [LITWISE RAG LOGIC]: Chunking Tables (Curing Row Blindness)
+        # Why we do this: LLMs have context limits. If you feed an LLM a table with 2,000 rows,
+        # it suffers from "Middle-out amnesia" (Row Blindness) and forgets the middle rows entirely.
+        # This function splits a 2,000-row table into 20 separate 100-row chunks.
+        
         max_rows = max_rows_per_chunk or self.max_rows_per_chunk
         chunked_tables = []
         
@@ -247,28 +260,34 @@ class LayoutAwareParser:
             rows = table.get('rows', [])
             row_count = len(rows)
             
-            # Small table: keep as-is
+            # 1. If it's a tiny table (like 5 rows), don't touch it. Just save it.
             if row_count <= max_rows:
                 chunked_tables.append(table)
                 continue
             
-            # Large table: split into chunks
+            # 2. If it's a massive table, we need to split it up!
             logger.info(
                 f"📊 Chunking large table ({row_count} rows) on page {table.get('page')} "
                 f"into chunks of {max_rows} rows"
             )
             
+            # 3. Calculate how many chunks we need to make (e.g. 500 rows / 100 max = 5 chunks)
             headers = table.get('headers', [])
             num_chunks = (row_count + max_rows - 1) // max_rows
             
             for chunk_idx in range(num_chunks):
+                # 4. Calculate the start and end row for this specific chunk.
+                # Notice we subtract `self.overlap_rows` (e.g., 2). This ensures that Chunk 2 shares 
+                # the last 2 rows of Chunk 1. This prevents us from splitting a sentence in half!
                 start_row = max(0, chunk_idx * max_rows - self.overlap_rows)
                 end_row = min(row_count, (chunk_idx + 1) * max_rows)
                 
+                # 5. Extract those specific rows
                 chunk_rows = rows[start_row:end_row]
                 
-                # Create chunk
-                # ✅ NEW: Detect table type and fiscal year for metadata enrichment
+                # 6. Build the new chunk
+                # ✅ CRITICAL: We attach the original `headers` to EVERY single chunk.
+                # So even if Chunk 5 is just rows 400-500, it still has the correct column titles!
                 table_type = self._detect_table_type(headers, chunk_rows)
                 fiscal_year = self._extract_fiscal_year(headers, chunk_rows)
                 

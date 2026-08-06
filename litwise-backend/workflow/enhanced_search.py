@@ -16,12 +16,15 @@ warnings.filterwarnings('ignore')
 def setup_nltk():
     """Download required NLTK datasets"""
     try:
-        nltk.data.find('tokenizers/punkt')
-        nltk.data.find('corpora/stopwords')
+        nltk.data.find('tokenizers/punkt') # Used for tokenization (splitting text into words)
+        nltk.data.find('corpora/stopwords') # Used for removing common words (like 'the', 'is', 'in')
     except LookupError:
-        print("Downloading NLTK data...")
-        nltk.download('punkt', quiet=True)
-        nltk.download('stopwords', quiet=True)
+        print("Downloading NLTK data...") # If the data is not found, download it
+        nltk.download('punkt', quiet=True) # Download the punkt tokenizer. What is this nltk and punkt ? 
+        # nltk is a python library for natural language processing. 
+        # punkt is a tokenizer that splits text into words. 
+        nltk.download('stopwords', quiet=True) # Download the stopwords corpus
+        # stopwords are common words that are not important for search. 
 
 # Initialize NLTK on import
 setup_nltk()
@@ -107,28 +110,46 @@ class EnhancedSearchSystem:
         Returns:
             Expanded query with additional terms
         """
-        expanded_terms = [query]  # Start with original query
+        # [LITWISE RAG LOGIC]: Query Expansion
+        # Why we do this: If a user types "ML", the AI might miss documents that only say "Machine Learning".
+        # This function catches those missed opportunities by expanding the search query before hitting the database.
+        
+        # 1. Initialize a list with the user's original query as the first element
+        expanded_terms = [query]  
+        
+        # 2. Convert the entire query to lowercase so our matching is case-insensitive
         query_lower = query.lower()
+        
+        # 3. Split the query into individual words (e.g., "what is ML" -> ["what", "is", "ml"])
         words = query_lower.split()
         
-        # 1. Expand acronyms
+        # 4. Loop through each word to check for acronyms
         for word in words:
+            # Convert back to uppercase to match our QUERY_EXPANSIONS dictionary keys
             word_upper = word.upper()
+            
+            # If the uppercase word exists in our dictionary (like "ML" or "AI")
             if word_upper in QUERY_EXPANSIONS:
+                # Add the expanded version (e.g., "machine learning") to our list of terms
                 expanded_terms.extend(QUERY_EXPANSIONS[word_upper])
         
-        # 2. Add synonyms for key terms (limit to avoid over-expansion)
+        # 5. Loop through again to add synonyms
         added_synonyms = 0
         for word in words:
-            if word in self.synonym_map and added_synonyms < 3:  # Limit synonyms
-                expanded_terms.extend(self.synonym_map[word][:2])  # Add top 2 synonyms
-                added_synonyms += 1
+            # Check if the word has synonyms AND we haven't added too many yet (limit to 3 to prevent overwhelming the search)
+            if word in self.synonym_map and added_synonyms < 3:  
+                # Add only the top 2 synonyms for this word to our list
+                expanded_terms.extend(self.synonym_map[word][:2])  
+                added_synonyms += 1  # Increment our safety counter
         
+        # 6. Join all the collected terms back into a single long string separated by spaces
         expanded_query = ' '.join(expanded_terms)
         
+        # 7. If the query actually changed, print a log message for debugging
         if expanded_query != query:
             print(f"🔍 Query expanded: '{query}' → '{expanded_query[:100]}...'")
         
+        # 8. Return the massive, expanded query string to the search engine
         return expanded_query
     
     def preprocess_text(self, text: str) -> List[str]:
@@ -164,28 +185,39 @@ class EnhancedSearchSystem:
     
     def bm25_search(self, paper_id: str, query: str, top_k: int = 50) -> List[Tuple[Dict, float]]:
         """Perform BM25 keyword search"""
+        # [LITWISE RAG LOGIC]: BM25 Lexical Search (Keyword Matching)
+        # Why we do this: Vector search is great for "vibes" and meanings, but terrible at exact matches 
+        # (like finding a specific patient ID or chemical formula). BM25 acts like a traditional Google Search
+        # to guarantee exact keywords are found.
+        
+        # 1. Safety check: If we haven't built a BM25 index for this specific paper yet, return nothing.
         if paper_id not in self.bm25_indices:
             return []
         
-        # Preprocess query
+        # 2. Preprocess the user's query (remove punctuation, lowercase it, tokenize it)
         query_tokens = self.preprocess_text(query)
+        
+        # 3. If the query is completely empty after preprocessing (e.g., they only typed stopwords like "the"), return nothing.
         if not query_tokens:
             return []
         
-        # Get BM25 scores
+        # 4. Use the BM25 algorithm to assign a mathematical score to every document chunk based on keyword frequency.
         bm25_scores = self.bm25_indices[paper_id].get_scores(query_tokens)
+        
+        # 5. Retrieve the actual raw text documents for this paper.
         documents = self.document_stores[paper_id]
         
-        # Create scored results
+        # 6. Create a paired list of (Document, Score) using Python's zip function.
         scored_results = [
             (doc, float(score)) 
             for doc, score in zip(documents, bm25_scores)
-            if score > 0
+            if score > 0  # Only keep documents that actually had a keyword match (score > 0)
         ]
         
-        # Sort by BM25 score
+        # 7. Sort the results in descending order (highest BM25 score first)
         scored_results.sort(key=lambda x: x[1], reverse=True)
         
+        # 8. Return only the top 'K' best matching results to save memory
         return scored_results[:top_k]
     
     async def vector_search(self, qdrant_client, paper_id: Optional[str], query: str, 
@@ -205,40 +237,52 @@ class EnhancedSearchSystem:
         """
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue
         
-        # Generate query embedding
+        # [LITWISE RAG LOGIC]: Vector Search (Semantic Meaning)
+        # Why we do this: This converts the user's text into an array of 1,536 numbers (an embedding).
+        # It then asks Qdrant to find the closest matching numbers in the database using Cosine Distance.
+        # This allows us to find answers even if the exact keywords don't match.
+        
+        # 1. Ask the OpenAI embeddings model to convert the user's text query into a mathematical vector.
+        # We wrap this in asyncio.to_thread because the embedding API call is a blocking network request.
         query_embedding = await asyncio.to_thread(
             embeddings_model.embed_query, 
             query
         )
         
-        # Build filter if paper_id provided
+        # 2. Initialize a Qdrant query filter. This is like a WHERE clause in SQL.
         query_filter = None
+        
+        # 3. If a specific paper_id was provided, we construct the filter.
         if paper_id:
             query_filter = Filter(
                 must=[
                     FieldCondition(
-                        key="paper_id",
+                        key="paper_id",  # We only want chunks from this specific paper
                         match=MatchValue(value=paper_id)
                     )
                 ]
             )
         
-        # Search in Qdrant
+        # 4. Execute the actual Vector Search against the Qdrant database
         try:
             search_result = await asyncio.to_thread(
                 qdrant_client.query_points,
-                collection_name="litwise_collection",
-                query=query_embedding,
-                limit=top_k,
-                query_filter=query_filter
+                collection_name="litwise_collection", # Our specific collection
+                query=query_embedding,                # The math vector we generated
+                limit=top_k,                          # Max results to return
+                query_filter=query_filter             # The paper_id filter we built
             )
         except Exception as e:
+            # If the database connection fails, catch the error so the app doesn't crash
             print(f"⚠️ Vector search failed: {e}")
             return []
         
-        # Convert to document format
+        # 5. Create an empty list to store our final formatted results
         vector_results = []
+        
+        # 6. Loop through the raw results returned by Qdrant
         for result in search_result.points:
+            # 7. Extract the metadata payload that we attached when we uploaded the document
             doc = {
                 'content': result.payload.get('content', ''),
                 'metadata': result.payload,
@@ -246,72 +290,84 @@ class EnhancedSearchSystem:
                 'page': result.payload.get('page', 1),
                 'paper_id': result.payload.get('paper_id', 'unknown')
             }
+            # 8. Append a tuple of (Document, Score) to our results list
             vector_results.append((doc, float(result.score)))
         
+        # 9. Return the formatted list of semantic matches
         return vector_results
     
     def combine_search_results(self, vector_results: List[Tuple[Dict, float]], 
                              bm25_results: List[Tuple[Dict, float]],
                              alpha: float = 0.7) -> List[Tuple[Dict, float]]:
         """Combine vector and BM25 results using weighted fusion"""
-        # Normalize scores to [0, 1] range
+        # [LITWISE RAG LOGIC]: Hybrid Search Fusion
+        # Why we do this: We just got two lists of results (one from BM25, one from Vector).
+        # We need to combine them fairly. We normalize both scores so they are between 0 and 1,
+        # then we merge them using a formula: (Alpha * VectorScore) + ((1 - Alpha) * BM25Score)
+        # This gives us the absolute best of both worlds!
+        
+        # 1. Helper function to normalize scores to a [0.0, 1.0] scale
         def normalize_scores(results):
             if not results:
                 return []
             
+            # Extract all the raw scores from the results
             scores = [score for _, score in results]
             min_score, max_score = min(scores), max(scores)
             
+            # Prevent division by zero if all scores are identical
             if max_score == min_score:
                 return [(doc, 1.0) for doc, _ in results]
             
             normalized = []
+            # Apply Min-Max Normalization formula: (score - min) / (max - min)
             for doc, score in results:
                 norm_score = (score - min_score) / (max_score - min_score)
                 normalized.append((doc, norm_score))
             
             return normalized
         
-        # Normalize both result sets
+        # 2. Normalize both sets of results independently so they can be fairly compared
         norm_vector_results = normalize_scores(vector_results)
         norm_bm25_results = normalize_scores(bm25_results)
         
-        # Combine results by chunk_id to avoid duplicates
+        # 3. Create a dictionary to hold the combined scores, using chunk_id to prevent duplicates
         combined_scores = {}
         
-        # Add vector results
+        # 4. First, insert all the Vector Search results into our dictionary
         for doc, score in norm_vector_results:
             chunk_id = doc.get('chunk_id', id(doc))
             combined_scores[chunk_id] = {
                 'doc': doc,
                 'vector_score': score,
-                'bm25_score': 0.0
+                'bm25_score': 0.0 # Default BM25 to 0 (in case it wasn't found by keyword search)
             }
         
-        # Add BM25 results
+        # 5. Next, insert or update with the BM25 Search results
         for doc, score in norm_bm25_results:
             chunk_id = doc.get('chunk_id', id(doc))
+            # If the vector search ALREADY found this chunk, just update the bm25_score!
             if chunk_id in combined_scores:
                 combined_scores[chunk_id]['bm25_score'] = score
             else:
+                # If vector search missed it, add it fresh
                 combined_scores[chunk_id] = {
                     'doc': doc,
                     'vector_score': 0.0,
                     'bm25_score': score
                 }
         
-        # Calculate combined scores
+        # 6. Apply the Fusion Formula: Final Score = (Vector * Alpha) + (BM25 * (1 - Alpha))
+        # Example: if Alpha is 0.7, Vector is worth 70% of the final score, BM25 is worth 30%.
         final_results = []
-        for chunk_data in combined_scores.values():
-            combined_score = (
-                alpha * chunk_data['vector_score'] + 
-                (1 - alpha) * chunk_data['bm25_score']
-            )
-            final_results.append((chunk_data['doc'], combined_score))
+        for scores in combined_scores.values():
+            final_score = (alpha * scores['vector_score']) + ((1 - alpha) * scores['bm25_score'])
+            final_results.append((scores['doc'], final_score))
         
-        # Sort by combined score
+        # 7. Sort the combined list so the absolute best matches are at the top
         final_results.sort(key=lambda x: x[1], reverse=True)
         
+        # 8. Return the fused list!
         return final_results
     
     async def simple_rerank(self, query: str, results: List[Tuple[Dict, float]],
