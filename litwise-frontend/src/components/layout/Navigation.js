@@ -78,7 +78,7 @@ export function Navigation() {
             <BookOpen className="h-4 w-4 text-white" />
           </div>
           <div>
-            <div className="text-white font-bold text-base leading-tight tracking-wide">LitWise</div>
+            <div className="text-white font-bold text-base leading-tight tracking-wide">DocuParse</div>
             <div className="text-indigo-300 text-[10px] font-medium tracking-widest uppercase">Research AI</div>
           </div>
         </Link>
@@ -133,7 +133,7 @@ export function Navigation() {
             style={{ background: "linear-gradient(135deg, #6366f1, #06b6d4)" }}>
             <BookOpen className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="text-white font-bold text-sm tracking-wide">LitWise</span>
+          <span className="text-white font-bold text-sm tracking-wide">DocuParse</span>
         </Link>
 
         <div className="flex items-center gap-2">

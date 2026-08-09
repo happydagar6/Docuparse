@@ -21,7 +21,7 @@ export default function Layout({ children }) {
   return (
     <html lang="en">
       <head>
-        <title>Litwise - AI-Powered Research Companion</title>
+        <title>DocuParse - AI-Powered Research Companion</title>
         <meta name="description" content="Upload, analyze, and discover insights from your documents and papers using AI" />
       </head>
       <body

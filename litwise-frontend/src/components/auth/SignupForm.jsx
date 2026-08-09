@@ -55,7 +55,7 @@ export default function SignupForm() {
       if (data?.user?.confirmed_at || data?.user?.email_confirmed_at) {
         // Email verification is disabled - auto confirm and redirect
         toast.success('Account created!', {
-          description: 'Welcome to LitWise! Redirecting...',
+          description: 'Welcome to DocuParse! Redirecting...',
         })
         setTimeout(() => {
           router.push('/')
@@ -123,7 +123,7 @@ export default function SignupForm() {
           Create Account
         </CardTitle>
         <CardDescription className="text-center text-base text-gray-600">
-          Start your research journey with LitWise
+          Start your research journey with DocuParse
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 px-8">

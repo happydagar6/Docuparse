@@ -1,5 +1,5 @@
 /**
- * API Integration Layer for Litwise Backend
+ * API Integration Layer for DocuParse Backend
  * 
  * This file centralizes all API calls to the FastAPI backend.
  * It handles:

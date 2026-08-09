@@ -9,7 +9,7 @@ export default function LoginPage() {
       {/* Left Side - Branding & Features */}
       <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-blue-600 via-blue-700 to-cyan-600 p-12 flex-col justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2">LitWise</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">DocuParse</h1>
           <p className="text-blue-100 text-lg">AI-Powered Research Companion</p>
         </div>
         
@@ -74,7 +74,7 @@ export default function LoginPage() {
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
             <h1 className="text-3xl font-bold bg-linear-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-              LitWise
+              DocuParse
             </h1>
             <p className="text-gray-500">
               Your AI-powered research assistant

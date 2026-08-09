@@ -162,7 +162,7 @@ const InteractiveFooter = () => {
                     <BookOpen className="h-5 w-5 text-white" />
                   </div>
                   <span className="text-xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    Litwise
+                    DocuParse
                   </span>
                 </div>
                 <p className="text-gray-600 text-sm mb-4 leading-relaxed">
@@ -253,7 +253,7 @@ const InteractiveFooter = () => {
           >
             <div className="flex flex-col md:flex-row justify-between items-center gap-3">
               <div className="flex items-center text-xs text-gray-600">
-                © {currentYear} Litwise AI. Made with
+                © {currentYear} DocuParse AI. Made with
                 <Heart className="inline h-3 w-3 text-red-500 mx-1" />
                 for researchers worldwide.
               </div>

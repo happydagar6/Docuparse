@@ -230,7 +230,7 @@ app.include_router(quiz_router)
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the Litwise API"}
+    return {"message": "Welcome to the DocuParse API"}
 
 
 @app.get("/stats/research-materials")
@@ -268,9 +268,16 @@ async def get_research_materials_stats(current_user: AuthUser = Depends(get_curr
             print(f"Error counting study plans: {e}")
             study_plans_count = 0
         
-        # For quizzes: they don't have a dedicated table yet, so return 0
-        # Once quizzes table is created with user_id, we can count them
-        quizzes_count = 0
+        # Count quizzes using the same paper_ids approach
+        try:
+            if paper_ids:
+                quizzes = supabase.table("quizzes").select("id", count="exact").in_("paper_id", paper_ids).execute()
+                quizzes_count = quizzes.count if hasattr(quizzes, 'count') and quizzes.count is not None else len(quizzes.data or [])
+            else:
+                quizzes_count = 0
+        except Exception as e:
+            print(f"Error counting quizzes: {e}")
+            quizzes_count = 0
         
         total = lit_reviews_count + study_plans_count + quizzes_count
         

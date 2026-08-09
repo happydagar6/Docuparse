@@ -1,5 +1,5 @@
 /**
- * Zustand State Management for Litwise UI
+ * Zustand State Management for DocuParse UI
  * 
  * This file manages lightweight UI state that doesn't require server synchronization:
  * - Upload progress and status

@@ -22,7 +22,7 @@ function ShellLoadingFallback() {
       <div className="text-center">
         <div className="mb-6">
           <h1 className="text-4xl font-bold bg-linear-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-            LitWise
+            DocuParse
           </h1>
         </div>
         <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />

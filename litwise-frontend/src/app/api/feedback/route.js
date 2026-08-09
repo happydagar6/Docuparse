@@ -37,11 +37,11 @@ export async function POST(request) {
     const { data, error } = await resend.emails.send({
       from: 'onboarding@resend.dev', // Use Resend's verified domain for development
       to: ['harshitdagar913@gmail.com'],
-      subject: `Litwise ${type === 'newsletter' ? 'Newsletter Subscription' : 'Feedback'} from ${name}`,
+      subject: `DocuParse ${type === 'newsletter' ? 'Newsletter Subscription' : 'Feedback'} from ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #2563eb; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">
-            ${type === 'newsletter' ? 'Newsletter Subscription' : 'New Feedback'} - Litwise
+            ${type === 'newsletter' ? 'Newsletter Subscription' : 'New Feedback'} - DocuParse
           </h2>
           
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -58,7 +58,7 @@ export async function POST(request) {
           ` : ''}
           
           <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
-            This ${type} was sent from the Litwise application.
+            This ${type} was sent from the DocuParse application.
           </p>
         </div>
       `,
