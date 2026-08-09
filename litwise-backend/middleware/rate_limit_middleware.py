@@ -17,6 +17,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Applies rate limits to all endpoints without explicit dependency injection
     """
     
+    # [LITWISE RAG LOGIC]: The Whitelist (Exemptions)
+    # Why we do this: If we blindly rate-limit everything, a user who refreshes the homepage 
+    # too fast might get locked out of their own account (because the login route gets blocked).
+    # We explicitly exempt Auth and Health Check endpoints so users can always log in and the 
+    # AWS Load Balancer can always verify the server is alive.
     EXEMPT_ENDPOINTS = {
         "/health",
         "/",
@@ -29,7 +34,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     }
     
     async def dispatch(self, request: Request, call_next):
-        """Process each request through the rate limiter"""
+        """
+        [LITWISE RAG LOGIC]: The Global Interceptor
+        Why we do this: Instead of manually adding rate-limiting code to all 50+ API endpoints,
+        we use a FastAPI BaseHTTPMiddleware. This acts as a global 'security guard'. 
+        Every single HTTP request must pass through this function before it is allowed to touch 
+        the actual application code.
+        """
         
         # Skip rate limiting for exempt endpoints
         if request.url.path in self.EXEMPT_ENDPOINTS:
@@ -71,7 +82,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 endpoint_name=limit_config["description"]
             )
             
-            # If rate limit exceeded, return 429
+            # [LITWISE RAG LOGIC]: The 429 Response
+            # Why we do this: If the Redis counter exceeds the limit, we MUST return a 429 status code.
+            # Crucially, we include the 'Retry-After' header. This tells the Frontend React app exactly
+            # how many seconds it needs to pause before it is allowed to send the next request.
             if not check_result["allowed"]:
                 logger.warning(
                     f"Rate limit exceeded for user {user_id} on endpoint {endpoint}"
