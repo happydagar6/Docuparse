@@ -9,7 +9,7 @@ import uuid
 import asyncio
 from datetime import datetime
 from typing import List, Dict
-from openai import OpenAI
+from openai import AsyncOpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
@@ -112,9 +112,7 @@ class QuizService:
         """Initialize quiz service with API clients"""
         try:
             # Initialize OpenAI API client
-            self.client = OpenAI(
-                api_key=os.getenv("OPENAI_API_KEY")
-            )
+            self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             
             # Initialize Qdrant vector database client
             self.qdrant_client = QdrantClient(
@@ -189,6 +187,8 @@ class QuizService:
             logger.info(f"   ✅ Retrieved {len(context_chunks)} context chunks")
             avg_score = sum(c["score"] for c in context_chunks) / len(context_chunks)
             logger.info(f"   ✅ Average relevance score: {avg_score:.3f}")
+            total_chars = sum(len(c["text"]) for c in context_chunks)
+            logger.info(f"   ✅ Total context text: {total_chars:,} characters ({total_chars // 4:,} est. tokens)")
             
             # ========== STEP 2: BUILD LLM PROMPT ==========
             logger.info("📝 Step 2: Constructing LLM prompt with context...")
@@ -335,7 +335,7 @@ class QuizService:
                 {
                     "id": result.id,
                     "paper_id": result.payload.get("paper_id"),
-                    "text": result.payload.get("text", ""),
+                    "text": result.payload.get("content", "") or result.payload.get("text", ""),  # "content" is the key used in utils.py
                     "metadata": result.payload.get("metadata", {}),
                     "score": result.score
                 }
@@ -431,23 +431,37 @@ Generate the quiz as valid JSON now."""
             try:
                 logger.info(f"   - LLM attempt {attempt + 1}/{max_retries}")
                 
-                # Call LLM
-                response = self.client.chat.completions.create(
-                    model="gpt-5-mini-2025-08-07",  # Latest model optimized for reasoning
+                # Call LLM (async)
+                response = await self.client.chat.completions.create(
+                    model="gpt-5-mini-2025-08-07",
                     messages=[
                         {
                             "role": "user",
                             "content": f"{system_prompt}\n\n{user_prompt}"
                         }
                     ],
-                    max_completion_tokens=4000
+                    # Reasoning models use invisible "reasoning_tokens" that count against the limit.
+                    # 8000 was too small and the model ran out of space while thinking.
+                    max_completion_tokens=25000
                 )
                 
-                response_text = response.choices[0].message.content.strip()
-                logger.info(f"   - LLM response size: {len(response_text)} characters")
-                logger.debug(f"   - LLM raw response: {response_text[:500]}")  # Log first 500 chars for debugging
+                response_text = response.choices[0].message.content
                 
-                # Remove markdown code blocks if present
+                # Log full response for debugging if content is empty
+                if not response_text or not response_text.strip():
+                    logger.warning(f"   ⚠️  Empty response from LLM on attempt {attempt + 1}/{max_retries}")
+                    logger.warning(f"   ⚠️  finish_reason: {response.choices[0].finish_reason}")
+                    logger.warning(f"   ⚠️  Full response: {response.model_dump_json()}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)
+                        continue
+                    raise ValueError("LLM returned empty content after all retries")
+                response_text = response_text.strip()
+                logger.info(f"   - LLM response size: {len(response_text)} characters")
+                logger.debug(f"   - LLM raw response: {response_text[:500]}")
+                
+                # response_format=json_object guarantees clean JSON — no markdown stripping needed
+                # But keep the cleanup as a safety net
                 if response_text.startswith("```json"):
                     response_text = response_text[7:]
                 if response_text.startswith("```"):
