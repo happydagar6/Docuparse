@@ -21,22 +21,21 @@ class TestAppStartup:
     
     def test_cors_middleware_installed(self):
         """Test that CORS middleware is installed"""
-        middleware_types = [type(m.cls).__name__ if hasattr(m, 'cls') else type(m).__name__ 
-                           for m in app.user_middleware]
-        assert any('CORSMiddleware' in str(m) for m in middleware_types), \
+        # app.user_middleware is a list of Middleware objects
+        # We check the class name stored in each middleware stack entry
+        middleware_str = str([str(m) for m in app.user_middleware])
+        assert 'CORSMiddleware' in middleware_str, \
             "CORS middleware not found"
     
     def test_gzip_middleware_installed(self):
         """Test that GZIP compression middleware is installed"""
-        middleware_types = [type(m.cls).__name__ if hasattr(m, 'cls') else type(m).__name__ 
-                           for m in app.user_middleware]
-        assert any('GZip' in str(m) for m in middleware_types), \
+        middleware_str = str([str(m) for m in app.user_middleware])
+        assert 'GZip' in middleware_str, \
             "GZIP middleware not found"
     
     def test_rate_limit_middleware_installed(self):
         """Test that rate limiting middleware is installed"""
-        middleware_types = [type(m.cls).__name__ if hasattr(m, 'cls') else type(m).__name__ 
-                           for m in app.user_middleware]
+        middleware_types = [str(m) for m in app.user_middleware]
         # Note: Rate limit middleware may be installed differently
         assert len(middleware_types) > 0, "No middleware installed"
 
@@ -47,8 +46,10 @@ class TestAppEndpoints:
     def test_health_check_endpoint_exists(self):
         """Test that health check endpoint is registered"""
         routes = [route.path for route in app.routes]
-        # FastAPI has /openapi.json and /docs by default
-        assert any('/' in routes), "Root endpoints should exist"
+        # FastAPI has /openapi.json, /docs, and our /health endpoint
+        # Fix: any() takes an iterable of booleans, not a single boolean
+        assert any(path in routes for path in ['/', '/health']), \
+            "Root or health endpoint should exist"
     
     def test_openapi_documentation_enabled(self):
         """Test that OpenAPI documentation is enabled"""

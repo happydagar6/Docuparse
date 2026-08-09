@@ -101,6 +101,10 @@ const PDFViewerControls = memo(function PDFViewerControls({
 }) {
   const [pageInput, setPageInput] = useState(currentPage.toString());
 
+  React.useEffect(() => {
+    setPageInput(currentPage.toString());
+  }, [currentPage]);
+
   const handlePageInputChange = (e) => {
     setPageInput(e.target.value);
   };
@@ -354,8 +358,8 @@ export const AdvancedPDFViewer = memo(function AdvancedPDFViewer({
   }, [totalPages]);
 
   React.useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
   if (isLoading) {
