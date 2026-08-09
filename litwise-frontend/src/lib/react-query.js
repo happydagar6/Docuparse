@@ -54,8 +54,10 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: process.env.NODE_ENV === "production",
     },
     mutations: {
-      // Retry failed mutations twice
-      retry: 2,
+      // Do NOT retry failed mutations — AI generation tasks (quiz, study plan, etc.)
+      // already have internal retry logic on the backend. Auto-retrying mutations
+      // causes the UI to appear stuck in a continuous loop on error.
+      retry: 0,
     },
   },
 });

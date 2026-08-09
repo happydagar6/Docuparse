@@ -188,8 +188,8 @@ RATE_LIMITS = {
     
     # Quiz operations - AI intensive
     "/api/quiz/generate": {
-        "max_requests": 5,
-        "window_seconds": 3600,  # 1 hour
+        "max_requests": 100,
+        "window_seconds": 60,  # 1 minute for local dev
         "description": "Quiz generation"
     },
     "/api/quiz/attempt/submit": {
