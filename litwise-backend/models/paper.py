@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from fastapi import UploadFile
 
@@ -27,8 +27,8 @@ class SearchFilters(BaseModel):
     @field_validator('year_to', mode='after')
     @classmethod
     def validate_year_range(cls, v, info):
-        if v is not None and 'year_from' in inf✅data and inf✅data['year_from'] is not None:
-            if v < inf✅data['year_from']:
+        if v is not None and 'year_from' in info.data and info.data['year_from'] is not None:
+            if v < info.data['year_from']:
                 raise ValueError('year_to must be greater than or equal to year_from')
         return v
     

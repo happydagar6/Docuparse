@@ -12,7 +12,7 @@
     {
       "name": "Create chat session",
       "status": "\u274c FAILED",
-      "endpoint": "/api/chat/sessions?paper_id=142a711f-3188-40b3-aa61-6e03b2e88a11",
+      "endpoint": "/api/chat/sessions?paper_id=cc660385-7c73-4002-b5b5-ce75df90ad3a",
       "status_code": 500,
       "error": "Failed to create chat session: 404: Paper not found or access denied"
     },
