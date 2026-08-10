@@ -65,7 +65,7 @@ async def generate_citation(
     """
     
     # Validate file type
-    if not file.filename.lower().endswith('.pdf'):
+    if not (file.filename or "").lower().endswith('.pdf'):
         raise HTTPException(
             status_code=400,
             detail="Invalid file type. Only PDF files are accepted."
@@ -154,7 +154,7 @@ async def batch_generate_citations(
     failed = 0
     
     for file in files:
-        if not file.filename.lower().endswith('.pdf'):
+        if not (file.filename or "").lower().endswith('.pdf'):
             results.append({
                 "filename": file.filename,
                 "citation": None,

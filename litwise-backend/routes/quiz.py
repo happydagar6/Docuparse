@@ -5,6 +5,7 @@ Endpoints for creating, retrieving, and evaluating quizzes
 """
 
 from fastapi import APIRouter, HTTPException, Depends
+from typing import Optional, cast, List, Any, Dict
 from auth_middleware import get_current_user, AuthUser
 from models.quiz import QuizConfig, QuizResponse, QuizAttemptRequest, QuizAttemptResponse
 from services.quiz_service import quiz_service
@@ -83,7 +84,7 @@ async def generate_quiz(
 @router.get("/list")
 async def list_quizzes(
     current_user: AuthUser = Depends(get_current_user),
-    paper_id: str = None
+    paper_id: Optional[str] = None
 ):
     """
     List user's quizzes
@@ -109,7 +110,8 @@ async def list_quizzes(
         else:
             # Get user's papers
             user_papers = supabase.table("papers").select("id").eq("user_id", current_user.id).execute()
-            paper_ids = [p["id"] for p in user_papers.data] if user_papers.data else []
+            up_data = cast(List[Any], user_papers.data or [])
+            paper_ids = [p["id"] for p in up_data if isinstance(p, dict)]
             if not paper_ids:
                 return {"quizzes": []}
             query = query.in_("paper_id", paper_ids)
@@ -137,14 +139,15 @@ async def get_quiz(
     """
     try:
         quiz = supabase.table("quizzes").select("*").eq("id", quiz_id).single().execute()
-        if not quiz.data:
+        q_data = cast(Dict[str, Any], quiz.data or {})
+        if not q_data:
             raise HTTPException(status_code=404, detail="Quiz not found")
         
         # Verify ownership
-        if quiz.data["user_id"] != current_user.id:
+        if q_data.get("user_id") != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        return quiz.data
+        return q_data
         
     except HTTPException:
         raise
@@ -213,10 +216,11 @@ async def delete_quiz(
     try:
         # Verify ownership
         quiz = supabase.table("quizzes").select("user_id").eq("id", quiz_id).single().execute()
-        if not quiz.data:
+        q_data = cast(Dict[str, Any], quiz.data or {})
+        if not q_data:
             raise HTTPException(status_code=404, detail="Quiz not found")
         
-        if quiz.data["user_id"] != current_user.id:
+        if q_data.get("user_id") != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Delete quiz (cascade will delete attempts)

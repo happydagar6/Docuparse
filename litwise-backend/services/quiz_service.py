@@ -19,7 +19,7 @@ import logging
 
 from models.quiz import (
     QuizConfig, 
-    QuizQuestion, 
+    QuizQuestion,
     QuizResponse,
     QuizAttemptRequest,
     QuizAttemptResponse,

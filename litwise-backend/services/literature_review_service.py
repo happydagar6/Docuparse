@@ -21,7 +21,7 @@ Key Architectural Innovations:
 import json
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
@@ -161,13 +161,14 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
 ["query 1", "query 2", "query 3", "query 4", ...]"""
 
         try:
-            response = self.client.chat.completions.create(
+            from typing import Any
+            response: Any = self.client.chat.completions.create(
                 model="gpt-5-mini-2025-08-07",
                 messages=[{"role": "user", "content": decomposition_prompt}],
                 max_completion_tokens=800,
             )
             
-            result = response.choices[0].message.content.strip()
+            result = (response.choices[0].message.content or "").strip()
             # Clean up response if wrapped in markdown code blocks
             if result.startswith("```"):
                 result = result.split("```")[1]
@@ -216,11 +217,12 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
             
             results = []
             for point in search_result.points:
+                payload = point.payload or {}
                 results.append({
-                    "content": point.payload.get("content", ""),
-                    "chunk_id": point.payload.get("chunk_id", 0),
-                    "page": point.payload.get("page", 1),
-                    "score": float(point.score),
+                    "content": payload.get("content", ""),
+                    "chunk_id": payload.get("chunk_id", 0),
+                    "page": payload.get("page", 1),
+                    "score": point.score,
                 })
             
             return results
@@ -391,7 +393,10 @@ STYLE: Critical Literature Review
 - REMEMBER: Do not critique based on outside knowledge of the field
 """,
         }
-        return instructions.get(style, instructions[ReviewStyle.NARRATIVE])
+        for k, v in instructions.items():
+            if k.value == style:
+                return v
+        return instructions[ReviewStyle.NARRATIVE]
     
     async def generate_review(
         self, request: LiteratureReviewRequest, paper_titles: dict
@@ -486,7 +491,8 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
 """
         
         # 4. Invoke LLM with System Prompt + Grounded User Prompt
-        response = self.client.chat.completions.create(
+        from typing import Any
+        response: Any = self.client.chat.completions.create(
             model="gpt-5-mini-2025-08-07",
             messages=[
                 {"role": "user", "content": f"{CLOSED_WORLD_SYSTEM_PROMPT}\n\n{prompt}"},
@@ -495,7 +501,7 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
         )
         
         # 5. Clean and parse JSON response
-        response_text = response.choices[0].message.content
+        response_text = response.choices[0].message.content or ""
         if response_text.startswith("```"):
             response_text = response_text.split("```")[1]
             if response_text.startswith("json"):
@@ -530,7 +536,7 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
             paper_count=len(request.paper_ids),
             content=content,
             word_count=word_count,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
     def _calculate_word_count(self, content: ReviewContent) -> int:

@@ -5,7 +5,7 @@ Implements user-based and endpoint-based rate limiting using Redis
 
 import redis
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import os
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request, Depends
@@ -31,6 +31,7 @@ class RateLimiterService:
 
     def __init__(self):
         """Initialize Redis connection from Upstash configuration."""
+        self.redis_client: Any = None
         try:
             # Try standard Redis URL first (for local Redis)
             self.redis_client = redis.from_url(REDIS_URL, decode_responses=True)
@@ -93,13 +94,14 @@ class RateLimiterService:
                 'limit': int
             }
         """
-        if not self.redis_client and not hasattr(self, "use_rest_api"):
+        # If redis is not connected (or fell back to REST which is unimplemented)
+        if not self.redis_client:
             return {
                 "allowed": True,
                 "remaining": -1,
                 "limit": max_requests,
                 "reset_in": window_seconds
-            }  # No rate limiting if Redis is not connected
+            }
 
         window_type = self._get_window_type(window_seconds)
         key = self._get_key(user_id, endpoint, window_type)
@@ -137,8 +139,6 @@ class RateLimiterService:
         except Exception as e:
             print(f"❌ Error in rate limiting {user_id}: {e}")
             # This is our 'Fail-Open' architecture.
-            # If the Redis connection drops, we DO NOT want the entire backend to crash with a 500 Error.
-            # Instead, we catch the exception and return a valid mock dictionary allowing the user to pass through.
             return {
                 "allowed": True, 
                 "remaining": -1,

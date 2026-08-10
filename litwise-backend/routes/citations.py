@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
-from typing import List
+from typing import List, Optional, cast, Any, Dict
 from models.citation import (
     CitationRequest, BatchCitationRequest, CitationResponse,
     CitationFormat, PaperMetadata
@@ -78,20 +78,16 @@ async def generate_citation(request: CitationRequest, current_user: AuthUser = D
     # Notice the `.eq("user_id", current_user.id)` - this guarantees users can only access their own data.
     result = supabase.table("papers").select("*").eq("id", request.paper_id).eq("user_id", current_user.id).single().execute()
     
-    if not result.data:
+    paper_data = cast(Dict[str, Any], result.data or {})
+    if not paper_data:
         raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
-    # Debug: Print paper data
+    metadata = extract_metadata(paper_data)
     print(f"\n🔍 [CITATION DEBUG] Paper ID: {request.paper_id}")
-    print(f"   Title: {result.data.get('title', 'N/A')}")
-    print(f"   Authors (raw from DB): {result.data.get('authors', 'N/A')}")
-    print(f"   Year: {result.data.get('publication_year', 'N/A')}")
-    print(f"   DOI: {result.data.get('doi', 'N/A')}")
-    
-    metadata = extract_metadata(result.data)
-    
-    print(f"   Extracted metadata authors: {metadata.authors}")
-    print(f"   Extracted metadata year: {metadata.year}")
+    print(f"   Title: {paper_data.get('title', 'N/A')}")
+    print(f"   Authors (raw from DB): {paper_data.get('authors', 'N/A')}")
+    print(f"   Year: {paper_data.get('publication_year', 'N/A')}")
+    print(f"   DOI: {paper_data.get('doi', 'N/A')}")
     
     citation = citation_service.generate(metadata, request.format)
     
@@ -112,18 +108,21 @@ async def batch_citations(request: BatchCitationRequest, current_user: AuthUser 
     
     result = supabase.table("papers").select("*").eq("user_id", current_user.id).in_("id", request.paper_ids).execute()
     
-    if not result.data:
+    papers_data = cast(List[Any], result.data or [])
+    if not papers_data:
         raise HTTPException(status_code=404, detail="No papers found or access denied")
     
     citations = []
-    for paper in result.data:
-        metadata = extract_metadata(paper)
-        citation = citation_service.generate(metadata, request.format)
-        citations.append({
-            "paper_id": paper["id"],
-            "title": paper["title"],
-            "citation": citation
-        })
+    metadata_dict = {}
+    for paper in papers_data:
+        if isinstance(paper, dict):
+            metadata_dict[paper["id"]] = extract_metadata(paper)
+            citation = citation_service.generate(metadata_dict[paper["id"]], request.format)
+            citations.append({
+                "paper_id": paper["id"],
+                "title": paper["title"],
+                "citation": citation
+            })
     
     return {"citations": citations, "format": request.format.value}
 
@@ -158,34 +157,35 @@ async def export_formatted_citations(request: BatchCitationRequest, current_user
     citations = result.data
     formatted_citations = []
     
-    # Generate formatted citation for each extracted citation
-    for cit in citations:
-        try:
-            # Create metadata from citation data
-            metadata = PaperMetadata(
-                id=cit.get("id", "unknown"),
-                title=cit.get("title") or cit.get("citation_text", "Untitled")[:200],
-                authors=cit.get("authors") or [],
-                year=cit.get("year"),
-                journal=cit.get("venue"),
-                doi=cit.get("doi"),
-                url=None,  # URLs typically not in extracted citations
-                volume=None,
-                issue=None,
-                pages=None,
-                publisher=None
-            )
-            
-            # Generate formatted citation
-            formatted = citation_service.generate(metadata, request.format)
-            formatted_citations.append({
-                "citation_id": cit.get("id"),
-                "title": metadata.title,
-                "citation": formatted
-            })
-        except Exception as e:
-            print(f"⚠️ Failed to format citation {cit.get('id')}: {e}")
-            continue
+    citations_list = cast(List[Any], result.data or [])
+    for cit in citations_list:
+        if isinstance(cit, dict):
+            try:
+                # Create metadata from citation data
+                metadata = PaperMetadata(
+                    id=str(cit.get("id", "unknown")),
+                    title=str(cit.get("title") or cit.get("citation_text", "Untitled")[:200]),
+                    authors=cast(Optional[List[str]], cit.get("authors")),
+                    year=int(cit["year"]) if cit.get("year") else None,
+                    journal=str(cit["venue"]) if cit.get("venue") else None,
+                    doi=str(cit["doi"]) if cit.get("doi") else None,
+                    url=None,  # URLs typically not in extracted citations
+                    volume=None,
+                    issue=None,
+                    pages=None,
+                    publisher=None
+                )
+                
+                # Generate formatted citation
+                formatted = citation_service.generate(metadata, request.format)
+                formatted_citations.append({
+                    "citation_id": cit.get("id"),
+                    "title": metadata.title,
+                    "citation": formatted
+                })
+            except Exception as e:
+                print(f"⚠️ Failed to format citation {cit.get('id')}: {e}")
+                continue
     
     if not formatted_citations:
         raise HTTPException(status_code=500, detail="Failed to generate formatted citations")
@@ -211,28 +211,28 @@ async def export_bibtex(request: BatchCitationRequest, current_user: AuthUser = 
     if not result.data:
         raise HTTPException(status_code=404, detail="No citations found for export")
     
-    citations = result.data
     entries = []
     
-    # Generate BibTeX entry for each citation
-    for cit in citations:
-        try:
-            # Create metadata from citation data
-            metadata = PaperMetadata(
-                id=cit.get("id", "unknown"),
-                title=cit.get("title", cit.get("citation_text", "Untitled")),
-                authors=cit.get("authors", []),
-                year=cit.get("year"),
-                journal=cit.get("venue"),
-                doi=cit.get("doi")
-            )
-            
-            # Generate BibTeX entry
-            entry = citation_service.generate(metadata, CitationFormat.BIBTEX)
-            entries.append(entry)
-        except Exception as e:
-            print(f"⚠️ Failed to generate BibTeX for citation {cit.get('id')}: {e}")
-            continue
+    citations_data = cast(List[Any], result.data or [])
+    for cit in citations_data:
+        if isinstance(cit, dict):
+            try:
+                # Create metadata from citation data
+                metadata = PaperMetadata(
+                    id=str(cit.get("id", "unknown")),
+                    title=str(cit.get("title") or cit.get("citation_text") or "Untitled"),
+                    authors=cast(Optional[List[str]], cit.get("authors")),
+                    year=int(cit["year"]) if cit.get("year") else None,
+                    journal=str(cit["venue"]) if cit.get("venue") else None,
+                    doi=str(cit["doi"]) if cit.get("doi") else None
+                )
+                
+                # Generate BibTeX entry
+                entry = citation_service.generate(metadata, CitationFormat.BIBTEX)
+                entries.append(entry)
+            except Exception as e:
+                print(f"⚠️ Failed to generate BibTeX for citation {cit.get('id')}: {e}")
+                continue
     
     if not entries:
         raise HTTPException(status_code=500, detail="Failed to generate BibTeX entries")
@@ -252,10 +252,10 @@ async def extract_citations_from_paper(request: ExtractCitationsRequest, current
     
     # Get paper and verify ownership
     result = supabase.table("papers").select("*").eq("id", request.paper_id).eq("user_id", current_user.id).single().execute()
-    if not result.data:
+    paper = cast(Dict[str, Any], result.data or {})
+    if not paper:
         raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
-    paper = result.data
     full_text = paper.get("content_text", "")
     
     # Delete existing citations for this paper to avoid duplicate key violations
@@ -286,7 +286,7 @@ async def extract_citations_from_paper(request: ExtractCitationsRequest, current
     duplicates = citation_extraction_service.detect_duplicate_citations(raw_citations, similarity_threshold=0.85)
     if duplicates:
         print(f"⚠️ Found {len(duplicates)} duplicate citation(s), merging...")
-        raw_citations = citation_extraction_service.merge_duplicate_citations(raw_citations, duplicates)
+        raw_citations = citation_extraction_service.merge_duplicate_citations(raw_citations, cast(Any, duplicates))
         print(f"✅ After deduplication: {len(raw_citations)} unique citations")
     
     # Find in-text contexts (increased limit from 3 to 10 for better context)
@@ -364,31 +364,33 @@ async def get_paper_citations(paper_id: str, current_user: AuthUser = Depends(ge
     """Get all extracted citations for a paper. User must own the paper."""
     # Verify paper ownership
     paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-    if not paper_check.data:
+    p_check = cast(List[Any], paper_check.data or [])
+    if not p_check:
         raise HTTPException(status_code=404, detail="Paper not found or access denied")
     
     result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).order("importance_score", desc=True).execute()
-    
-    if not result.data:
+    c_data = cast(List[Any], result.data or [])
+    if not c_data:
         return []
     
     # Process citations to ensure proper data types
     citations = []
-    for cit in result.data:
-        # Ensure arrays are not None
-        if cit.get('in_text_refs') is None:
-            cit['in_text_refs'] = []
-        if cit.get('citation_context') is None:
-            cit['citation_context'] = []
-        if cit.get('authors') is None:
-            cit['authors'] = []
-        
-        try:
-            citations.append(ExtractedCitation(**cit))
-        except Exception as e:
-            print(f"Failed to parse citation: {e}")
-            print(f"Citation data: {cit}")
-            continue
+    for cit in c_data:
+        if isinstance(cit, dict):
+            # Ensure arrays are not None
+            if cit.get('in_text_refs') is None:
+                cit['in_text_refs'] = []
+            if cit.get('citation_context') is None:
+                cit['citation_context'] = []
+            if cit.get('authors') is None:
+                cit['authors'] = []
+            
+            try:
+                citations.append(ExtractedCitation(**cit))
+            except Exception as e:
+                print(f"Failed to parse citation: {e}")
+                print(f"Citation data: {cit}")
+                continue
     
     return citations
 
@@ -398,10 +400,12 @@ async def get_citation_stats(paper_id: str, current_user: AuthUser = Depends(get
     """Get citation statistics for a paper. User must own the paper."""
     # Verify paper ownership
     paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-    if not paper_check.data:
-        raise HTTPException(status_code=404, detail="Paper not found or access denied")
+    papers_check_data = cast(List[Any], paper_check.data or [])
+    if not papers_check_data:
+        raise HTTPException(status_code=404, detail="No valid papers found or access denied")
     
     result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).execute()
+    citations_data = cast(List[Any], result.data or [])
     
     if not result.data:
         return CitationStatsResponse(
@@ -412,32 +416,35 @@ async def get_citation_stats(paper_id: str, current_user: AuthUser = Depends(get
             average_citation_year=None
         )
         
-    citations = result.data
-    
     # Calculate stats
-    citations_by_type = {}
-    years = []
+    citations_by_type: Dict[str, int] = {}
+    years: List[int] = []
     top_works = []
     
-    for cit in citations:
-        cit_type = cit.get("citation_type") or "unknown"  # Ensure never None
-        citations_by_type[cit_type] = citations_by_type.get(cit_type, 0) + 1
-        
-        if cit.get("year"):
-            years.append(cit["year"])
+    for cit in citations_data:
+        if isinstance(cit, dict):
+            cit_type = str(cit.get("citation_type") or "unknown")
+            citations_by_type[cit_type] = citations_by_type.get(cit_type, 0) + 1
             
-        if cit.get('importance_score', 0) > 0.5:
-            top_works.append({
-                'title': cit.get('title'),
-                'authors': cit.get('authors'),
-                'year': cit.get('year'),
-                'importance_score': cit.get('importance_score')
-            })
+            if cit.get("year"):
+                try:
+                    years.append(int(cit["year"]))
+                except Exception:
+                    pass
+                    
+            score = float(cit.get('importance_score', 0) or 0)
+            if score > 0.5:
+                top_works.append({
+                    'title': cit.get('title'),
+                    'authors': cit.get('authors'),
+                    'year': cit.get('year'),
+                    'importance_score': score
+                })
     
     top_works.sort(key=lambda x: x['importance_score'], reverse=True)
     return CitationStatsResponse(
         paper_id=paper_id,
-        total_citations=len(citations),
+        total_citations=len(citations_data),
         citations_by_type=citations_by_type,
         top_cited_works=top_works[:10],
         average_citation_year=sum(years) / len(years) if years else None
@@ -462,11 +469,13 @@ async def verify_citation(citation_id: str, current_user: AuthUser = Depends(get
     try:
         # Get citation and verify paper ownership
         citation = supabase.table("paper_citations").select("paper_id").eq("id", citation_id).single().execute()
-        if not citation.data:
+        cit_data = cast(Dict[str, Any], citation.data or {})
+        if not cit_data:
             raise HTTPException(status_code=404, detail="Citation not found")
         
-        paper_check = supabase.table("papers").select("id").eq("id", citation.data["paper_id"]).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        paper_check = supabase.table("papers").select("id").eq("id", cit_data.get("paper_id")).eq("user_id", current_user.id).execute()
+        p_check = cast(List[Any], paper_check.data or [])
+        if not p_check:
             raise HTTPException(status_code=404, detail="Citation not found or access denied")
         
         result = supabase.table("paper_citations").update({
@@ -487,11 +496,13 @@ async def unverify_citation(citation_id: str, current_user: AuthUser = Depends(g
     try:
         # Get citation and verify paper ownership
         citation = supabase.table("paper_citations").select("paper_id").eq("id", citation_id).single().execute()
-        if not citation.data:
+        cit_data = cast(Dict[str, Any], citation.data or {})
+        if not cit_data:
             raise HTTPException(status_code=404, detail="Citation not found")
         
-        paper_check = supabase.table("papers").select("id").eq("id", citation.data["paper_id"]).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        paper_check = supabase.table("papers").select("id").eq("id", cit_data.get("paper_id")).eq("user_id", current_user.id).execute()
+        p_check = cast(List[Any], paper_check.data or [])
+        if not p_check:
             raise HTTPException(status_code=404, detail="Citation not found or access denied")
         
         result = supabase.table("paper_citations").update({
@@ -512,28 +523,30 @@ async def get_verified_citations(paper_id: str, current_user: AuthUser = Depends
     try:
         # Verify paper ownership
         paper_check = supabase.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        p_check = cast(List[Any], paper_check.data or [])
+        if not p_check:
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
         result = supabase.table("paper_citations").select("*").eq("paper_id", paper_id).eq("verified", True).order("importance_score", desc=True).execute()
-        
-        if not result.data:
+        c_data = cast(List[Any], result.data or [])
+        if not c_data:
             return []
         
         citations = []
-        for cit in result.data:
-            if cit.get('in_text_refs') is None:
-                cit['in_text_refs'] = []
-            if cit.get('citation_context') is None:
-                cit['citation_context'] = []
-            if cit.get('authors') is None:
-                cit['authors'] = []
-            
-            try:
-                citations.append(ExtractedCitation(**cit))
-            except Exception as e:
-                print(f"Failed to parse citation: {e}")
-                continue
+        for cit in c_data:
+            if isinstance(cit, dict):
+                if cit.get('in_text_refs') is None:
+                    cit['in_text_refs'] = []
+                if cit.get('citation_context') is None:
+                    cit['citation_context'] = []
+                if cit.get('authors') is None:
+                    cit['authors'] = []
+                
+                try:
+                    citations.append(ExtractedCitation(**cit))
+                except Exception as e:
+                    print(f"Failed to parse citation: {e}")
+                    continue
         
         return citations
     except Exception as e:

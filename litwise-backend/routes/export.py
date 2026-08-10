@@ -55,7 +55,7 @@ async def export_apa_document(
             authors=request.authors,
             content=content_list,
             references_metadata=references_dict,
-            affiliation=request.affiliation,
+            affiliation=request.affiliation or "Independent Researcher",
             abstract=request.abstract,
             keywords=request.keywords
         )

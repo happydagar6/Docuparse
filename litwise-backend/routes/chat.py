@@ -13,7 +13,7 @@ This file defines all API endpoints for the Chat module, including:
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
-from typing import List, Optional
+from typing import List, Optional, cast, Any
 import json
 from datetime import datetime, timezone
 import uuid
@@ -66,10 +66,11 @@ async def create_chat_session(
         
         # Step 1: Security Check - Ensure the paper exists and belongs to current_user
         paper_result = supabase_client.table("papers").select("id, title").eq("id", paper_id).eq("user_id", current_user.id).execute()
-        if not paper_result.data:
+        paper_data = cast(List[Any], paper_result.data or [])
+        if not paper_data:
             raise HTTPException(status_code=404, detail="Paper not found or access denied")
         
-        paper_title = paper_result.data[0]["title"]
+        paper_title = paper_data[0]["title"]
         session_title = request.title or f"Chat with {paper_title}"
         
         # Step 2: Prepare new chat session payload
@@ -85,7 +86,8 @@ async def create_chat_session(
         result = supabase_client.table("chat_sessions").insert(session_data).execute()
         
         # Return validated Pydantic model
-        return ChatSession(**result.data[0])
+        res_data = cast(List[Any], result.data or [])
+        return ChatSession(**res_data[0])
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create chat session: {str(e)}")
@@ -121,17 +123,19 @@ async def get_paginated_chat_messages(
         if paper_id is None:
             # Cache Miss: Query Supabase for session -> paper mapping
             session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-            if not session_result.data:
+            s_data = cast(List[Any], session_result.data or [])
+            if not s_data:
                 raise HTTPException(status_code=404, detail="Chat session not found")
             
-            paper_id = session_result.data[0]["paper_id"]
+            paper_id = cast(str, s_data[0]["paper_id"])
             cache_session_paper(session_id, paper_id) # Save in Redis cache (15m TTL)
         
         owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
         if owns_paper is None:
             # Cache Miss: Verify if current_user owns this paper
             paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-            owns_paper = bool(paper_check.data)
+            p_data = cast(List[Any], paper_check.data or [])
+            owns_paper = bool(p_data)
             cache_paper_ownership(paper_id, current_user.id, owns_paper) # Save ownership in Redis
         
         if not owns_paper:
@@ -153,7 +157,7 @@ async def get_paginated_chat_messages(
         # ---------------------------------------------------------------------
         # STEP 3: Cache Miss -> Query PostgreSQL Database (Supabase)
         # ---------------------------------------------------------------------
-        query = supabase_client.table("chat_messages").select("*", count="exact").eq("session_id", session_id)
+        query = supabase_client.table("chat_messages").select("*", count=cast(Any, "exact")).eq("session_id", session_id)
         
         # Decode base64 cursor timestamp if provided for pagination
         if cursor:
@@ -174,8 +178,8 @@ async def get_paginated_chat_messages(
         # Execute query (fetch limit + 1 items to determine if `has_more` exists)
         result = query.order("created_at", desc=True).limit(limit + 1).execute()
         
-        messages_data = result.data
-        total_count = result.count
+        messages_data = cast(List[Any], result.data or [])
+        total_count = cast(Optional[int], result.count)
         
         # Determine if additional pages exist
         has_more = len(messages_data) > limit
@@ -200,7 +204,7 @@ async def get_paginated_chat_messages(
         if has_more and messages:
             last_message = messages[-1]
             cursor_payload = {
-                'timestamp': last_message.created_at.isoformat() if last_message.created_at else datetime.utcnow().isoformat(),
+                'timestamp': last_message.created_at.isoformat() if last_message.created_at else datetime.now(timezone.utc).isoformat(),
                 'id': last_message.id
             }
             next_cursor = base64.b64encode(json.dumps(cursor_payload).encode()).decode()
@@ -214,7 +218,7 @@ async def get_paginated_chat_messages(
             limit=limit,
             messages=messages_dict,
             next_cursor=next_cursor,
-            total_count=total_count,
+            total_count=total_count or 0,
             has_more=has_more,
             cursor=cursor,
             direction=direction
@@ -224,7 +228,7 @@ async def get_paginated_chat_messages(
             messages=messages,
             has_more=has_more,
             next_cursor=next_cursor,
-            total_count=total_count
+            total_count=total_count or 0
         )
         
     except HTTPException:
@@ -248,15 +252,17 @@ async def get_message_count(
         paper_id = get_cached_session_paper(session_id)
         if paper_id is None:
             session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-            if not session_result.data:
+            s_data = cast(List[Any], session_result.data or [])
+            if not s_data:
                 raise HTTPException(status_code=404, detail="Not found")
-            paper_id = session_result.data[0]["paper_id"]
+            paper_id = cast(str, s_data[0]["paper_id"])
             cache_session_paper(session_id, paper_id)
         
         owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
         if owns_paper is None:
             paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-            owns_paper = bool(paper_check.data)
+            p_data = cast(List[Any], paper_check.data or [])
+            owns_paper = bool(p_data)
             cache_paper_ownership(paper_id, current_user.id, owns_paper)
         
         if not owns_paper:
@@ -264,7 +270,7 @@ async def get_message_count(
         
         # Fast SQL count using DB index
         result = supabase_client.table("chat_messages").select(
-            "id", count="exact"
+            "id", count=cast(Any, "exact")
         ).eq("session_id", session_id).execute()
         
         return {"count": result.count}
@@ -291,7 +297,8 @@ async def get_paper_chat_sessions(paper_id: str, current_user: AuthUser = Depend
             "paper_id", paper_id
         ).order("updated_at", desc=True).execute()
         
-        return [ChatSession(**session) for session in result.data]
+        sessions_data = cast(List[Any], result.data or [])
+        return [ChatSession(**session) for session in sessions_data if isinstance(session, dict)]
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
@@ -310,15 +317,17 @@ async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(ge
         paper_id = get_cached_session_paper(session_id)
         if paper_id is None:
             session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-            if not session_result.data:
+            s_data = cast(List[Any], session_result.data or [])
+            if not s_data:
                 raise HTTPException(status_code=404, detail="Chat session not found")
-            paper_id = session_result.data[0]["paper_id"]
+            paper_id = cast(str, s_data[0]["paper_id"])
             cache_session_paper(session_id, paper_id)
         
         owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
         if owns_paper is None:
             paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-            owns_paper = bool(paper_check.data)
+            p_data = cast(List[Any], paper_check.data or [])
+            owns_paper = bool(p_data)
             cache_paper_ownership(paper_id, current_user.id, owns_paper)
         
         if not owns_paper:
@@ -329,20 +338,22 @@ async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(ge
         ).order("created_at").execute()
         
         messages = []
-        for message_data in result.data:
-            try:
-                validated_message = {
-                    "id": message_data.get("id"),
-                    "session_id": message_data.get("session_id"),
-                    "role": message_data.get("role"),
-                    "content": message_data.get("content"),
-                    "sources": message_data.get("sources", []),
-                    "created_at": message_data.get("created_at")
-                }
-                messages.append(ChatMessage(**validated_message))
-            except Exception as validation_error:
-                print(f"Message validation error: {validation_error}")
-                continue
+        msg_list = cast(List[Any], result.data or [])
+        for message_data in msg_list:
+            if isinstance(message_data, dict):
+                try:
+                    validated_message = {
+                        "id": message_data.get("id"),
+                        "session_id": message_data.get("session_id"),
+                        "role": message_data.get("role"),
+                        "content": message_data.get("content"),
+                        "sources": message_data.get("sources", []),
+                        "created_at": message_data.get("created_at")
+                    }
+                    messages.append(ChatMessage(**validated_message))
+                except Exception as validation_error:
+                    print(f"Message validation error: {validation_error}")
+                    continue
                 
         return messages
         
@@ -391,14 +402,16 @@ async def stream_chat(
         # STEP 2: Verify Session & Paper Ownership
         # ---------------------------------------------------------------------
         session_result = supabase_client.table("chat_sessions").select("*").eq("id", session_id).execute()
-        if not session_result.data:
+        s_data = cast(List[Any], session_result.data or [])
+        if not s_data:
             raise HTTPException(status_code=404, detail="Chat session not found")
         
-        session = session_result.data[0]
-        paper_id = session["paper_id"]
+        session = s_data[0]
+        paper_id = cast(str, session["paper_id"])
         
         paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-        if not paper_check.data:
+        p_data = cast(List[Any], paper_check.data or [])
+        if not p_data:
             raise HTTPException(status_code=404, detail="Chat session not found or access denied")
         
         # ---------------------------------------------------------------------
@@ -505,15 +518,17 @@ async def delete_chat_session(session_id: str, current_user: AuthUser = Depends(
         paper_id = get_cached_session_paper(session_id)
         if paper_id is None:
             session_result = supabase_client.table("chat_sessions").select("paper_id").eq("id", session_id).execute()
-            if not session_result.data:
+            s_data = cast(List[Any], session_result.data or [])
+            if not s_data:
                 raise HTTPException(status_code=404, detail="Chat session not found")
-            paper_id = session_result.data[0]["paper_id"]
+            paper_id = cast(str, s_data[0]["paper_id"])
             cache_session_paper(session_id, paper_id)
         
         owns_paper = get_cached_paper_ownership(paper_id, current_user.id)
         if owns_paper is None:
             paper_check = supabase_client.table("papers").select("id").eq("id", paper_id).eq("user_id", current_user.id).execute()
-            owns_paper = bool(paper_check.data)
+            p_data = cast(List[Any], paper_check.data or [])
+            owns_paper = bool(p_data)
             cache_paper_ownership(paper_id, current_user.id, owns_paper)
         
         if not owns_paper:

@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from models.literature_review import LiteratureReviewRequest, LiteratureReviewResponse
 from services.literature_review_service import literature_review_service
 from workflow.db import supabase
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import cast, List, Any
 from auth_middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/literature-review", tags=["Literature Review"])
@@ -14,12 +15,13 @@ async def generate_literature_review(request: LiteratureReviewRequest, current_u
     
     # Verify user owns all papers first
     owned_papers = supabase.table("papers").select("id, title").eq("user_id", current_user.id).in_("id", request.paper_ids).execute()
+    owned_list = cast(List[Any], owned_papers.data or [])
     
-    if not owned_papers.data or len(owned_papers.data) != len(request.paper_ids):
+    if not owned_list or len(owned_list) != len(request.paper_ids):
         raise HTTPException(status_code=404, detail="One or more papers not found or access denied")
     
     # Get paper titles for all selected papers
-    paper_titles = {paper["id"]: paper["title"] for paper in owned_papers.data}
+    paper_titles = {paper["id"]: paper["title"] for paper in owned_list if isinstance(paper, dict)}
     
     try:
         review = await literature_review_service.generate_review(request, paper_titles)
@@ -35,7 +37,7 @@ async def generate_literature_review(request: LiteratureReviewRequest, current_u
                 "paper_count": len(request.paper_ids),
                 "content": review.content.model_dump(),
                 "word_count": review.word_count,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         ).execute()
         return review

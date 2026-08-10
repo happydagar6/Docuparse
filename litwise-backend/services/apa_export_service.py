@@ -4,6 +4,7 @@ Converts research paper content to formatted .docx files
 """
 
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
@@ -126,7 +127,7 @@ class APAExportService:
         
         return buffer
     
-    def _set_margins(self, doc: Document):
+    def _set_margins(self, doc: DocxDocument):
         """Set 1-inch margins on all sides"""
         sections = doc.sections
         for section in sections:
@@ -135,7 +136,7 @@ class APAExportService:
             section.left_margin = self.margin
             section.right_margin = self.margin
     
-    def _add_header(self, doc: Document, running_head: str):
+    def _add_header(self, doc: DocxDocument, running_head: str):
         """Add running head (left) and page number (right) to header"""
         section = doc.sections[0]
         header = section.header
@@ -183,7 +184,7 @@ class APAExportService:
     
     def _add_title_page(
         self, 
-        doc: Document, 
+        doc: DocxDocument, 
         title: str, 
         authors: List[str], 
         affiliation: str
@@ -225,7 +226,7 @@ class APAExportService:
     
     def _add_abstract_page(
         self, 
-        doc: Document, 
+        doc: DocxDocument, 
         abstract: str, 
         keywords: Optional[List[str]] = None
     ):
@@ -297,7 +298,7 @@ class APAExportService:
         # Page break after abstract page (before body content)
         doc.add_page_break()
     
-    def _add_body_paragraph(self, doc: Document, text: str):
+    def _add_body_paragraph(self, doc: DocxDocument, text: str):
         """Add formatted body paragraph with APA styling"""
         para = doc.add_paragraph()
         run = para.add_run(text)
@@ -316,7 +317,7 @@ class APAExportService:
         # Line spacing
         self._set_line_spacing(para, self.line_spacing)
     
-    def _add_heading(self, doc: Document, level: int, text: str):
+    def _add_heading(self, doc: DocxDocument, level: int, text: str):
         """
         Add APA 7th Edition formatted heading
         
@@ -338,7 +339,7 @@ class APAExportService:
                  Text begins on same line after the heading
         
         Args:
-            doc: Document object
+            doc: DocxDocument object
             level: Heading level (1-5)
             text: Heading text
         
@@ -478,7 +479,7 @@ class APAExportService:
     
     def _add_table(
         self,
-        doc: Document,
+        doc: DocxDocument,
         number: int,
         title: str,
         rows: List[List[str]],
@@ -503,7 +504,7 @@ class APAExportService:
         - Bottom border closes the table
         
         Args:
-            doc: Document object
+            doc: DocxDocument object
             number: Table number for ordering
             title: Table title (will be italicized)
             rows: List of rows, where each row is list of cell strings
@@ -647,7 +648,7 @@ class APAExportService:
     
     def _add_figure(
         self,
-        doc: Document,
+        doc: DocxDocument,
         number: int,
         file_id: str,
         filename: str,
@@ -672,7 +673,7 @@ class APAExportService:
         - Spacing maintained for professional appearance
         
         Args:
-            doc: Document object
+            doc: DocxDocument object
             number: Figure number for ordering
             file_id: Unique file ID from media upload
             filename: Original filename
@@ -843,7 +844,7 @@ class APAExportService:
     
     def _add_references(
         self, 
-        doc: Document, 
+        doc: DocxDocument, 
         cited_papers: set, 
         references_metadata: Dict[str, Dict]
     ):
@@ -882,7 +883,7 @@ class APAExportService:
         for _, metadata in references:
             self._add_formatted_reference(doc, metadata)
     
-    def _add_formatted_reference(self, doc: Document, metadata: Dict):
+    def _add_formatted_reference(self, doc: DocxDocument, metadata: Dict):
         """
         Add a single formatted reference with rich text (italics, hyperlinks)
         

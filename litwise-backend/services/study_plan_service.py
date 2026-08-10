@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from openai import OpenAI
 from qdrant_client import QdrantClient
 from models.study_plan import StudyPlanRequest, StudyPlanResponse, WeekPlan, DayPlan
@@ -31,7 +31,7 @@ class StudyPlanService:
             with_payload=True,
         )
 
-        chunks = [point.payload.get("content", "") for point in results[0]]
+        chunks = [point.payload.get("content", "") if point.payload else "" for point in results[0]]
         return "\n\n".join(chunks[:limit])
 
     async def generate_plan(
@@ -120,7 +120,8 @@ Generate a structured JSON with this EXACT format:
 
 ⚠️ OUTPUT: Respond with ONLY valid JSON. No markdown, no code blocks, no explanations."""
 
-        response = self.client.chat.completions.create(
+        from typing import Any
+        response: Any = self.client.chat.completions.create(
             model="gpt-5-mini-2025-08-07",
             messages=[
                 {"role": "user", "content": f"You are an expert study planner who creates detailed, actionable, and comprehensive study schedules. Your plans are thorough, specific, and help students understand exactly what to do each day. Always output valid JSON only.\n\n{prompt}"},
@@ -128,7 +129,7 @@ Generate a structured JSON with this EXACT format:
             max_completion_tokens=8000,
         )
 
-        response_text = response.choices[0].message.content.strip()
+        response_text = (response.choices[0].message.content or "").strip()
         if response_text.startswith("```"):
             response_text = response_text.split("```")[1]
             if response_text.startswith("json"):
@@ -145,7 +146,7 @@ Generate a structured JSON with this EXACT format:
             study_style=request.study_style.value,
             weeks=[WeekPlan(**w) for w in plan_json["weeks"]],
             tips=plan_json.get("tips", []),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
 
