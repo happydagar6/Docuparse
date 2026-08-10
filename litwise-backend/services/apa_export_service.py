@@ -157,8 +157,9 @@ class APAExportService:
         self._add_page_number(header_para)
         
         # Set tab stop for right alignment
+        from docx.enum.text import WD_TAB_ALIGNMENT
         tab_stops = header_para.paragraph_format.tab_stops
-        tab_stops.add_tab_stop(Inches(6.0), WD_ALIGN_PARAGRAPH.RIGHT)
+        tab_stops.add_tab_stop(Inches(6.0), WD_TAB_ALIGNMENT.RIGHT)
     
     def _add_page_number(self, paragraph):
         """Add page number field to paragraph"""
@@ -725,12 +726,12 @@ class APAExportService:
                     # Placeholder if image not found
                     placeholder_run = fig_para.add_run(f"[Figure {number}: {filename}]")
                     placeholder_run.font.size = Pt(10)
-                    placeholder_run.font.color.rgb = RGBColor(128, 128, 128)
+                    setattr(placeholder_run.font.color, 'rgb', RGBColor(128, 128, 128))
             except Exception as e:
                 # Fallback placeholder
                 placeholder_run = fig_para.add_run(f"[Image not available: {filename}]")
                 placeholder_run.font.size = Pt(10)
-                placeholder_run.font.color.rgb = RGBColor(128, 128, 128)
+                setattr(placeholder_run.font.color, 'rgb', RGBColor(128, 128, 128))
             
             # Figure formatting
             fig_format = fig_para.paragraph_format
@@ -765,7 +766,7 @@ class APAExportService:
             # Graceful degradation - add text placeholder
             error_para = doc.add_paragraph()
             error_run = error_para.add_run(f"[Figure {number}: Unable to embed image - {str(e)[:50]}...]")
-            error_run.font.color.rgb = RGBColor(192, 0, 0)  # Red for error
+            setattr(error_run.font.color, 'rgb', RGBColor(192, 0, 0))  # Red for error
             error_para.paragraph_format.space_before = Pt(12)
             error_para.paragraph_format.space_after = Pt(12)
     

@@ -21,7 +21,7 @@ SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 
 class AuthUser:
     """Represents an authenticated user"""
-    def __init__(self, user_id: str, email: str, metadata: dict = None):
+    def __init__(self, user_id: str, email: str = "", metadata: Optional[dict] = None):
         self.id = user_id
         self.email = email
         self.metadata = metadata or {}
@@ -102,7 +102,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
     
     # Extract user information from the JWT payload
     user_id = payload.get("sub")
-    email = payload.get("email")
+    email = str(payload.get("email") or "")
     user_metadata = payload.get("user_metadata", {})
     
     if not user_id:
@@ -139,7 +139,7 @@ async def get_optional_user(
         payload = await verify_token(credentials)
         
         user_id = payload.get("sub")
-        email = payload.get("email")
+        email = str(payload.get("email") or "")
         user_metadata = payload.get("user_metadata", {})
         
         if not user_id:

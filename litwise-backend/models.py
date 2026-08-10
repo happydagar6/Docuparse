@@ -184,7 +184,7 @@ class QuizType(str, Enum):
 class QuizQuestion(BaseModel):
     """Single quiz question"""
     question_text: str = Field(..., description="The question")
-    options: List[str] = Field(..., min_items=4, max_items=4, description="4 options")
+    options: List[str] = Field(..., min_length=4, max_length=4, description="4 options")
     correct_answer_index: int = Field(..., ge=0, le=3, description="Index of correct answer")
     explanation: str = Field(..., description="Detailed explanation")
     source_citation: str = Field(..., description="Citation from source")

@@ -189,14 +189,15 @@ async def get_paginated_chat_messages(
         # Map raw DB records to Pydantic ChatMessage models
         messages = [
             ChatMessage(
-                id=msg_data.get("id"),
-                session_id=msg_data.get("session_id"),
-                role=msg_data.get("role"),
-                content=msg_data.get("content"),
+                id=str(msg_data.get("id", "")),
+                session_id=str(msg_data.get("session_id") or session_id),
+                role=str(msg_data.get("role", "user")),
+                content=str(msg_data.get("content", "")),
                 sources=msg_data.get("sources", []),
                 created_at=msg_data.get("created_at")
             )
             for msg_data in messages_data
+            if isinstance(msg_data, dict)
         ]
         
         # Encode next cursor (timestamp + ID) into Base64 for the frontend
@@ -212,7 +213,7 @@ async def get_paginated_chat_messages(
         # ---------------------------------------------------------------------
         # STEP 4: Save Query Result into Redis L2 Cache
         # ---------------------------------------------------------------------
-        messages_dict = [msg.dict() for msg in messages]
+        messages_dict = [msg.model_dump() for msg in messages]
         cache_set(
             session_id=session_id,
             limit=limit,
@@ -343,10 +344,10 @@ async def get_chat_messages(session_id: str, current_user: AuthUser = Depends(ge
             if isinstance(message_data, dict):
                 try:
                     validated_message = {
-                        "id": message_data.get("id"),
-                        "session_id": message_data.get("session_id"),
-                        "role": message_data.get("role"),
-                        "content": message_data.get("content"),
+                        "id": str(message_data.get("id", "")),
+                        "session_id": str(message_data.get("session_id") or session_id),
+                        "role": str(message_data.get("role", "user")),
+                        "content": str(message_data.get("content", "")),
                         "sources": message_data.get("sources", []),
                         "created_at": message_data.get("created_at")
                     }

@@ -37,7 +37,7 @@ class AICitationService:
         """Initialize the citation service with OpenAI model"""
         self.llm = ChatOpenAI(
             model="gpt-5-mini-2025-08-07",
-            api_key=os.getenv("OPENAI_API_KEY")
+            api_key=os.getenv("OPENAI_API_KEY") # type: ignore
         )
         print("✅ AI Citation Service initialized with OpenAI model")
     
@@ -284,9 +284,7 @@ class AICitationService:
         Returns:
             Metadata dict or None if failed
         """
-        try:
-            # Prompt for AI to extract structured metadata
-            prompt = f"""You are an expert academic librarian. Extract citation metadata from this academic paper's first pages.
+        prompt = f"""You are an expert academic librarian. Extract citation metadata from this academic paper's first pages.
 
 **CRITICAL INSTRUCTIONS:**
 1. Extract ONLY from the PAPER ITSELF (title, authors, year, journal on first page)
@@ -314,9 +312,13 @@ class AICitationService:
 
 Return ONLY the JSON object, nothing else."""
 
-            # Call AI
+        # Call AI
+        response_text = ""
+        try:
             response = await self.llm.ainvoke(prompt)
-            response_text = response.content.strip()
+            content = response.content
+            response_text = content if isinstance(content, str) else str(content)
+            response_text = response_text.strip()
             
             # Extract JSON from response (in case AI adds extra text)
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)

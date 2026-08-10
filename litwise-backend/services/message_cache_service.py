@@ -21,8 +21,8 @@ Key Features & Architectural Patterns:
 import json
 import redis
 import os
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Tuple, Any, cast
 from dotenv import load_dotenv
 import logging
 
@@ -52,7 +52,7 @@ class MessageCacheService:
 
     def __init__(self):
         """Initialize Redis client connection."""
-        self.redis_client = None
+        self.redis_client: Any = None
         self.use_rest_api = False
         self._initialize_redis()
 
@@ -183,7 +183,7 @@ class MessageCacheService:
                 "next_cursor": next_cursor,
                 "total_count": total_count,
                 "has_more": has_more,
-                "cached_at": datetime.utcnow().isoformat(),
+                "cached_at": datetime.now(timezone.utc).isoformat(),
                 "session_id": session_id
             }
 

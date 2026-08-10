@@ -17,10 +17,12 @@ Architectural Patterns:
 =============================================================================
 """
 
-from typing import Optional
+from typing import Optional, List, Dict, Any, cast
 from supabase import Client
 from models import NoteCreate, NoteUpdate, NoteResponse, NoteListResponse
-from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class NotesService:
@@ -58,7 +60,8 @@ class NotesService:
             .execute()
 
         # Map database JSON rows into Pydantic models
-        notes = [NoteResponse(**note) for note in response.data]
+        notes_data = cast(List[Dict[str, Any]], response.data or [])
+        notes = [NoteResponse(**note) for note in notes_data if isinstance(note, dict)]
         pinned_count = sum(1 for note in notes if note.pinned)
 
         return NoteListResponse(
@@ -85,8 +88,9 @@ class NotesService:
             .single()\
             .execute()
 
-        if response.data:
-            return NoteResponse(**response.data)
+        note_data = cast(Dict[str, Any], response.data or {})
+        if note_data:
+            return NoteResponse(**note_data)
         return None
 
     async def create_note(self, note_data: NoteCreate, user_id: str) -> NoteResponse:
@@ -109,10 +113,11 @@ class NotesService:
             .insert(note_dict)\
             .execute()
 
-        if not response.data:
+        created_data = cast(List[Dict[str, Any]], response.data or [])
+        if not created_data:
             raise ValueError("Failed to create note")
 
-        return NoteResponse(**response.data[0])
+        return NoteResponse(**created_data[0])
 
     async def update_note(
         self,
@@ -145,8 +150,9 @@ class NotesService:
             .eq('user_id', user_id)\
             .execute()
 
-        if response.data:
-            return NoteResponse(**response.data[0])
+        updated_data = cast(List[Dict[str, Any]], response.data or [])
+        if updated_data:
+            return NoteResponse(**updated_data[0])
         return None
 
     async def delete_note(self, note_id: str, user_id: str) -> bool:
@@ -166,7 +172,7 @@ class NotesService:
             .eq('user_id', user_id)\
             .execute()
 
-        return len(response.data) > 0
+        return len(response.data or []) > 0
 
     async def toggle_pin(self, note_id: str, user_id: str) -> Optional[NoteResponse]:
         """
@@ -191,6 +197,7 @@ class NotesService:
             .eq('user_id', user_id)\
             .execute()
 
-        if response.data:
-            return NoteResponse(**response.data[0])
+        pinned_data = cast(List[Dict[str, Any]], response.data or [])
+        if pinned_data:
+            return NoteResponse(**pinned_data[0])
         return None

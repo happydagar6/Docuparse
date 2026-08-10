@@ -67,7 +67,7 @@ class AsyncPipelineWrapper:
         """
         Internal method to run pipeline in thread pool
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         
         # Run the blocking pipeline operation in a thread pool
         result = await loop.run_in_executor(

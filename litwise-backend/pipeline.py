@@ -2,7 +2,8 @@
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from typing import TypedDict, Annotated, Dict, Any
+from typing import Annotated, Dict, Any
+from typing_extensions import TypedDict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,7 +51,7 @@ class AgentState(TypedDict):
 # Add more fileds as needed
 
 
-def extract_agent(state: AgentState) -> AgentState:
+def extract_agent(state: AgentState) -> Dict[str, Any]:
     """Extract key points and citations from paper text"""
     try:
         # Safely chunk the text
@@ -69,7 +70,7 @@ Extract the most important points from this text."""
         response = llm.invoke([HumanMessage(content=prompt)])
         
         # Ensure clean, serializable output
-        extracted_content = response.content if hasattr(response, 'content') else str(response)
+        extracted_content = str(response.content) if hasattr(response, 'content') else str(response)
         
         result_summary = {
             "key_points": [extracted_content.strip()],
@@ -84,7 +85,7 @@ Extract the most important points from this text."""
         return {"summary": {"key_points": ["Extraction failed"], "citations": [], "related_works": []}}
 
 
-def summarize_agent(state: AgentState) -> AgentState:
+def summarize_agent(state: AgentState) -> Dict[str, Any]:
     """Summarize extracted key points"""
     try:
         # Safely get existing summary
@@ -108,7 +109,7 @@ Please format your summary using clear markdown:
 Create a well-structured summary that's easy to read and understand."""
         
         response = llm.invoke([HumanMessage(content=prompt)])
-        summary_content = response.content if hasattr(response, 'content') else str(response)
+        summary_content = str(response.content) if hasattr(response, 'content') else str(response)
         
         # Update summary while preserving other fields
         updated_summary = {
@@ -124,7 +125,7 @@ Create a well-structured summary that's easy to read and understand."""
         return {"summary": state.get('summary', {"key_points": [], "citations": [], "related_works": []})}
 
 
-def link_agent(state: AgentState) -> AgentState:
+def link_agent(state: AgentState) -> Dict[str, Any]:
     """Generate related works and topic links"""
     try:
         # Safely get text and existing summary
@@ -145,7 +146,7 @@ Provide 3-5 most relevant research topics or works."""
         response = llm.invoke([HumanMessage(content=prompt)])
         
         # Process related works
-        related_content = response.content if hasattr(response, 'content') else str(response)
+        related_content = str(response.content) if hasattr(response, 'content') else str(response)
         related_works = [work.strip() for work in related_content.split('\n') if work.strip()]
         
         # Build final summary

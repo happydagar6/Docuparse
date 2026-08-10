@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from difflib import SequenceMatcher
 import logging
 
@@ -87,7 +87,7 @@ class CitationExtractionService:
     
     def extract_metadata_from_citation(self, citation_text: str) -> Dict:
         """Extract structured metadata from citation text using enhanced regex patterns"""
-        metadata = {
+        metadata: Dict[str, Any] = {
             'title': None,
             'authors': [],
             'year': None,

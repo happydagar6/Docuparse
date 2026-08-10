@@ -7,8 +7,8 @@ Production-ready implementation with closed-world constraints
 import json
 import uuid
 import asyncio
-from datetime import datetime
-from typing import List, Dict
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional, cast
 from openai import AsyncOpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
@@ -243,11 +243,11 @@ class QuizService:
                     }
                     for c in context_chunks
                 ],
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             
-            supabase.table("quizzes").insert(quiz_data).execute()
+            supabase.table("quizzes").insert(cast(Any, quiz_data)).execute()
             logger.info(f"   ✅ Quiz saved with ID: {quiz_id}")
             
             # ========== RETURN RESPONSE ==========
@@ -274,8 +274,8 @@ class QuizService:
                     )
                     for c in context_chunks
                 ],
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             
         except Exception as e:
@@ -334,9 +334,9 @@ class QuizService:
             context_chunks = [
                 {
                     "id": result.id,
-                    "paper_id": result.payload.get("paper_id"),
-                    "text": result.payload.get("content", "") or result.payload.get("text", ""),  # "content" is the key used in utils.py
-                    "metadata": result.payload.get("metadata", {}),
+                    "paper_id": result.payload.get("paper_id") if result.payload else "",
+                    "text": (result.payload.get("content", "") or result.payload.get("text", "")) if result.payload else "",
+                    "metadata": result.payload.get("metadata", {}) if result.payload else {},
                     "score": result.score
                 }
                 for result in search_results.points
@@ -432,7 +432,7 @@ Generate the quiz as valid JSON now."""
                 logger.info(f"   - LLM attempt {attempt + 1}/{max_retries}")
                 
                 # Call LLM (async)
-                response = await self.client.chat.completions.create(
+                response: Any = await self.client.chat.completions.create(
                     model="gpt-5-mini-2025-08-07",
                     messages=[
                         {
@@ -493,6 +493,7 @@ Generate the quiz as valid JSON now."""
                 if attempt == max_retries - 1:
                     raise
                 await asyncio.sleep(2)  # Longer pause before retry
+        raise ValueError(f"Failed to generate quiz after {max_retries} attempts")
     
     def _parse_quiz_json(
         self,
@@ -587,22 +588,21 @@ Generate the quiz as valid JSON now."""
                 .execute()
             )
             
-            if not quiz_result.data:
+            quiz_dict = cast(Dict[str, Any], quiz_result.data or {})
+            if not quiz_dict:
                 raise ValueError(f"Quiz not found: {attempt_request.quiz_id}")
             
-            quiz_data = quiz_result.data
-            
             # Verify ownership
-            if quiz_data["user_id"] != user_id:
+            if quiz_dict.get("user_id") != user_id:
                 raise PermissionError("User does not own this quiz")
             
             # Parse questions
-            questions = [QuizQuestion(**q) for q in quiz_data["questions"]]
+            raw_questions = cast(List[Dict[str, Any]], quiz_dict.get("questions") or [])
+            questions = [QuizQuestion(**q) for q in raw_questions if isinstance(q, dict)]
             
             # Calculate score
             correct_count = 0
-            for q_idx_str, selected_idx in attempt_request.responses.items():
-                q_idx = int(q_idx_str)
+            for q_idx, selected_idx in attempt_request.responses.items():
                 if q_idx < len(questions):
                     if questions[q_idx].correct_answer_index == selected_idx:
                         correct_count += 1
@@ -620,10 +620,10 @@ Generate the quiz as valid JSON now."""
                 "score": score,
                 "correct_answers": correct_count,
                 "total_questions": total,
-                "completed_at": datetime.utcnow().isoformat()
+                "completed_at": datetime.now(timezone.utc).isoformat()
             }
             
-            supabase.table("quiz_attempts").insert(attempt_data).execute()
+            supabase.table("quiz_attempts").insert(cast(Any, attempt_data)).execute()
             
             logger.info(
                 f"✅ Attempt saved: {attempt_id} | "
@@ -636,7 +636,8 @@ Generate the quiz as valid JSON now."""
                 correct_answers=correct_count,
                 total_questions=total,
                 score=score,
-                completed_at=datetime.utcnow()
+                completed_at=datetime.now(timezone.utc),
+                feedback=None
             )
             
         except Exception as e:
@@ -671,7 +672,8 @@ Generate the quiz as valid JSON now."""
                 .execute()
             )
             
-            if not quiz.data or quiz.data["user_id"] != user_id:
+            q_dict = cast(Dict[str, Any], quiz.data or {})
+            if not q_dict or q_dict.get("user_id") != user_id:
                 raise PermissionError("Access denied to this quiz")
             
             # Get all attempts
@@ -682,7 +684,7 @@ Generate the quiz as valid JSON now."""
                 .execute()
             )
             
-            attempts = attempts_result.data or []
+            attempts = cast(List[Dict[str, Any]], attempts_result.data or [])
             
             if not attempts:
                 return {
@@ -693,7 +695,13 @@ Generate the quiz as valid JSON now."""
                     "attempts": []
                 }
             
-            scores = [a["score"] for a in attempts if a.get("score") is not None]
+            scores = [float(a["score"]) for a in attempts if isinstance(a, dict) and a.get("score") is not None]
+            
+            sorted_attempts = sorted(
+                [a for a in attempts if isinstance(a, dict)], 
+                key=lambda x: str(x.get("completed_at") or ""), 
+                reverse=True
+            )
             
             return {
                 "quiz_id": quiz_id,
@@ -702,17 +710,13 @@ Generate the quiz as valid JSON now."""
                 "average_score": sum(scores) / len(scores) if scores else None,
                 "attempts": [
                     {
-                        "id": a["id"],
-                        "score": a["score"],
-                        "correct": a["correct_answers"],
-                        "total": a["total_questions"],
-                        "completed_at": a["completed_at"]
+                        "id": a.get("id"),
+                        "score": a.get("score"),
+                        "correct": a.get("correct_answers"),
+                        "total": a.get("total_questions"),
+                        "completed_at": a.get("completed_at")
                     }
-                    for a in sorted(
-                        attempts, 
-                        key=lambda x: x["completed_at"], 
-                        reverse=True
-                    )
+                    for a in sorted_attempts
                 ]
             }
             
