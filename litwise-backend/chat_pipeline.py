@@ -30,9 +30,6 @@ from workflow.db import supabase, qdrant
 from dotenv import load_dotenv
 load_dotenv()
 
-
-
-
 class ChatState:
     def __init__(self):
         self.question: str = ""
