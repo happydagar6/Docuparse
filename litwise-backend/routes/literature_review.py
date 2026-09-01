@@ -30,7 +30,7 @@ async def generate_literature_review(request: LiteratureReviewRequest, current_u
         supabase.table("literature_reviews").insert(
             {
                 "id": review.id,
-                "user_id": str(current_user.id),  # Convert UUID to string for TEXT field
+                "user_id": current_user.id,  # Convert UUID to string for TEXT field
                 "topic": request.topic,
                 "review_style": request.review_style.value,
                 "paper_ids": request.paper_ids,
@@ -54,7 +54,7 @@ async def list_literature_reviews(current_user: AuthUser = Depends(get_current_u
     result = (
         supabase.table("literature_reviews")
         .select("*")
-        .eq("user_id", str(current_user.id))  # Filter by user_id (TEXT field)
+        .eq("user_id", current_user.id)  # Filter by user_id (TEXT field)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -69,7 +69,7 @@ async def get_literature_review(review_id: str, current_user: AuthUser = Depends
         supabase.table("literature_reviews")
         .select("*")
         .eq("id", review_id)
-        .eq("user_id", str(current_user.id))
+        .eq("user_id", current_user.id)
         .single()
         .execute()
     )
@@ -84,9 +84,9 @@ async def delete_literature_review(review_id: str, current_user: AuthUser = Depe
     """Delete a literature review. User must own it."""
     
     # Verify ownership before deleting
-    check = supabase.table("literature_reviews").select("id").eq("id", review_id).eq("user_id", str(current_user.id)).execute()
+    check = supabase.table("literature_reviews").select("id").eq("id", review_id).eq("user_id", current_user.id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Literature review not found or access denied")
     
-    supabase.table("literature_reviews").delete().eq("id", review_id).eq("user_id", str(current_user.id)).execute()
+    supabase.table("literature_reviews").delete().eq("id", review_id).eq("user_id", current_user.id).execute()
     return {"success": True}

@@ -440,7 +440,7 @@ def chunk_text(text: str, chunk_size: int = 3000, chunk_overlap: int = 800) -> l
 
     return chunks_with_positions
 
-def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_type: str = "basic", page_info: list[dict] = None):
+def store_embedding(text: str, metadata: dict, paper_id: str | None = None, embedding_type: str = "basic", page_info: list[dict] | None = None):
     """
     Store document embeddings in Qdrant with proper chunking and accurate page mapping.
     Also builds BM25 index for hybrid search.
@@ -625,19 +625,7 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
             last_exc = e
             print(f"Upsert method failed: {e}")
             
-    # 2) Try qdrant.http.points_api.upsert (fallback)
-    if not success and hasattr(qdrant, "http") and hasattr(qdrant.http, "points_api"):
-        api = qdrant.http.points_api
-        if hasattr(api, "upsert"):
-            try:
-                from qdrant_client.http.models import UpsertPoints
-                upsert_body = UpsertPoints(points=points)
-                api.upsert(collection_name=collection, body=upsert_body)
-                success = True
-                print(f"Successfully stored {len(points)} embedding chunks using HTTP API")
-            except Exception as e:
-                last_exc = e
-                print(f"HTTP API method failed: {e}")
+
                 
     # 3) Direct HTTP REST API fallback
     if not success:
@@ -678,8 +666,11 @@ def store_embedding(text: str, metadata: dict, paper_id: str = None, embedding_t
     if documents_for_bm25:
         try:
             print(f"Building BM25 index for {len(documents_for_bm25)} documents...")
-            enhanced_search.build_bm25_index(paper_id, documents_for_bm25)
-            print(f"✅ BM25 index built successfully for paper: {paper_id}")
+            if isinstance(paper_id, str):
+                enhanced_search.build_bm25_index(paper_id, documents_for_bm25)
+                print(f"✅ BM25 index built successfully for paper: {paper_id}")
+            else:
+                print("Warning: Could not build BM25 index because paper_id is missing or invalid.")
         except Exception as e:
             print(f"Warning: Failed to build BM25 index: {e}")
             # Don't fail the entire operation if BM25 indexing fails
@@ -985,7 +976,7 @@ def store_markdown_embeddings(
     markdown_text: str,
     metadata: dict,
     paper_id: str,
-    page_info: list[dict] = None
+    page_info: list[dict] | None = None
 ):
     """
     ✅ PRODUCTION-GRADE: Store embeddings using MarkdownElementNodeParser strategy.

@@ -313,7 +313,7 @@ class LayoutAwareParser:
                         chunk_rows,
                         chunk_idx,
                         num_chunks,
-                        table.get('page'),
+                        table.get('page', 1),
                         table_type,  # Pass for enhanced formatting
                         fiscal_year  # Pass for year-aware context
                     )
@@ -359,7 +359,7 @@ class LayoutAwareParser:
         lines = []
         
         # Header row
-        lines.append("| " + " | ".join(str(h) for h in headers) + " |")
+        lines.append("| " + " | ".join(headers) + " |")
         
         # Separator row
         lines.append("|" + "|".join(["---" for _ in headers]) + "|")
@@ -368,7 +368,7 @@ class LayoutAwareParser:
         for row in rows:
             # Pad row if needed
             padded_row = list(row) + [""] * (len(headers) - len(row))
-            lines.append("| " + " | ".join(str(cell) for cell in padded_row[:len(headers)]) + " |")
+            lines.append("| " + " | ".join(cell for cell in padded_row[:len(headers)]) + " |")
         
         return "\n".join(lines)
     
@@ -414,7 +414,7 @@ class LayoutAwareParser:
         for row in rows:
             # Pad row if needed
             padded_row = list(row) + [""] * (len(headers) - len(row))
-            parts.append("| " + " | ".join(str(cell) for cell in padded_row[:len(headers)]) + " |")
+            parts.append("| " + " | ".join(cell for cell in padded_row[:len(headers)]) + " |")
         
         return "\n".join(parts)
     
@@ -482,7 +482,7 @@ class LayoutAwareParser:
         
         # Check headers for year patterns
         for header in headers:
-            header_str = str(header)
+            header_str = header
             # Match 4-digit years (2020-2029)
             year_matches = re.findall(r'20[2-3]\d', header_str)
             years.extend(year_matches)
@@ -490,7 +490,7 @@ class LayoutAwareParser:
         # Check first few rows for year indicators
         for row in rows[:3]:
             for cell in row:
-                cell_str = str(cell)
+                cell_str = cell
                 year_matches = re.findall(r'20[2-3]\d', cell_str)
                 years.extend(year_matches)
         

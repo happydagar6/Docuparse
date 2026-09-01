@@ -8,7 +8,7 @@ Features: Layout-aware parsing, page-spanning table merging, smart chunking
 import fitz  # PyMuPDF
 import base64
 import io
-from typing import List, Dict
+from typing import List, Dict, Optional
 from PIL import Image
 import hashlib
 import re
@@ -101,7 +101,7 @@ class MultiModalExtractor:
             print(f"❌ Failed to extract images from {pdf_path}: {e}")
             return []
         
-    def extract_tables(self, pdf_path: str, page_info: List[Dict] = None, markdown_content: str = None) -> List[Dict]:
+    def extract_tables(self, pdf_path: str, page_info: Optional[List[Dict]] = None, markdown_content: Optional[str] = None) -> List[Dict]:
         """
         Extract tables from PDF using PyMuPDF's find_tables() + fallback markdown parsing.
         
@@ -475,7 +475,7 @@ class MultiModalExtractor:
         # Valid if has both header and separator (data is optional)
         return has_header and has_separator
     
-    def _parse_markdown_table(self, markdown_table: str, table_index: int = 0) -> Dict:
+    def _parse_markdown_table(self, markdown_table: str, table_index: int = 0) -> Optional[Dict]:
         """
         Parse markdown table string into structured format.
         More robust parsing to handle various markdown table formats.
@@ -593,7 +593,7 @@ class MultiModalExtractor:
         
         return "\n".join(text_parts)
     
-    def detect_equations(self, pdf_path: str, markdown_content: str = None) -> bool:
+    def detect_equations(self, pdf_path: str, markdown_content: Optional[str] = None) -> bool:
         """
         Detect if PDF contains mathematical equations or formulas.
         Looks for LaTeX math delimiters, Unicode math symbols, and common equation patterns.
@@ -680,7 +680,7 @@ class MultiModalExtractor:
             # Check each page
             for page_num in range(min(len(doc), 50)):  # Check first 50 pages max
                 page = doc[page_num]
-                text = page.get_text()
+                text = str(page.get_text("text"))
                 
                 # Check for LaTeX patterns
                 if re.search(combined_pattern, text):
@@ -715,7 +715,7 @@ class MultiModalExtractor:
             print(f"⚠️ Error during equation detection: {e}")
             return False
     
-    def extract_all(self, pdf_path: str, page_info: List[Dict] = None) -> Dict:
+    def extract_all(self, pdf_path: str, page_info: Optional[List[Dict]] = None) -> Dict:
         """
         Extract all multi-modal content from PDF with layout-aware processing
         
@@ -749,18 +749,6 @@ class MultiModalExtractor:
             'has_equations': has_equations,
             'total_items': len(images) + len(tables)
         }
-        # Detect equations (pass markdown to avoid re-extraction)
-        has_equations = self.detect_equations(pdf_path, markdown_content=markdown_full)
-        
-        print(f"✅ Multi-modal extraction complete: {len(images)} images, {len(tables)} tables, {len(markdown_full)} chars markdown, equations: {has_equations}")
-        
-        return {
-            'images': images,
-            'tables': tables,
-            'markdown_full': markdown_full,  # Full markdown for advanced indexing
-            'has_equations': has_equations,
-            'total_items': len(images) + len(tables)
-        }
     
     def extract_full_markdown(self, pdf_path: str) -> str:
         """
@@ -780,7 +768,8 @@ class MultiModalExtractor:
             print("📄 Using pymupdf4llm for markdown conversion.")
             
             # Convert PDF to markdown optimized for LLMs
-            md_text = pymupdf4llm.to_markdown(pdf_path)
+            raw_md = pymupdf4llm.to_markdown(pdf_path)
+            md_text = raw_md if isinstance(raw_md, str) else str(raw_md)
             
             if md_text:
                 logger.info(f"✅ Extracted {len(md_text)} chars of markdown from PDF")

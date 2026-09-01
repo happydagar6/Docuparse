@@ -4,7 +4,6 @@ DISABLED: All data is stored in database only. Local file storage is not used.
 """
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from fastapi.responses import JSONResponse
 
 from auth_middleware import get_current_user, AuthUser
 

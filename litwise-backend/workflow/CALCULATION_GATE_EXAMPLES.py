@@ -27,8 +27,8 @@ def example_margin_calculation_success():
     
     # Define what inputs are REQUIRED for margin calculation
     gate = CalculationGate(
-        required_inputs=['numerator', 'denominator'],
-        calculation_type='margin'
+        required_inputs=['numerator', 'denominator'], # If these inputs are missing the calculation cannot be performed
+        calculation_type='margin' # Defines the calculation to be performed
     )
     
     # Extracted data from tables (all inputs present)
@@ -42,9 +42,9 @@ def example_margin_calculation_success():
     # Execute with gate
     result = pipeline.execute_gated_calculation(
         gate=gate,
-        extracted_data=extracted_data,
+        extracted_data=extracted_data, # Data extracted from the PDF
         metadata={
-            'label': 'Zone NA UTOP Margin 2024',
+            'label': 'Zone NA UTOP Margin 2024', # LLM will see this text
             'source_page': 20,
             'source_table': 'Note 3.1'
         }
@@ -67,7 +67,7 @@ def example_margin_calculation_success():
     print(f"Result: {result['result'].format_percentage(decimals=2)}")
     print(f"LLM Instruction: {result['llm_instruction']}")
     
-    return result
+    return result;
 
 
 # ========================================
@@ -116,7 +116,7 @@ def example_margin_calculation_blocked():
     print(f"Missing: {result['gate_decision']['missing_inputs']}")
     print(f"LLM Instruction: {result['llm_instruction']}")
     
-    return result
+    return result;
 
 
 # ========================================
@@ -153,7 +153,7 @@ def example_growth_rate_success():
     print("✅ GROWTH RATE - Calculation executed")
     print(f"Result: {result['result'].format_percentage(decimals=2)}")
     
-    return result
+    return result;
 
 
 # ========================================

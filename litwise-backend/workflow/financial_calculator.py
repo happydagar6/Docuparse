@@ -486,7 +486,7 @@ class FinancialCalculator:
         Returns:
             Tuple of (is_valid, actual_sum, message)
         """
-        actual_sum = sum(Decimal(str(v)) for v in values)
+        actual_sum = sum((Decimal(str(v)) for v in values), Decimal('0'))
         expected = Decimal(str(expected_total))
         tol = Decimal(str(tolerance))
         

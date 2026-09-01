@@ -875,7 +875,7 @@ When you see calculations below with different statuses:
         if not row_label or not isinstance(row_label, str):
             return True
         
-        label_lower = str(row_label).lower().strip()
+        label_lower = row_label.lower().strip()
         
         # Descriptor patterns
         descriptor_patterns = [

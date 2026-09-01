@@ -714,7 +714,6 @@ class APAExportService:
             
             # Calculate width based on percentage (standard Word page is 6.5" wide with 1" margins)
             # At 100%, use 6 inches; adjust based on percentage
-            max_width = Inches(6.0)
             actual_width = Inches(6.0 * (width_percent / 100))
             
             try:

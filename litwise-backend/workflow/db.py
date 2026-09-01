@@ -7,7 +7,7 @@ load_dotenv()
 
 # We use the Service Role Key for Supabase to bypass Row Level Security internally.
 # The user's JWT validates authorization at the API route level before reaching here.
-supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+supabase: Client = create_client(os.getenv("SUPABASE_URL", ""), os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))
 
 # We connect to Qdrant Cloud for our Vector Database.
 qdrant = QdrantClient(
@@ -46,7 +46,14 @@ try:
         # Collection exists - verify it's the right size
         try:
             collection_info = qdrant.get_collection("litwise_collection")
-            vector_size = collection_info.config.params.vectors.size
+            vectors_config = collection_info.config.params.vectors
+            
+            if hasattr(vectors_config, "size"):
+                vector_size = vectors_config.size
+            elif isinstance(vectors_config, dict) and "size" in vectors_config:
+                vector_size = vectors_config["size"]
+            else:
+                vector_size = 0
             
             if vector_size == 1536:
                 print(f"✅ Collection exists with correct vector size: {vector_size} (OpenAI text-embedding-3-small compatible)")

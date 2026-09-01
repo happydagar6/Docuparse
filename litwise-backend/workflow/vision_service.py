@@ -5,7 +5,7 @@ Uses GPT-4 Vision to generate detailed descriptions of figures, charts, diagrams
 
 from openai import OpenAI
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import base64
 import asyncio
 import time
@@ -32,7 +32,7 @@ class VisionService:
             Detailed image description
         """
         try:
-            messages = [
+            messages: Any = [
                 {
                     "role": "system",
                     "content": """You are an expert at analyzing scientific figures, charts, and diagrams from research papers.
@@ -71,7 +71,7 @@ Format: "This [type] shows [description]. [Key insights]. [Notable details]."
                 max_completion_tokens=self.max_completion_tokens
             )
             
-            caption = response.choices[0].message.content.strip()
+            caption = (response.choices[0].message.content or "").strip()
             return caption
         
         except Exception as e:
