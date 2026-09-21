@@ -752,41 +752,51 @@ class MultiModalExtractor:
     
     def extract_full_markdown(self, pdf_path: str) -> str:
         """
-        Extract complete document as markdown using pymupdf4llm.
-        This provides the full structured content for MarkdownElementNodeParser.
+        Extract complete document as markdown.
+        Since pymupdf4llm crashes on Windows with Python 3.13 due to onnxruntime,
+        this acts as a safe fallback using basic PyMuPDF extraction.
         
         Returns:
             Full markdown text of the entire document
         """
         logger.info(f"📄 Extracting full markdown from: {pdf_path}")
-        print(f"📄 Extracting full markdown document...")
+        print(f"📄 Extracting full text document...")
         
         try:
-            import pymupdf4llm
+            import pymupdf as fitz
             
-            logger.info("📄 Using pymupdf4llm for markdown conversion...")
-            print("📄 Using pymupdf4llm for markdown conversion.")
+            logger.info("📄 Using direct pymupdf for extraction (safe mode)...")
+            print("📄 Using direct pymupdf for text extraction.")
             
-            # Convert PDF to markdown optimized for LLMs
-            raw_md = pymupdf4llm.to_markdown(pdf_path)
-            md_text = raw_md if isinstance(raw_md, str) else str(raw_md)
+            doc = fitz.open(pdf_path)
+            md_text = ""
+            
+            for page_num, page in enumerate(doc):
+                md_text += f"\n\n## Page {page_num + 1}\n\n"
+                # get_text("text") gets standard text. We can try blocks for better layout.
+                blocks = page.get_text("blocks")
+                for b in blocks:
+                    # block format: (x0, y0, x1, y1, text, block_no, block_type)
+                    # block_type 0 = text, 1 = image
+                    if b[6] == 0:
+                        text = b[4].strip()
+                        if text:
+                            md_text += f"{text}\n\n"
+            
+            doc.close()
             
             if md_text:
-                logger.info(f"✅ Extracted {len(md_text)} chars of markdown from PDF")
-                print(f"✅ Extracted {len(md_text):,} chars of markdown")
+                logger.info(f"✅ Extracted {len(md_text)} chars of text from PDF")
+                print(f"✅ Extracted {len(md_text):,} chars of text")
                 return md_text
             else:
-                logger.warning("⚠️ pymupdf4llm returned empty markdown")
-                print("⚠️ No markdown content extracted")
+                logger.warning("⚠️ pymupdf returned empty text")
+                print("⚠️ No text content extracted")
                 return ""
                 
-        except ImportError:
-            logger.error("pymupdf4llm not installed. Install with: pip install pymupdf4llm")
-            print("❌ pymupdf4llm not installed. Install with: pip install pymupdf4llm")
-            return ""
         except Exception as e:
-            logger.error(f"Failed to extract markdown with pymupdf4llm: {e}")
-            print(f"❌ Failed to extract markdown: {e}")
+            logger.error(f"Failed to extract text with pymupdf: {e}")
+            print(f"❌ Failed to extract text: {e}")
             return ""
 
 

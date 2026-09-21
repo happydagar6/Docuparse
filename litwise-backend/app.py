@@ -336,7 +336,14 @@ async def upload_paper(
         try:
             # Process document using appropriate processor
             print(f"[START] Processing {file_extension} file: {file.filename}")
-            processed_doc = process_document(tmp_path, file_extension, mime_type)
+            # ✅ Run CPU-heavy processing in thread pool to avoid blocking the event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            processed_doc = await loop.run_in_executor(
+                None,  # Use default ThreadPoolExecutor
+                process_document, tmp_path, file_extension, mime_type
+            )
+
 
             # Validate extraction
             if not processed_doc.full_text or len(processed_doc.full_text.strip()) < 10:
@@ -466,12 +473,16 @@ async def upload_paper(
             print(f"✅ Using UNIFIED multi-modal indexing (Text + Images + Tables)")
             from workflow.utils import store_multimodal_embeddings
 
-            store_multimodal_embeddings(
-                text=text,
-                multimodal_content=multimodal_content,
-                metadata=paper_metadata_for_embedding,
-                paper_id=paper_id,
-                page_info=page_info
+            store_multimodal_embeddings_fn = store_multimodal_embeddings
+            await loop.run_in_executor(
+                None,
+                lambda: store_multimodal_embeddings_fn(
+                    text=text,
+                    multimodal_content=multimodal_content,
+                    metadata=paper_metadata_for_embedding,
+                    paper_id=paper_id,
+                    page_info=page_info
+                )
             )
 
             print(f"✅ Multi-modal embeddings stored successfully")

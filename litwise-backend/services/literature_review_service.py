@@ -27,7 +27,13 @@ from openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
-from flashrank import Ranker, RerankRequest
+try:
+    from flashrank import Ranker, RerankRequest
+    FLASHRANK_AVAILABLE = True
+except Exception:
+    FLASHRANK_AVAILABLE = False
+    Ranker = None
+    RerankRequest = None
 from models.literature_review import (
     LiteratureReviewRequest,
     LiteratureReviewResponse,
@@ -109,9 +115,17 @@ class LiteratureReviewService:
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
         # Initialize FlashRank cross-encoder reranker (ms-marco-MiniLM-L-12-v2) for precision scoring
-        print("🔄 Initializing FlashRank reranker...")
-        self.reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="/tmp/flashrank_cache")
-        print("✅ FlashRank reranker initialized")
+        if FLASHRANK_AVAILABLE:
+            try:
+                print("🔄 Initializing FlashRank reranker...")
+                self.reranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="/tmp/flashrank_cache")
+                print("✅ FlashRank reranker initialized")
+            except Exception as e:
+                print(f"⚠️ FlashRank reranker init failed: {e}. Reranking disabled.")
+                self.reranker = None
+        else:
+            print("⚠️ FlashRank/onnxruntime unavailable. Reranking disabled (using vector score order).")
+            self.reranker = None
         
     async def decompose_topic(self, topic: str) -> List[str]:
         """
@@ -246,6 +260,10 @@ Return ONLY a JSON array of 4-6 search query strings. No explanations.
         if not chunks:
             return []
         
+        if self.reranker is None:
+            print(f"   ⚠️ Reranker unavailable, using original vector score order (top {top_k})")
+            return chunks[:top_k]
+
         try:
             # Format passages for FlashRank Reranker
             passages = [

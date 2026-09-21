@@ -13,7 +13,8 @@ supabase: Client = create_client(os.getenv("SUPABASE_URL", ""), os.getenv("SUPAB
 qdrant = QdrantClient(
     os.getenv("QDRANT_URL"), 
     api_key=os.getenv("QDRANT_API_KEY"),
-    timeout=120  # 2 minutes timeout for large uploads
+    timeout=120,  # 2 minutes timeout for large uploads
+    check_compatibility=False  # Suppress version mismatch warning (client works fine with newer server)
 )
 
 # Create Qdrant collection if it doesn't exist
