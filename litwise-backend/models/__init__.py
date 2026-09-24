@@ -2,16 +2,24 @@
 
 # Import paper models
 from .paper import (
+    AuthorInfo,
+    PaperMetadata,
     PaperUpload, 
     PaperSummary,
     SearchFilters,
     SearchQuery, 
+    ParsedQueryInfo,
     ProcessingRequest, 
     ProcessingResponse,
     Theme,
     TimelinePoint,
     TrendsAnalysis,
     TopPaper,
+    ImageContent,
+    TableContent,
+    MultiModalContent,
+    ChunkType,
+    MultiModalChunk,
 )
 
 # Import chat models
@@ -23,18 +31,39 @@ from .export import APAExportRequest, ParagraphContent, ReferenceMetadata
 # Import note models
 from .note import NoteBase, NoteCreate, NoteUpdate, NoteResponse, NoteListResponse
 
+# Import quiz models
+from .quiz import (
+    DifficultyLevel,
+    QuizType,
+    QuizOption,
+    QuizQuestion,
+    QuizConfig,
+    QuizResponse,
+    QuizAttemptRequest,
+    QuizAttemptResponse,
+    QuizListResponse,
+)
+
 # Export all models
 __all__ = [
+    'AuthorInfo',
+    'PaperMetadata',
     'PaperUpload', 
     'PaperSummary',
     'SearchFilters',
     'SearchQuery', 
+    'ParsedQueryInfo',
     'ProcessingRequest', 
     'ProcessingResponse',
     'Theme',
     'TimelinePoint',
     'TrendsAnalysis',
     'TopPaper',
+    'ImageContent',
+    'TableContent',
+    'MultiModalContent',
+    'ChunkType',
+    'MultiModalChunk',
     'ChatMessage',
     'ChatSession', 
     'ChatRequest', 
@@ -47,5 +76,14 @@ __all__ = [
     'NoteCreate',
     'NoteUpdate',
     'NoteResponse',
-    'NoteListResponse'
-]
+    'NoteListResponse',
+    'DifficultyLevel',
+    'QuizType',
+    'QuizOption',
+    'QuizQuestion',
+    'QuizConfig',
+    'QuizResponse',
+    'QuizAttemptRequest',
+    'QuizAttemptResponse',
+    'QuizListResponse',
+]

@@ -7,7 +7,7 @@ from models.citation import (
 )
 from services.citation_services import citation_service
 from workflow.db import supabase
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/citations", tags=["Citations"])
 

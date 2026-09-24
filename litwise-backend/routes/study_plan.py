@@ -4,7 +4,7 @@ from services.study_plan_service import study_plan_service
 from workflow.db import supabase
 from datetime import datetime, timezone
 from typing import cast, List, Optional, Any, Dict
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 from services.rate_limiter_service import rate_limit_dependency
 
 router = APIRouter(prefix="/api/study-plan", tags=["Study Plan"])

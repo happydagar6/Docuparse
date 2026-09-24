@@ -22,11 +22,11 @@ import base64
 # Pydantic models for request/response validation
 from models.chat import ChatSession, ChatRequest, ChatMessage, PaginatedMessages, CreateChatSessionRequest
 # RAG Chat Pipeline instance
-from chat_pipeline import rag_pipeline
+from pipelines import rag_pipeline
 # Supabase database client instance
 from workflow.db import supabase
 # Authentication middleware for JWT verification & route protection
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 
 # Rate limiting service dependency
 from services.rate_limiter_service import rate_limit_dependency

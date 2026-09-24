@@ -4,7 +4,7 @@ from services.literature_review_service import literature_review_service
 from workflow.db import supabase
 from datetime import datetime, timezone
 from typing import cast, List, Any
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/literature-review", tags=["Literature Review"])
 

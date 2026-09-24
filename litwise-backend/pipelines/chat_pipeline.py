@@ -15,8 +15,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
-
 # LangSmith imports
 from langsmith import traceable, Client
 

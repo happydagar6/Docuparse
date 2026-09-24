@@ -9,7 +9,7 @@ from datetime import datetime
 
 from models import APAExportRequest
 from services.apa_export_service import apa_export_service
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 

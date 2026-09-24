@@ -5,7 +5,7 @@ DISABLED: All data is stored in database only. Local file storage is not used.
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 
 router = APIRouter(prefix="/api/media", tags=["media"])
 

@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 import os
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request, Depends
-from auth_middleware import get_current_user, AuthUser
+from middleware.auth_middleware import get_current_user, AuthUser
 
 load_dotenv()
 

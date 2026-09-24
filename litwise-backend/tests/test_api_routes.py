@@ -76,3 +76,18 @@ class TestNotesRoutes:
         # GET /api/notes is a real endpoint
         response = client.options("/api/notes")
         assert response.status_code != 404, "Notes route not found"
+
+
+class TestSearchRoutes:
+    """Test search endpoints"""
+
+    def test_search_routes_registered(self, client):
+        """Test that search route is registered"""
+        response = client.options("/search")
+        assert response.status_code != 404, "Search route not found"
+
+    def test_debug_qdrant_registered(self, client):
+        """Test that debug qdrant route is registered"""
+        response = client.options("/debug/qdrant")
+        assert response.status_code != 404, "Debug Qdrant route not found"
+

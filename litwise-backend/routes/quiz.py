@@ -6,7 +6,7 @@ Endpoints for creating, retrieving, and evaluating quizzes
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, cast, List, Any, Dict
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 from models.quiz import QuizConfig, QuizResponse, QuizAttemptRequest, QuizAttemptResponse
 from services.quiz_service import quiz_service
 from workflow.db import supabase

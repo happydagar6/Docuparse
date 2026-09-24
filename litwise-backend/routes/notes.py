@@ -4,7 +4,7 @@ API endpoints for notes CRUD operations
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from auth_middleware import get_current_user, AuthUser
+from middleware import get_current_user, AuthUser
 from models import NoteCreate, NoteUpdate, NoteResponse, NoteListResponse
 from services.notes_service import NotesService
 from workflow.db import supabase
