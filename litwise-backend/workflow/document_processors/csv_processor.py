@@ -12,6 +12,13 @@ from .base_processor import BaseDocumentProcessor
 from ..utils import sanitize_text
 
 
+# [LITWISE ARCHITECTURE]: CSV & Tabular Data Processor
+# Why we do this: LLMs and vector databases struggle with raw spreadsheets. If you simply dump
+# comma-separated rows into an embedder, the model misses high-level insights (averages, distributions).
+# This processor solves that by:
+# 1. Generating statistical summaries (mean, min, max, std dev) for numeric columns.
+# 2. Creating 'Virtual Pages' (chunks of 100 rows) so citations can cite specific row ranges.
+# 3. Exporting structured table metadata so our Financial RAG pipeline can perform exact math.
 class CSVProcessor(BaseDocumentProcessor):
     """Process CSV files with tabular data."""
     
@@ -20,19 +27,11 @@ class CSVProcessor(BaseDocumentProcessor):
     MAX_FILE_SIZE_MB = 100  # Allow larger data files
     
     def extract_text(self, file_path: str) -> Tuple[str, List[Dict]]:
-        """Convert CSV to searchable text representation.
-        
-        Args:
-            file_path: Path to CSV file
-        
-        Returns:
-            Tuple of (full_text, page_info)
-        
-        Raises:
-            Exception: If CSV parsing fails
-        """
+        """Convert CSV to searchable text representation enriched with statistics."""
         try:
-            # Auto-detect delimiter
+            # [LITWISE RAG LOGIC]: Delimiter Auto-Detection
+            # Why we do this: Users upload both Comma-Separated (.csv) and Tab-Separated (.tsv) files.
+            # Reading the first line lets us adapt dynamically without crashing.
             with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                 first_line = f.readline()
                 delimiter = ',' if ',' in first_line else '\t'
@@ -67,7 +66,10 @@ class CSVProcessor(BaseDocumentProcessor):
             text_parts.append(f"Dataset Summary: {len(df)} rows, {len(df.columns)} columns")
             text_parts.append("")
             
-            # Add column statistics for numeric columns
+            # [LITWISE RAG LOGIC]: Statistical Feature Enrichment
+            # Why we do this: If a user asks "What was the average revenue?", vector search on raw rows
+            # would fail. By pre-computing mean, std, min, and max, the answers to statistical questions
+            # are directly indexed into the vector database!
             numeric_cols = df.select_dtypes(include=['number']).columns
             if len(numeric_cols) > 0:
                 text_parts.append("Numeric Column Statistics:")
@@ -103,15 +105,12 @@ class CSVProcessor(BaseDocumentProcessor):
             self.logger.error(f"CSV extraction failed: {e}")
             raise
     
+    # [LITWISE RAG LOGIC]: Virtual Pages for Spreadsheets
+    # Why we do this: A CSV file has no physical pages. But our frontend citation UI expects a 'page number'.
+    # We partition rows into 100-row blocks: Rows 1-100 = Page 1, Rows 101-200 = Page 2.
+    # This allows the AI to cite: "Source: Page 2 (Rows 101-200)".
     def _create_row_ranges(self, df: pd.DataFrame) -> List[Dict]:
-        """Create page-like ranges for CSV rows.
-        
-        Args:
-            df: Pandas DataFrame
-        
-        Returns:
-            List of page info dicts
-        """
+        """Create page-like ranges for CSV rows."""
         page_info = []
         rows_per_page = 100
         
@@ -139,23 +138,15 @@ class CSVProcessor(BaseDocumentProcessor):
         
         return page_info
     
+    # [LITWISE RAG LOGIC]: Multimodal Table Extraction
+    # Why we do this: For our Financial RAG Pipeline, we need the raw structured data (headers and rows).
+    # Instead of making the LLM parse a text block, we hand it a structured dictionary with headers & values.
     def extract_multimodal(self, file_path: str, page_info: List[Dict] = None) -> Dict:
-        """Extract table structure as multimodal content.
-        
-        Args:
-            file_path: Path to CSV file
-            page_info: Ignored for CSV files
-        
-        Returns:
-            Dict with table structure
-        
-        Raises:
-            Exception: If table extraction fails
-        """
+        """Extract table structure as multimodal content for deterministic calculations."""
         try:
             df = pd.read_csv(file_path, on_bad_lines='skip', low_memory=False)
             
-            # Convert first 50 rows to table format
+            # Convert first 50 rows to table format (list of lists)
             sample_rows = df.head(50).values.tolist()
             
             return {

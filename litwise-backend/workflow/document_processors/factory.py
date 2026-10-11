@@ -12,6 +12,10 @@ from .text_processor import TextProcessor
 from .csv_processor import CSVProcessor
 
 
+# [LITWISE ARCHITECTURE]: Dynamic Processor Registry
+# Why we do this: Instead of hardcoding processor references across API routes,
+# we maintain a central registry. New processors automatically register their supported
+# extensions (.pdf, .txt, .csv, etc.), making the system modular and pluggable.
 class ProcessorRegistry:
     """Registry for all document processors."""
     
@@ -20,11 +24,11 @@ class ProcessorRegistry:
     
     @classmethod
     def _initialize(cls):
-        """Initialize the registry with all processors."""
+        """Initialize the registry with all processors (Lazy Loading)."""
         if cls._initialized:
             return
         
-        # Register all processors
+        # Register core format processors
         cls.register(PDFProcessor)
         cls.register(TextProcessor)
         cls.register(CSVProcessor)
@@ -33,14 +37,7 @@ class ProcessorRegistry:
     
     @classmethod
     def register(cls, processor_class: Type[BaseDocumentProcessor]):
-        """Register a processor class.
-        
-        Args:
-            processor_class: Processor class to register
-        
-        Returns:
-            The processor class (for decorator use)
-        """
+        """Register a processor class against its supported file extensions."""
         for ext in processor_class.SUPPORTED_EXTENSIONS:
             cls._processors[ext.lower()] = processor_class
         return processor_class
@@ -51,24 +48,17 @@ class ProcessorRegistry:
         file_extension: str = None, 
         mime_type: str = None
     ) -> Optional[Type[BaseDocumentProcessor]]:
-        """Get appropriate processor for file type.
-        
-        Args:
-            file_extension: File extension (e.g., '.pdf')
-            mime_type: MIME type (e.g., 'application/pdf')
-        
-        Returns:
-            Processor class or None if not supported
-        """
+        """Get appropriate processor class by file extension or MIME type."""
         cls._initialize()
         
+        # 1. Primary lookup: Match by file extension (e.g., '.pdf')
         if file_extension:
             ext = file_extension.lower()
             if not ext.startswith('.'):
                 ext = '.' + ext
             return cls._processors.get(ext)
         
-        # If only mime type provided, search through all processors
+        # 2. Secondary fallback: Match by MIME type (e.g., 'application/pdf')
         if mime_type:
             for processor_class in set(cls._processors.values()):
                 if processor_class.can_process(mime_type=mime_type):
@@ -78,21 +68,13 @@ class ProcessorRegistry:
     
     @classmethod
     def get_supported_extensions(cls) -> List[str]:
-        """Get list of all supported file extensions.
-        
-        Returns:
-            List of extensions (e.g., ['.pdf', '.txt', '.csv'])
-        """
+        """Get list of all supported file extensions."""
         cls._initialize()
         return sorted(list(cls._processors.keys()))
     
     @classmethod
     def get_supported_mime_types(cls) -> List[str]:
-        """Get list of all supported MIME types.
-        
-        Returns:
-            List of MIME types
-        """
+        """Get list of all supported MIME types."""
         cls._initialize()
         mime_types = set()
         for processor_class in set(cls._processors.values()):
@@ -101,11 +83,7 @@ class ProcessorRegistry:
     
     @classmethod
     def get_processor_info(cls) -> List[Dict]:
-        """Get information about all registered processors.
-        
-        Returns:
-            List of dicts with processor details
-        """
+        """Get diagnostic information about all registered processors."""
         cls._initialize()
         
         info = []
@@ -126,6 +104,10 @@ class ProcessorRegistry:
         return info
 
 
+# [LITWISE ARCHITECTURE]: Factory Entry Point
+# Why we do this: Callers (like routes/papers.py) simply pass a file path here.
+# They never need to write `if file.endswith('.pdf'): ... elif file.endswith('.csv'): ...`.
+# This adheres strictly to the Open/Closed Principle (SOLID).
 def process_document(
     file_path: str, 
     file_extension: str = None, 
@@ -135,25 +117,11 @@ def process_document(
     
     Automatically selects the appropriate processor based on file type
     and processes the document.
-    
-    Args:
-        file_path: Path to the document file
-        file_extension: File extension (e.g., '.pdf')
-        mime_type: MIME type (e.g., 'application/pdf')
-    
-    Returns:
-        ProcessedDocument with extracted content
-    
-    Raises:
-        ValueError: If file type is not supported
-        Exception: If processing fails
-    
-    Example:
-        >>> result = process_document('paper.pdf', file_extension='.pdf')
-        >>> print(f"Extracted {len(result.full_text)} chars")
     """
+    # 1. Query registry for matching processor class
     processor_class = ProcessorRegistry.get_processor(file_extension, mime_type)
     
+    # 2. Reject unsupported file formats with a clear, helpful error message
     if not processor_class:
         supported = ProcessorRegistry.get_supported_extensions()
         raise ValueError(
@@ -161,7 +129,7 @@ def process_document(
             f"Supported formats: {', '.join(supported)}"
         )
     
-    # Create processor instance and process document
+    # 3. Instantiate the selected processor and execute its Template Method pipeline
     processor = processor_class()
     return processor.process(file_path)
 

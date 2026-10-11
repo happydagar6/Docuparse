@@ -108,6 +108,15 @@ class MessageCacheService:
         """Generates key for tracking cached message volume per session."""
         return f"{CACHE_KEY_PREFIX}:{session_id}:size"
 
+    # =========================================================================
+    # [LITWISE ARCHITECTURE]: CACHE-ASIDE READ (Cache Get)
+    # How it works:
+    # 1. The application generates the specific cache key.
+    # 2. Queries Redis first.
+    # 3. If found (Cache HIT) -> returns deserialized data immediately.
+    # 4. If not found (Cache MISS) -> returns None so caller can query DB.
+    # 5. If Redis errors out -> returns None (Graceful Degradation to DB).
+    # =========================================================================
     def get(
         self,
         session_id: str,
@@ -155,6 +164,13 @@ class MessageCacheService:
             serialized.append(serialized_msg)
         return serialized
 
+    # =========================================================================
+    # [LITWISE ARCHITECTURE]: CACHE-ASIDE WRITE (Cache Populate)
+    # How it works:
+    # After a Cache MISS, the application queries PostgreSQL, formats the results,
+    # and calls `set()`. The data is stored in Redis with an auto-expiring TTL (24h)
+    # using Redis `SETEX` so old chat history eventually expires automatically.
+    # =========================================================================
     def set(
         self,
         session_id: str,
@@ -209,6 +225,13 @@ class MessageCacheService:
             logger.error(f"❌ Error setting cache: {e}")
             return False
 
+    # =========================================================================
+    # [LITWISE ARCHITECTURE]: CACHE-ASIDE INVALIDATION (Purge on Write)
+    # How it works:
+    # When a new message arrives, old cached pages are now out of date.
+    # We find all keys matching `messages:{session_id}:*` and delete them.
+    # The next read will result in a fresh Cache MISS and re-read from PostgreSQL.
+    # =========================================================================
     def invalidate_session(self, session_id: str) -> bool:
         """
         Invalidates (deletes) all Redis keys for a specific chat session.

@@ -116,8 +116,19 @@ async def get_paginated_chat_messages(
     try:
         supabase_client = supabase
         
+        # =====================================================================
+        # [LITWISE ARCHITECTURE]: CACHE-ASIDE PATTERN (Step-by-Step)
+        # Why it's called "Cache-Aside": The application code sits between the cache
+        # and the database. The app checks Redis "on the side":
+        # 1. Look in Cache first.
+        # 2. If HIT -> Return immediately (sub-5ms response).
+        # 3. If MISS -> Read from PostgreSQL database, populate Cache, then return.
+        # 4. On write/insert -> Invalidate (delete) cache so stale data is never served.
+        # =====================================================================
+        
         # ---------------------------------------------------------------------
-        # STEP 1: Verify Session & Paper Ownership (Cached in Redis)
+        # STEP 1: Verify Session & Paper Ownership (Cached in Redis - 15m TTL)
+        # Why we cache this: Avoids 2 expensive SQL JOIN/SELECT queries on every scroll.
         # ---------------------------------------------------------------------
         paper_id = get_cached_session_paper(session_id)
         if paper_id is None:
@@ -142,11 +153,12 @@ async def get_paginated_chat_messages(
             raise HTTPException(status_code=403, detail="Access denied")
         
         # ---------------------------------------------------------------------
-        # STEP 2: Check Redis Cache for Paginated Results (L2 Cache)
+        # STEP 2: Cache-Aside Read: Check Redis for Paginated Messages (L2 Cache)
+        # Key format: `messages:{session_id}:{limit}:{direction}:{cursor}`
         # ---------------------------------------------------------------------
         cached_result = cache_get(session_id, limit, cursor, direction)
         if cached_result:
-            # Cache Hit: Instantly return without hitting PostgreSQL DB!
+            # ⚡ CACHE HIT: Return data immediately without touching PostgreSQL!
             return PaginatedMessages(
                 messages=[ChatMessage(**msg) for msg in cached_result["messages"]],
                 has_more=cached_result["has_more"],
@@ -155,7 +167,8 @@ async def get_paginated_chat_messages(
             )
         
         # ---------------------------------------------------------------------
-        # STEP 3: Cache Miss -> Query PostgreSQL Database (Supabase)
+        # STEP 3: CACHE MISS -> Query PostgreSQL Database (Supabase)
+        # If not in Redis, we run the real SQL query on the database.
         # ---------------------------------------------------------------------
         query = supabase_client.table("chat_messages").select("*", count=cast(Any, "exact")).eq("session_id", session_id)
         
@@ -211,7 +224,9 @@ async def get_paginated_chat_messages(
             next_cursor = base64.b64encode(json.dumps(cursor_payload).encode()).decode()
         
         # ---------------------------------------------------------------------
-        # STEP 4: Save Query Result into Redis L2 Cache
+        # STEP 4: Cache-Aside Write: Save Query Result into Redis L2 Cache
+        # Why we do this: The next time the user or frontend requests this exact page,
+        # it will HIT Redis and skip PostgreSQL completely (24-hour TTL).
         # ---------------------------------------------------------------------
         messages_dict = [msg.model_dump() for msg in messages]
         cache_set(
@@ -427,7 +442,9 @@ async def stream_chat(
         }
         supabase_client.table("chat_messages").insert(user_message_data).execute()
         
-        # Invalidate stale Redis cache since a new message arrived
+        # [LITWISE CACHE-ASIDE PATTERN]: Invalidate on Write
+        # Why we do this: In Cache-Aside, when new data is written to the DB, the cache
+        # must be purged so future read queries don't return stale/outdated message lists.
         cache_invalidate(session_id)
         
         # ---------------------------------------------------------------------

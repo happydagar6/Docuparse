@@ -15,6 +15,12 @@ from ..utils import sanitize_text
 warnings.filterwarnings('ignore', category=PyPDF2.errors.PdfReadWarning)
 
 
+# [LITWISE ARCHITECTURE]: PDF Processor Implementation
+# Why we do this: PDFs are the most complex document type in academic and enterprise RAG.
+# They require 3 distinct capabilities:
+# 1. Clean character-level text extraction with exact page boundaries.
+# 2. Multimodal table and image extraction for layout awareness.
+# 3. Robust handling of encryption and corrupt binary characters.
 class PDFProcessor(BaseDocumentProcessor):
     """Process PDF documents - maintains existing multimodal capabilities."""
     
@@ -23,22 +29,14 @@ class PDFProcessor(BaseDocumentProcessor):
     MAX_FILE_SIZE_MB = 35
     
     def extract_text(self, file_path: str) -> Tuple[str, List[Dict]]:
-        """Extract text using PyPDF2 (existing implementation).
-        
-        Args:
-            file_path: Path to PDF file
-        
-        Returns:
-            Tuple of (full_text, page_info)
-        
-        Raises:
-            Exception: If PDF extraction fails or is encrypted without password
-        """
+        """Extract text using PyPDF2 with character offset tracking."""
         try:
             with open(file_path, "rb") as f:
                 reader = PyPDF2.PdfReader(f)
                 
-                # Handle encryption
+                # [LITWISE RAG LOGIC]: Decryption Fallback
+                # Why we do this: Many published research papers are 'encrypted' with an empty password
+                # (printing/editing restrictions). Trying empty password decrypts them without crashing.
                 if reader.is_encrypted:
                     self.logger.warning("PDF is encrypted, attempting decryption")
                     try:
@@ -54,14 +52,20 @@ class PDFProcessor(BaseDocumentProcessor):
                 
                 self.logger.info(f"PDF contains {len(reader.pages)} pages")
                 
+                # [LITWISE RAG LOGIC]: Character Offset Page Tracking
+                # Why we do this: When an LLM cites "Page 4", how does it know where Page 4 was?
+                # We record start_pos and end_pos string indices for every page.
+                # When a text chunk is retrieved from Qdrant, we match its string position to these
+                # page boundaries to provide 100% verified citations.
                 for page_num, page in enumerate(reader.pages, 1):
                     page_text = page.extract_text()
-                    # Sanitize text to remove null bytes and control characters
+                    
+                    # Sanitize text: vacuum out null bytes (\x00) that crash Postgres/Qdrant
                     page_text = sanitize_text(page_text)
                     
                     start_pos = len(full_text)
                     full_text += page_text + "\n"  # Add page break
-                    end_pos = len(full_text) - 1  # Don't include the newline in range
+                    end_pos = len(full_text) - 1  # Exclude trailing newline
                     
                     page_info.append({
                         "page_num": page_num,
@@ -80,19 +84,11 @@ class PDFProcessor(BaseDocumentProcessor):
             self.logger.error(f"PDF extraction failed: {e}")
             raise
     
+    # [LITWISE RAG LOGIC]: Multimodal Extraction (Tables & Images)
+    # Why we do this: Traditional RAG ignores tables and diagrams.
+    # We pass the page_info to multimodal_extractor so tables are captured with their page coordinates.
     def extract_multimodal(self, file_path: str, page_info: List[Dict] = None) -> Dict:
-        """Extract images and tables using existing multimodal_extractor with layout awareness.
-        
-        Args:
-            file_path: Path to PDF file
-            page_info: Page information for layout-aware processing (page-span detection)
-        
-        Returns:
-            Dict with 'images', 'tables', 'has_equations' keys
-        
-        Raises:
-            Exception: If multimodal extraction fails
-        """
+        """Extract images and tables with layout awareness."""
         from ..multimodal_extractor import multimodal_extractor
         
         self.logger.info("Extracting multimodal content (images, tables) with layout awareness")
@@ -106,21 +102,13 @@ class PDFProcessor(BaseDocumentProcessor):
         
         return multimodal_content
     
+    # [LITWISE RAG LOGIC]: Native Metadata Extraction with IndirectObject Safe String Conversion
+    # Why we do this: PyPDF2 often returns 'IndirectObject' pointers instead of strings.
+    # If saved directly to JSON, the API will crash with TypeError: Object of type IndirectObject is not JSON serializable.
+    # Our _safe_str resolver ensures all fields are clean Python strings.
     def extract_metadata(self, file_path: str) -> Dict:
-        """Extract PDF metadata using PyPDF2 (synchronous fallback).
-        
-        Args:
-            file_path: Path to PDF file
-        
-        Returns:
-            Dict with title, authors, publication_year, doi, journal, etc.
-        
-        Raises:
-            Exception: If metadata extraction fails
-        """
+        """Extract PDF metadata using PyPDF2."""
         try:
-            import PyPDF2
-            
             self.logger.info("Extracting metadata from PDF")
             
             metadata = {
@@ -134,22 +122,15 @@ class PDFProcessor(BaseDocumentProcessor):
                 'extraction_source': 'pypdf2'
             }
             
-            # Extract metadata from PDF
             try:
                 with open(file_path, 'rb') as pdf_file:
                     pdf_reader = PyPDF2.PdfReader(pdf_file)
                     
-                    # Extract PDF metadata if available
                     if pdf_reader.metadata:
                         pdf_meta = pdf_reader.metadata
 
                         def _safe_str(val) -> str | None:
-                            """
-                            Convert any PyPDF2 value (including IndirectObject) to a plain
-                            Python string.  IndirectObject is a lazy reference that is NOT
-                            JSON-serializable; str() resolves it to its actual value.
-                            Returns None for blank/missing values.
-                            """
+                            """Convert IndirectObject pointers into JSON-serializable strings."""
                             if val is None:
                                 return None
                             resolved = str(val).strip()
@@ -163,7 +144,6 @@ class PDFProcessor(BaseDocumentProcessor):
                         metadata['authors'] = [{'name': raw_author}] if raw_author else []
                         metadata['keywords'] = [k.strip() for k in raw_keywords.split(',') if k.strip()] if raw_keywords else []
 
-                    # Note: ⚠️ For full AI-powered extraction, use async api in RAG pipeline
                     self.logger.debug(f"Extracted {len(pdf_reader.pages)} pages from PDF")
             
             except Exception as e:
@@ -171,8 +151,6 @@ class PDFProcessor(BaseDocumentProcessor):
             
             return metadata
 
-        
         except Exception as e:
             self.logger.debug(f"Metadata extraction failed: {e} - continuing without metadata")
-            # Return empty dict - metadata is optional
             return {}
