@@ -1,1 +1,8 @@
-{"venvPath": ".", "venv": "myenv"}
+{
+  "venvPath": ".",
+  "venv": "myenv",
+  "extraPaths": [
+    ".",
+    "myenv/Lib/site-packages"
+  ]
+}
