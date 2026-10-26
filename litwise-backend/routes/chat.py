@@ -22,7 +22,7 @@ import base64
 # Pydantic models for request/response validation
 from models.chat import ChatSession, ChatRequest, ChatMessage, PaginatedMessages, CreateChatSessionRequest
 # RAG Chat Pipeline instance
-from pipelines import rag_pipeline
+from services.rag.generator import rag_generator
 # Supabase database client instance
 from workflow.db import supabase
 # Authentication middleware for JWT verification & route protection
@@ -457,7 +457,7 @@ async def stream_chat(
                 sources = []
                 
                 # Consume live tokens from RAG pipeline generator
-                async for chunk in rag_pipeline.chat_stream(
+                async for chunk in rag_generator.chat_stream(
                     question=request.message,
                     session_id=session_id,
                     paper_id=paper_id

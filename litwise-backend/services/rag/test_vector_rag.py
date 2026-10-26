@@ -83,26 +83,20 @@ async def main():
     # --- STEP 1.4: LIVE STREAMING GENERATION (GPT-6-LUNA) ---
     print("\n--- [C] LIVE STREAMING GENERATION (STEP 1.4: GPT-6-LUNA) ---")
     from services.rag.generator import rag_generator
-    import json
 
     print(f"🤖 Invoking gpt-6-luna for: '{question}'\n")
     print("AI Answer: ", end="", flush=True)
 
     sources_received = []
-    async for sse_chunk in rag_generator.chat_stream(query=question, paper_id=sample_paper_id):
-        if sse_chunk.startswith("data: "):
-            try:
-                payload = json.loads(sse_chunk[6:].strip())
-                if payload.get("type") == "token":
-                    print(payload.get("content", ""), end="", flush=True)
-                elif payload.get("type") == "sources":
-                    sources_received = payload.get("sources", [])
-                elif payload.get("type") == "complete":
-                    print("\n\n✅ [SSE COMPLETE EVENT RECEIVED]")
-                elif payload.get("type") == "error":
-                    print(f"\n❌ [SSE ERROR]: {payload.get('error')}")
-            except Exception as parse_err:
-                pass
+    async for chunk in rag_generator.chat_stream(query=question, paper_id=sample_paper_id):
+        if chunk.get("type") == "token":
+            print(chunk.get("content", ""), end="", flush=True)
+        elif chunk.get("type") == "sources":
+            sources_received = chunk.get("sources", [])
+        elif chunk.get("type") == "complete":
+            print("\n\n✅ [COMPLETE EVENT RECEIVED]")
+        elif chunk.get("type") == "error":
+            print(f"\n❌ [ERROR]: {chunk.get('error')}")
 
     print(f"\n📚 Verified Sources Attached: {len(sources_received)} citation(s)")
     for s in sources_received:

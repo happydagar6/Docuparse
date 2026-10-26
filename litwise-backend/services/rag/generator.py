@@ -6,10 +6,10 @@ This module handles the final Generation and Streaming phase of the RAG pipeline
 1. Retrieves top-ranked chunks using the HybridRetriever (Step 1.3).
 2. Formats a grounded, anti-hallucination academic prompt with exact page markers.
 3. Invokes OpenAI's `gpt-6-luna` with real-time streaming enabled (`stream=True`).
-4. Yields Server-Sent Events (SSE) formatted chunks (`data: {...}\n\n`) for the Next.js frontend:
+4. Yields pure Python dictionaries for the FastAPI route:
    - Token chunks: `{"type": "token", "content": "..."}`
    - Source citations: `{"type": "sources", "sources": [...]}`
-   - Complete signal: `{"type": "complete"}`
+   - Complete signal: `{"type": "complete", "content": ""}`
 """
 
 import os
@@ -42,7 +42,7 @@ CORE RULES:
 class ResponseGenerator:
     """
     RAG Response Generator responsible for prompt compilation,
-    streaming LLM completion with gpt-6-luna, and SSE formatting.
+    streaming LLM completion with gpt-6-luna, and dictionary chunk yielding.
     """
 
     def __init__(self, model_name: str = "gpt-6-luna", retriever=hybrid_retriever):
@@ -110,61 +110,88 @@ class ResponseGenerator:
 
     async def chat_stream(
         self,
-        query: str,
+        question: Optional[str] = None,
+        query: Optional[str] = None,
         paper_id: Optional[str] = None,
+        session_id: Optional[str] = None,
         chat_history: Optional[List[Dict[str, str]]] = None,
         top_k: int = 5
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Main streaming generator:
-        1. Retrieves relevant passages via HybridRetriever.
-        2. Compiles grounded prompt.
-        3. Streams tokens from gpt-6-luna using Server-Sent Events (SSE).
-        4. Yields structured sources metadata upon completion.
+        1. Resolves query from either `question` or `query` parameter.
+        2. Automatically loads multi-turn history from Supabase if session_id is provided.
+        3. Retrieves relevant passages via HybridRetriever (Step 1.3).
+        4. Streams pure Python dictionaries (tokens, sources, complete) for the FastAPI route.
         """
-        try:
-            logger.info(f"🚀 Starting RAG chat stream for query: '{query}' (paper_id={paper_id})")
+        user_query = (question or query or "").strip()
+        if not user_query:
+            logger.warning("Empty query received in chat_stream")
+            return
 
-            # 1. Retrieve relevant chunks using Hybrid Search (BM25 + Vectors + Re-ranking)
+        try:
+            logger.info(f"🚀 Starting RAG chat stream for query: '{user_query}' (paper_id={paper_id}, session_id={session_id})")
+
+            # 1. Multi-turn memory: load last 6 messages from Supabase if session_id provided and chat_history empty
+            if session_id and not chat_history:
+                try:
+                    from workflow.db import supabase
+                    history_res = supabase.table("chat_messages")\
+                        .select("role, content")\
+                        .eq("session_id", session_id)\
+                        .order("created_at", desc=False)\
+                        .limit(6)\
+                        .execute()
+                    
+                    raw_messages = cast(List[Dict[str, Any]], history_res.data or [])
+                    chat_history = [
+                        {"role": str(msg.get("role")), "content": str(msg.get("content"))}
+                        for msg in raw_messages
+                        if msg.get("role") in ["user", "assistant"] and msg.get("content")
+                    ]
+                except Exception as history_err:
+                    logger.warning(f"Could not load conversation history for session {session_id}: {history_err}")
+                    chat_history = []
+
+            # 2. Retrieve relevant chunks using Hybrid Search (BM25 + Vectors + Re-ranking)
             retrieved_chunks = await self.retriever.retrieve(
-                query=query,
+                query=user_query,
                 paper_id=paper_id,
                 top_k=top_k
             )
 
-            # 2. Format the retrieved context passages
+            # 3. Format the retrieved context passages
             context_block = self._build_context_block(retrieved_chunks)
 
-            # 3. Build messages array for OpenAI
+            # 4. Build messages array for OpenAI
             messages = self._format_messages(
-                query=query,
+                query=user_query,
                 context_block=context_block,
                 chat_history=chat_history
             )
 
-            # 4. Invoke OpenAI streaming completion with gpt-6-luna
+            # 5. Invoke OpenAI streaming completion with gpt-6-luna
             response_stream = cast(
                 AsyncStream[ChatCompletionChunk],
                 await self.client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
                     stream=True,
-                    reasoning_effort="medium"
+                    reasoning_effort="medium",
                 )
             )
 
-            # 5. Stream tokens word-by-word as they arrive
+            # 6. Stream tokens word-by-word as pure dictionaries
             async for chunk in response_stream:
                 if chunk.choices and len(chunk.choices) > 0:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
-                        token_payload = json.dumps({
+                        yield {
                             "type": "token",
                             "content": delta.content
-                        })
-                        yield f"data: {token_payload}\n\n"
+                        }
 
-            # 6. Prepare and yield verified source citations for the frontend
+            # 7. Prepare and yield verified source citations for the frontend
             sources_list = []
             for chunk in retrieved_chunks:
                 sources_list.append({
@@ -174,25 +201,25 @@ class ResponseGenerator:
                     "content": chunk.get("content", "")[:300]  # First 300 chars for preview
                 })
 
-            sources_payload = json.dumps({
+            yield {
                 "type": "sources",
                 "sources": sources_list
-            })
-            yield f"data: {sources_payload}\n\n"
+            }
 
-            # 7. Signal completion to the frontend reader
-            complete_payload = json.dumps({"type": "complete"})
-            yield f"data: {complete_payload}\n\n"
+            # 8. Signal completion to the FastAPI route
+            yield {
+                "type": "complete",
+                "content": ""
+            }
 
-            logger.info(f"✅ RAG stream completed successfully for query: '{query}'")
+            logger.info(f"✅ RAG stream completed successfully for query: '{user_query}'")
 
         except Exception as e:
             logger.error(f"❌ Error during RAG streaming: {e}")
-            error_payload = json.dumps({
+            yield {
                 "type": "error",
                 "error": str(e)
-            })
-            yield f"data: {error_payload}\n\n"
+            }
 
 
 # Singleton instance ready for application-wide use

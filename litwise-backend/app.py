@@ -9,7 +9,6 @@ from models import (
     ProcessingResponse,
 )
 from pipelines import graph_app, get_async_pipeline
-from workflow.utils import store_embedding, extract_multimodal_from_pdf, store_multimodal_embeddings
 from workflow.db import supabase
 from typing import Optional, List, Dict, Any, cast
 import os
@@ -25,6 +24,11 @@ from middleware.rate_limit_middleware import RateLimitMiddleware
 
 # Import cache service to verify initialization
 from services.message_cache_service import message_cache_service
+
+# Import clean RAG pipeline services
+from services.rag.ingestion import document_ingestion_service
+from services.rag.vector_store import vector_store_service
+from services.rag.retriever import hybrid_retriever
 
 # Import all the routes here
 from routes.chat import router as chat_router
@@ -455,53 +459,32 @@ async def upload_paper(
             "authors": paper_metadata.get("authors", []),
             "publication_year": paper_metadata.get("publication_year"),
         }
+        
+        # ✅ NEW RAG PIPELINE: Chunking, Vector Storage & BM25 Indexing
         try:
-            print(f"🚀 Storing embeddings for paper: {paper_id}")
+            print(f"🚀 [RAG] Processing embeddings & index for paper: {paper_id}")
 
-            # ✅ UNIFIED MULTI-MODAL INDEXING STRATEGY
-            # ------------------------------------------------------------------------------
-            # This approach creates embeddings ONCE for all content types:
-            #   • Text chunks: Recursive chunking for semantic search
-            #   • Images: Vision API captions embedded for visual content retrieval  
-            #   • Tables: PyMuPDF + pymupdf4llm extraction (smart chunking for large tables)
-            #
-            # Previous HYBRID approach created DUPLICATE embeddings:
-            #   - Markdown parser extracted tables → 18 embeddings
-            #   - Multimodal also extracted tables → 54 embeddings  
-            #   - Total waste: ~100 duplicate embeddings per document
-            #
-            # Current unified approach eliminates ALL duplication while preserving quality.
-            # ------------------------------------------------------------------------------
-            print(f"✅ Using UNIFIED multi-modal indexing (Text + Images + Tables)")
-            from workflow.utils import store_multimodal_embeddings
-
-            store_multimodal_embeddings_fn = store_multimodal_embeddings
-            await loop.run_in_executor(
-                None,
-                lambda: store_multimodal_embeddings_fn(
-                    text=text,
-                    multimodal_content=multimodal_content,
-                    metadata=paper_metadata_for_embedding,
-                    paper_id=paper_id,
-                    page_info=page_info
-                )
+            # 1. Chunk document with exact page number mapping
+            chunks = document_ingestion_service.chunk_document(
+                text=text,
+                paper_id=paper_id,
+                page_info=page_info,
+                extra_metadata=paper_metadata_for_embedding,
             )
+            print(f"   ✅ [RAG] Generated {len(chunks)} chunks with PDF page attribution")
 
-            print(f"✅ Multi-modal embeddings stored successfully")
-            print(f"   📝 Text chunks: processed")
-            print(f"   🖼️  Images: {len(multimodal_content.get('images', []))}")
-            print(f"   📊 Tables: {len(multimodal_content.get('tables', []))}")
+            # 2. Embed with OpenAI text-embedding-3-small & upsert to Qdrant Cloud
+            if chunks:
+                upserted_count = await vector_store_service.upsert_chunks(chunks)
+                print(f"   ✅ [RAG] Upserted {upserted_count} vectors into Qdrant Cloud")
+
+                # 3. Build in-memory BM25 index for instant hybrid search
+                hybrid_retriever.index_paper(paper_id=paper_id, chunks=chunks)
+                print(f"   ✅ [RAG] In-memory BM25 index ready for paper: {paper_id}")
 
         except Exception as e:
-            print(f"[WARNING] Primary embedding storage failed: {e}")
-            print(f"   Falling back to text-only embeddings...")
-            # Fallback to text-only if everything else fails
-            try:
-                store_embedding(text, paper_metadata_for_embedding, paper_id, "basic", page_info)
-                print(f"✅ Fallback: Text-only embeddings stored")
-            except Exception as fallback_e:
-                print(f"❌ Even text-only embedding failed: {fallback_e}")
-                # Don't fail the upload if embeddings fail - user can retry processing
+            print(f"⚠️ [RAG] Embedding/Indexing failed for paper {paper_id}: {e}")
+            # We log the warning but don't crash the upload response so the user can still access their paper
 
         # AUTO-EXTRACT CITATIONS (Enhanced Citation Manager Feature)
         citations_extracted = 0
